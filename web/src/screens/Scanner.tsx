@@ -10,6 +10,8 @@ import { decide, findLikelyMistype, normalize, type Decision } from "../lib/deci
 import { feedback } from "../lib/feedback";
 import * as store from "../lib/store";
 import * as Icon from "../onboarding/Icons";
+import { Recent } from "./Recent";
+import * as sync from "../lib/sync";
 
 /** Der Suchrahmen, in Anteilen der angezeigten Fläche. Flach wie das Etikett,
  *  aber großzügig: Je größer der Rahmen, desto weiter weg darf das Ticket
@@ -30,6 +32,17 @@ export function Scanner({ session }: { session: store.Session }) {
   const canvas = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const consensus = useRef(new Consensus());
   const busy = useRef(false);
+  // Getrennt vom Arbeitszustand: Endet ein laufendes Einzelbild, während der
+  // Bestätigungsschritt offen ist, setzte `busy` die Erkennung sonst wieder in
+  // Gang und das nächste Ticket funkte dazwischen.
+  const paused = useRef(false);
+  const narrow = useRef(true);
+
+  // Nur Nummern annehmen, die tatsächlich verkauft wurden. Diese Prüfung schon
+  // während der Erkennung vorzunehmen ist der wirksamste Filter überhaupt: Von
+  // allem, was die Kamera sonst noch aufschnappt — Preis, Datum, Hotline,
+  // Schriftzug — bleibt nichts übrig.
+  const known = useRef<(code: string) => boolean>(() => false);
 
   const [view, setView] = useState<View>({ at: "scan" });
   const [keypad, setKeypad] = useState(false);
@@ -47,11 +60,17 @@ export function Scanner({ session }: { session: store.Session }) {
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [source, setSource] = useState<{ w: number; h: number } | null>(null);
   const [reachable, setReachable] = useState(false);
+  const [showRecent, setShowRecent] = useState(false);
 
   useEffect(() => {
     void (async () => {
       setWidth(await store.get<number>("codeWidth") ?? 5);
       setPrefix(await store.get<string>("codePrefix") ?? "");
+
+      // Einmal in den Arbeitsspeicher: Ein Nachschlagen je Einzelbild gegen die
+      // Datenbank wäre bei drei Bildern je Sekunde spürbar.
+      const codes = new Set((await store.allTickets()).map((t) => t.code));
+      known.current = (code) => codes.has(code);
     })();
   }, []);
 
@@ -90,6 +109,15 @@ export function Scanner({ session }: { session: store.Session }) {
       decision.likelyMistype = findLikelyMistype(
         code, await store.allTickets(), session.deviceId,
       );
+    }
+
+    if (decision.verdict !== "ok") {
+      // Auch das Abgewiesene gehört ins Protokoll: Wer später klärt, muss
+      // sehen, dass hier jemand stand.
+      void store.remember({
+        scanId: crypto.randomUUID(), code, at: new Date().toISOString(),
+        verdict: decision.verdict,
+      });
     }
 
     if (decision.verdict === "ok") {
@@ -153,17 +181,25 @@ export function Scanner({ session }: { session: store.Session }) {
 
         // Nur lesen, wenn gerade auch gescannt wird — nicht im
         // Bestätigungsschritt und nicht, während schon ein Bild läuft.
-        if (busy.current || !video.current || video.current.readyState < 2) return;
+        if (paused.current || busy.current) return;
+        if (!video.current || video.current.readyState < 2) return;
         busy.current = true;
         try {
-          const frame = prepareFrame(video.current, ROI, canvas.current);
+          // Abwechselnd eingegrenzt und ganzflächig. Findet die Eingrenzung
+          // einmal die falsche Stelle, fängt der nächste Durchgang es auf —
+          // ein Erkenner, der danebenliegt, ist schlechter als gar keiner.
+          narrow.current = !narrow.current;
+
+          const frame = prepareFrame(video.current, ROI, canvas.current, narrow.current);
           setBox(frame.box);
           setSource(frame.source);
 
-          const reading = await readFrame(frame.canvas, width);
-          setSighted(reading);
+          const codes = await readFrame(frame.canvas, width, known.current);
+          setSighted(codes[0] ?? null);
 
-          const hit = consensus.current.offer(reading);
+          // Mehrere Treffer in einem Bild heißt: Es ist nicht eindeutig, welche
+          // Nummer gemeint war. Dann lieber weiterlesen als raten.
+          const hit = consensus.current.offer(codes.length === 1 ? codes[0] : null);
           if (hit) {
             consensus.current.reset();
             setSighted(null);
@@ -191,7 +227,7 @@ export function Scanner({ session }: { session: store.Session }) {
   // Während Bestätigung und Ergebnis pausiert die Erkennung, damit nicht das
   // nächste Ticket dazwischenfunkt.
   useEffect(() => {
-    busy.current = view.at !== "scan";
+    paused.current = view.at !== "scan";
     if (view.at === "scan") { consensus.current.reset(); setSighted(null); setBox(null); }
   }, [view]);
 
@@ -208,8 +244,11 @@ export function Scanner({ session }: { session: store.Session }) {
       }]);
     }
 
+    const scanId = crypto.randomUUID();
+    await store.remember({ scanId, code, at: now, verdict: "ok" });
+
     await store.enqueue({
-      scanId: crypto.randomUUID(),
+      scanId,
       code, clientTs: now, action: "redeem",
       // Auch hier gilt: Maßstab ist der letzte echte Serverkontakt, nicht das,
       // was der Browser über seine Netzwerkschnittstelle meint.
@@ -223,10 +262,12 @@ export function Scanner({ session }: { session: store.Session }) {
     feedback.ok();
   }
 
-  function backToScan() {
+  // Als useCallback, damit die Zeitschaltung in der Ergebnisanzeige nicht bei
+  // jedem Neuzeichnen der Leiste von vorn beginnt.
+  const backToScan = useCallback(() => {
     setTyped("");
     setView({ at: "scan" });
-  }
+  }, []);
 
   // --------------------------------------------------------------- Darstellung --
 
@@ -275,6 +316,13 @@ export function Scanner({ session }: { session: store.Session }) {
         <button type="button" className="btn" onClick={() => { setKeypad(!keypad); setTyped(""); }}>
           {keypad ? <><Icon.Camera /> Kamera</> : <><Icon.Keypad /> Tastatur</>}
         </button>
+        <button
+          type="button" className="btn"
+          onClick={() => setShowRecent(true)}
+          aria-label="Letzte Vorgänge"
+        >
+          <Icon.Tear />
+        </button>
         <span className="scanner-state">
           {session.label}
           {pending > 0
@@ -288,7 +336,17 @@ export function Scanner({ session }: { session: store.Session }) {
       {view.at === "confirm" && (
         <Confirm decision={view.decision} onYes={() => void redeem(view.decision)} onNo={backToScan} />
       )}
-      {view.at === "result" && <Result decision={view.decision} onDone={backToScan} />}
+      {view.at === "result" && (
+        <Result
+          decision={view.decision}
+          onDone={backToScan}
+          onRelease={async (code, reason) => {
+            await sync.undo(code, reason);
+            backToScan();
+          }}
+        />
+      )}
+      {showRecent && <Recent onClose={() => setShowRecent(false)} />}
     </div>
   );
 }
@@ -315,7 +373,11 @@ function Confirm({ decision, onYes, onNo }: {
 
 // ---------------------------------------------------------------- Ergebnis --
 
-function Result({ decision, onDone }: { decision: Decision; onDone: () => void }) {
+function Result({ decision, onDone, onRelease }: {
+  decision: Decision;
+  onDone: () => void;
+  onRelease: (code: string, reason: string) => Promise<void>;
+}) {
   // Grün verschwindet von selbst — bei den anderen beiden soll jemand
   // hinsehen und entscheiden.
   useEffect(() => {
@@ -353,6 +415,8 @@ function Result({ decision, onDone }: { decision: Decision; onDone: () => void }
   }
 
   const at = decision.ticket?.redeemedAt;
+  const trace = decision.likelyMistype;
+
   return (
     <div className="sheet warn full overlay">
       <p className="sheet-label">Bereits eingelöst</p>
@@ -361,13 +425,13 @@ function Result({ decision, onDone }: { decision: Decision; onDone: () => void }
         {at ? `Eingelöst um ${time(at)} Uhr` : "Zeitpunkt unbekannt"}
       </p>
 
-      {decision.likelyMistype && (
+      {trace && (
         <div className="trace">
           <p className="trace-label">Möglicher Erfassungsfehler</p>
           <p>
-            Um {time(decision.likelyMistype.at)} wurde an diesem Gerät{" "}
-            <b>{group(decision.likelyMistype.code)}</b> erfasst — eine Ziffer
-            Unterschied. Wahrscheinlich war dieses Ticket gemeint.
+            Um {time(trace.at)} wurde an diesem Gerät{" "}
+            <b>{group(trace.code)}</b> erfasst — eine Ziffer Unterschied.
+            Wahrscheinlich war dieses Ticket gemeint.
           </p>
         </div>
       )}
@@ -376,8 +440,23 @@ function Result({ decision, onDone }: { decision: Decision; onDone: () => void }
         Ist das Ticket unversehrt, war die Person noch nicht drin — dann ist es
         ein Erfassungsfehler.
       </p>
-      <div className="sheet-actions">
-        <button type="button" className="btn primary grow" onClick={onDone}>Weiter</button>
+
+      <div className="sheet-actions column">
+        {trace && (
+          <button
+            type="button" className="btn primary wide"
+            onClick={() => void onRelease(trace.code, `Fehlbuchung, gemeint war ${decision.code}`)}
+          >
+            {group(trace.code)} zurücknehmen
+          </button>
+        )}
+        <button
+          type="button" className="btn wide"
+          onClick={() => void onRelease(decision.code, "Ticket unversehrt, Einlösung freigegeben")}
+        >
+          {group(decision.code)} freigeben und einlassen
+        </button>
+        <button type="button" className="btn wide" onClick={onDone}>Abweisen</button>
       </div>
     </div>
   );

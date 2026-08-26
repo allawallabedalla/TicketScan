@@ -112,6 +112,39 @@ export const queueSize = () => run<number>("outbox", "readonly", (s) => s.count(
 export const dequeue = (scanId: string) =>
   run("outbox", "readwrite", (s) => s.delete(scanId) as unknown as IDBRequest<undefined>);
 
+// ---------------------------------------------------------------- Verlauf --
+
+export interface HistoryEntry {
+  scanId: string;
+  code: string;
+  at: string;
+  verdict: "ok" | "duplicate" | "unknown";
+  /** Zurückgenommen, samt Begründung. */
+  undoneAt?: string;
+  reason?: string;
+}
+
+const HISTORY_MAX = 200;
+
+/** Die letzten Vorgänge dieses Geräts. Grundlage für Rücknahme und Klärung. */
+export async function history(): Promise<HistoryEntry[]> {
+  return await get<HistoryEntry[]>("history") ?? [];
+}
+
+export async function remember(entry: HistoryEntry): Promise<void> {
+  const all = await history();
+  all.unshift(entry);
+  await set("history", all.slice(0, HISTORY_MAX));
+}
+
+export async function amend(scanId: string, patch: Partial<HistoryEntry>): Promise<void> {
+  const all = await history();
+  const at = all.findIndex((e) => e.scanId === scanId);
+  if (at === -1) return;
+  all[at] = { ...all[at], ...patch };
+  await set("history", all);
+}
+
 // ---------------------------------------------------------------- Sitzung --
 
 export interface Session {

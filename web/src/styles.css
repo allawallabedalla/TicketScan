@@ -6,6 +6,10 @@
  */
 
 :root {
+  /* Der Schriftzug. Der Pfad wird beim Start gesetzt, weil die App je nach
+     Veröffentlichung unter einem Unterpfad liegt. */
+  --logo: url("/logo.png") center / contain no-repeat;
+
   /* Farben vom Ticket selbst.
    *
    * Eine Entscheidung ist dabei bewusst gegen den ersten Impuls gefallen: Das
@@ -490,4 +494,58 @@ b { font-weight: 650; }
   text-align: center; font-size: .74rem; color: #fff; opacity: .6;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+}
+
+/* Der Herzberg-Schriftzug als Maske: Er nimmt damit die Farbe seiner Umgebung
+   an und sitzt in heller wie dunkler Darstellung richtig. Als Bild eingebunden
+   wäre die weiße Vorlage auf dem Pergamentgrund unsichtbar. */
+.logo {
+  display: block;
+  aspect-ratio: 700 / 657;
+  background-color: currentColor;
+  -webkit-mask: var(--logo) center / contain no-repeat;
+  mask: var(--logo) center / contain no-repeat;
+}
+.logo-lead { width: 92px; color: var(--ink); margin-bottom: 2px; }
+
+.sheet-actions.column { flex-direction: column; }
+
+/* Liste der letzten Vorgänge */
+.list { overflow-y: auto; justify-content: flex-start; gap: 14px; }
+.list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.list-head h1 { font-size: 1.35rem; }
+.entries { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.entries li {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+  padding: 13px 0; border-bottom: 1px solid var(--line);
+}
+.entries li:last-child { border-bottom: 0; }
+.entry-code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.entry-meta { font-size: .84rem; color: var(--muted); }
+.entries li.duplicate .entry-code { color: var(--warn); }
+.entries li.unknown .entry-code { color: var(--bad); }
+.entries li.undone .entry-code { text-decoration: line-through; color: var(--faint); }
+.btn.small { min-height: 40px; padding: 0 14px; font-size: .85rem; }
+
+/* Schmale Erinnerung, solange die App nur im Browser läuft. */
+.hint-bar {
+  display: grid; grid-template-columns: 20px 1fr 32px; align-items: center; gap: 10px;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--accent-soft); color: var(--accent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.hint-bar svg { width: 20px; height: 20px; }
+.hint-text {
+  border: 0; background: none; padding: 0; text-align: left;
+  font: inherit; font-size: .84rem; line-height: 1.4; color: var(--ink);
+  text-decoration: underline; text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  cursor: pointer;
+}
+.hint-close {
+  border: 0; background: none; font: inherit; font-size: 1.4rem; line-height: 1;
+  color: var(--muted); cursor: pointer; padding: 4px;
 }

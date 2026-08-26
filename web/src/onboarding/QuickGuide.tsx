@@ -9,6 +9,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { detectPlatform, isInstalled, type Platform } from "../lib/platform";
 import * as Icon from "./Icons";
+import { Logo } from "./Logo";
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -53,6 +54,7 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
       title: "Leg die App auf den Home-Bildschirm",
       body: (
         <>
+          <Logo className="logo-lead" label="Herzberg Festival" />
           <p className="lead">
             Im Browser-Tab fehlt der App das Wichtigste. Vom Home-Bildschirm aus
             kann sie alles, was du am Eingang brauchst.

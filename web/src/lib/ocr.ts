@@ -9,6 +9,7 @@
 // wird nie angenommen.
 
 import { createWorker, type Worker } from "tesseract.js";
+import { extractCodes } from "./codes";
 
 const ASSETS = `${import.meta.env.BASE_URL}tesseract/`;
 
@@ -30,11 +31,15 @@ export async function startOcr(onProgress?: (ratio: number) => void): Promise<Wo
     },
   }).then(async (w) => {
     await w.setParameters({
-      // Nur Ziffern. Schließt die klassischen Verwechslungen zwischen 0 und O
-      // sowie 1 und l von vornherein aus.
-      tessedit_char_whitelist: "0123456789",
-      // Der Ausschnitt enthält genau eine Zeile.
-      tessedit_pageseg_mode: "7" as unknown as never,
+      // Kein Ziffernzwang. Das klang nach Absicherung, war aber das Gegenteil:
+      // Mit erzwungenen Ziffern wird jeder Buchstabe des Festivalschriftzugs zu
+      // einer Zahl, und aus „HERZBERG“ werden fünfstellige Kandidaten, die bei
+      // 2305 fortlaufenden Nummern durchaus gültig sein können. Buchstaben
+      // bleiben jetzt Buchstaben und fallen bei der Auswertung weg.
+      //
+      // 11 = verstreuter Text: Tesseract sucht sich die Textstellen selbst.
+      // Seine Layoutanalyse ist besser als jede, die ich von Hand schreibe.
+      tessedit_pageseg_mode: "11" as unknown as never,
     });
     worker = w;
     return w;
@@ -102,6 +107,9 @@ export interface Frame {
   /** Auflösung, mit der die Kamera tatsächlich liefert. */
   source: { w: number; h: number };
 }
+
+/** Breite, auf die der Ausschnitt gebracht wird, bevor er gelesen wird. */
+const TARGET_WIDTH = 1000;
 
 const analysis = document.createElement("canvas");
 
@@ -222,17 +230,27 @@ export function prepareFrame(
   video: HTMLVideoElement,
   roi: { x: number; y: number; w: number; h: number },
   canvas: HTMLCanvasElement,
-  targetHeight = 120,
+  /** Ausschnitt eingrenzen, oder das ganze Band nehmen. */
+  narrow = true,
 ): Frame {
   const region = roiInVideo(video, roi);
-  const found = findTextRegion(video, region);
+  const found = narrow ? findTextRegion(video, region) : null;
   const crop = found ?? region;
 
-  const scale = Math.min(targetHeight / crop.sh, 1);
+  // Maßstab über die Breite, und Vergrößern ausdrücklich erlaubt.
+  //
+  // Vorher wurde auf eine feste Höhe verkleinert — womit die Ziffern
+  // mitschrumpften, und zwar umso stärker, je weiter weg jemand stand. Genau
+  // das sollte behoben werden. Tesseract arbeitet zudem am besten bei einer
+  // Zeichenhöhe um 30 bis 40 Bildpunkte; kleinere Vorlagen zu vergrößern hilft
+  // tatsächlich, auch wenn dabei keine Information hinzukommt.
+  const scale = Math.min(Math.max(TARGET_WIDTH / crop.sw, 1), 3);
   canvas.width = Math.max(1, Math.round(crop.sw * scale));
   canvas.height = Math.max(1, Math.round(crop.sh * scale));
 
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, canvas.width, canvas.height);
 
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -253,8 +271,8 @@ export function prepareFrame(
   let dark = 0;
   for (let g = 0; g < grey.length; g++) if (grey[g] <= threshold) dark++;
   // Überwiegt das Dunkle, steht die Schrift hell auf dunklem Grund. Tesseract
-  // erwartet das Gegenteil, also umdrehen — damit ist die Erkennung auch von
-  // der Gestaltung des Aufdrucks unabhängig.
+  // erwartet das Gegenteil, also umdrehen — damit ist die Erkennung von der
+  // Gestaltung des Aufdrucks unabhängig.
   const invert = dark > grey.length * 0.55;
 
   for (let i = 0, g = 0; i < px.length; i += 4, g++) {
@@ -358,13 +376,15 @@ export class Consensus {
   }
 }
 
-/** Liest den vorbereiteten Ausschnitt. Gibt nur zurück, was zur erwarteten
- *  Stellenzahl passt. */
-export async function readFrame(canvas: HTMLCanvasElement, width: number): Promise<string | null> {
+/** Liest den vorbereiteten Ausschnitt und gibt die gefundenen Nummern zurück. */
+export async function readFrame(
+  canvas: HTMLCanvasElement,
+  width: number,
+  known: (code: string) => boolean,
+): Promise<string[]> {
   const w = worker;
-  if (!w) return null;
+  if (!w) return [];
 
   const { data } = await w.recognize(canvas);
-  const digits = (data.text ?? "").replace(/\D/g, "");
-  return digits.length === width ? digits : null;
+  return extractCodes(data.text ?? "", width, known);
 }

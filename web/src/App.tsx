@@ -6,7 +6,7 @@ import { Scanner } from "./screens/Scanner";
 import * as store from "./lib/store";
 import * as sync from "./lib/sync";
 import { Unauthorized } from "./lib/api";
-import { isInstalled } from "./lib/platform";
+import { InstallHint } from "./onboarding/InstallHint";
 import { unlockSound } from "./lib/feedback";
 
 type Stage = "laden" | "guide" | "login" | "setup" | "scanner";
@@ -27,10 +27,10 @@ export function App() {
       ]);
       setSession(active);
 
-      // Der Guide zeigt sich beim ersten Start — und danach so lange erneut,
-      // bis die App wirklich auf dem Home-Bildschirm liegt. Genau daran
-      // scheitert es sonst am Eingang.
-      if (!seen || !isInstalled()) setStage("guide");
+      // Nur beim ersten Start. Ihn bis zur Installation bei jedem Öffnen zu
+      // wiederholen war zu aufdringlich — wer ihn kennt, wird stattdessen von
+      // einer schmalen Leiste erinnert, die sich wegtippen lässt.
+      if (!seen) setStage("guide");
       else if (!active) setStage("login");
       else setStage(ready ? "scanner" : "setup");
     })();
@@ -85,12 +85,19 @@ export function App() {
     );
   }
 
+  const hint = <InstallHint onOpen={() => setStage("guide")} />;
+
   if (stage === "login") {
-    return <Login onDone={(active) => { setSession(active); setStage("setup"); }} />;
+    return (
+      <>
+        {hint}
+        <Login onDone={(active) => { setSession(active); setStage("setup"); }} />
+      </>
+    );
   }
 
   if (stage === "setup" && session) {
-    return <Setup session={session} onDone={() => setStage("scanner")} />;
+    return <>{hint}<Setup session={session} onDone={() => setStage("scanner")} /></>;
   }
 
   if (stage === "scanner" && session) return <Scanner session={session} />;

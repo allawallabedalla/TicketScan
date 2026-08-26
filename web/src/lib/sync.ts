@@ -124,6 +124,32 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
   return results;
 }
 
+/**
+ * Nimmt eine Einlösung zurück — die wichtigste Korrekturmöglichkeit am Eingang.
+ *
+ * Wirkt sofort lokal und wandert wie jeder Scan in die Warteschlange. Ohne
+ * Netz funktioniert sie damit genauso, was der Punkt ist: Fehlbuchungen fallen
+ * genau dann auf, wenn jemand vor der Tür steht.
+ */
+export async function undo(code: string, reason: string): Promise<void> {
+  const ticket = await store.getTicket(code);
+  if (ticket) {
+    await store.putTickets([{
+      ...ticket, redeemedAt: null, redeemedByDevice: null, pending: true,
+    }]);
+  }
+
+  await store.enqueue({
+    scanId: crypto.randomUUID(),
+    code,
+    clientTs: new Date().toISOString(),
+    action: "undo",
+    reason,
+    offline: false,
+    attempts: 0,
+  });
+}
+
 /** Ein Durchlauf: erst senden, dann holen. In dieser Reihenfolge, damit die
  *  eigenen Einlösungen nicht vom Server überschrieben werden, bevor sie dort
  *  angekommen sind. */

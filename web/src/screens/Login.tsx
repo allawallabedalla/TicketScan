@@ -7,6 +7,7 @@
 import { type FormEvent, useState } from "react";
 import * as store from "../lib/store";
 import * as Icon from "../onboarding/Icons";
+import { Logo } from "../onboarding/Logo";
 
 const API = import.meta.env.VITE_API_URL ?? "";
 
@@ -51,7 +52,7 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
 
   return (
     <form className="login" onSubmit={submit}>
-      <div className="hero-icon"><Icon.Lock /></div>
+      <Logo className="logo-lead" label="Herzberg Festival" />
       <h1>Anmelden</h1>
       <p className="lead">
         Einmal für heute. Beim Scannen fragt die App nicht noch einmal.

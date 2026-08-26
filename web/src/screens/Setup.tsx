@@ -9,6 +9,7 @@ import * as store from "../lib/store";
 import * as sync from "../lib/sync";
 import { startOcr } from "../lib/ocr";
 import * as Icon from "../onboarding/Icons";
+import { Logo } from "../onboarding/Logo";
 
 type Phase = "tickets" | "ocr" | "fertig" | "fehler";
 type Step = "tickets" | "ocr";
@@ -80,7 +81,7 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
 
   return (
     <div className="setup">
-      <div className="hero-icon"><Icon.Install /></div>
+      <Logo className="logo-lead" label="Herzberg Festival" />
       <h1>Gerät vorbereiten</h1>
       <p className="lead">
         Einmalig, am besten im WLAN. Danach arbeitet die App auch ohne Netz.

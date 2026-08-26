@@ -45,7 +45,11 @@ create table scan_log (
   server_ts timestamptz not null default now(),
   action    text        not null check (action in ('redeem', 'undo', 'override')),
   result    text        not null check (result in ('ok', 'duplicate', 'unknown', 'conflict')),
-  reason    text                                -- Begründung bei undo und override
+  reason    text,                               -- Begründung bei undo und override
+  -- Entstand der Scan ohne Verbindung? Dann konnte er im Moment der
+  -- Entscheidung nicht gegen die anderen Geräte geprüft werden. Nach der
+  -- Netzwiederkehr macht das aus einem blinden Fleck einen geprüften Zeitraum.
+  offline   boolean     not null default false
 );
 
 create index scan_log_code_idx      on scan_log (code, server_ts desc);

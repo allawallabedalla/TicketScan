@@ -460,7 +460,10 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
 <section id="logik">
   <div class="sec-head"><span class="k">05</span><h2>Was das Gerät entscheidet — und wie es das zeigt</h2></div>
   <div class="stack-lg">
-    <p class="prose">Die Person am Einlass schaut auf das Ticket, nicht auf das Display. Die Rückmeldung muss deshalb aus dem Augenwinkel lesbar sein: ganzflächige Farbe, ein kurzer Ton, ein Vibrationsmuster. Erst danach kommen die Details.</p>
+    <div class="prose stack">
+      <p>Die Person am Einlass schaut auf das Ticket, nicht auf das Display. Die Rückmeldung muss deshalb aus dem Augenwinkel lesbar sein: ganzflächige Farbe, ein kurzer Ton, ein Vibrationsmuster. Erst danach kommen die Details.</p>
+      <p>Wichtig ist dabei die Reihenfolge: Die App fragt <b>nicht</b> erst den Server und weicht bei Misserfolg auf die lokale Liste aus. Sie entscheidet <b>immer zuerst lokal</b> und schickt den Scan parallel weg. Der Unterschied klingt akademisch, ist aber der zwischen brauchbar und unbrauchbar — wer erst online fragt, lässt bei schwachem Empfang jeden Scan sekundenlang in einen Timeout laufen. Ausgerechnet im wahrscheinlichsten Zustand am Einlass wäre das Verhalten dann am schlechtesten.</p>
+    </div>
 
     <div class="signals">
       <div class="sig g">
@@ -489,7 +492,8 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
         <li><b>Code nicht in der lokalen Liste</b> → rot, „Unbekannt“. Protokolliert als <code>unknown</code>. Kein Netz nötig.</li>
         <li><b>Code lokal bereits als eingelöst markiert</b> → gelb, mit Uhrzeit und Gerät des Erstscans. Öffnet den Klärungsdialog.</li>
         <li><b>Code frei</b> → Bestätigungsansicht mit Name und Kategorie. Nach dem Tipp auf „Einlassen“: lokal als eingelöst markieren, Scan in die Ausgangswarteschlange, grün.</li>
-        <li><b>Später, beim Abgleich:</b> Meldet der Server, dass ein anderes Gerät früher eingelöst hat, erscheint der Vorgang als <code>conflict</code> im Protokoll. Die Person ist zu diesem Zeitpunkt längst drin — das ist ein Bericht, keine Sperre.</li>
+        <li><b>Parallel, im Hintergrund:</b> Der Scan geht an den Server. Mit Verbindung kommt die Bestätigung binnen einer Sekunde, und alle anderen Geräte erfahren die Einlösung per Push. Ohne Verbindung wandert er in die Warteschlange — markiert als <code>ohne Abgleich</code>.</li>
+        <li><b>Später:</b> Meldet der Server, dass ein anderes Gerät früher eingelöst hat, erscheint der Vorgang als <code>conflict</code> im Protokoll. Die Person ist zu diesem Zeitpunkt längst drin — das ist ein Bericht, keine Sperre.</li>
       </ol>
     </div>
 
@@ -501,7 +505,9 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
 
     <div class="note">
       <span class="label">Das Offline-Fenster, offen benannt</span>
-      <p>Sind zwei Geräte gleichzeitig ohne Netz, können beide dasselbe Ticket akzeptieren. Das ist keine Nachlässigkeit im Entwurf, sondern eine Konsequenz daraus, dass ein System nicht gleichzeitig konsistent, verfügbar und partitionstolerant sein kann. Wir wählen Verfügbarkeit — ein Scanner, der bei Funklöchern blockiert, produziert am Einlass mehr Schaden als eine Handvoll nachträglich aufgeklärter Doppelbuchungen. Sobald Netz da ist, schließt der Realtime-Push das Fenster binnen einer Sekunde, und bei getrennten Eingängen ist derselbe Code an zwei Türen ohnehin unwahrscheinlich.</p>
+      <p>Sind zwei Geräte gleichzeitig ohne Netz, können beide dasselbe Ticket akzeptieren. Das ist keine Nachlässigkeit im Entwurf, sondern eine Konsequenz daraus, dass ein System nicht gleichzeitig konsistent, verfügbar und partitionstolerant sein kann. Wir wählen Verfügbarkeit: Ein Scanner, der bei Funklöchern blockiert, richtet am Einlass mehr Schaden an als das Fenster, das er offen lässt.</p>
+      <p><b>Dieses Fenster schließt sich nicht rückwirkend.</b> Wer während eines Ausfalls durchgelassen wurde, ist drin — der nachgeholte Abgleich holt niemanden zurück. Was er leistet, ist enger: Er schützt die übrigen zweitausend Tickets für den Rest des Abends, er liefert den Nachweis für spätere Klärungen, und er sagt euch überhaupt erst, dass etwas war.</p>
+      <p>Bleibt die Frage, wie schwer das wiegt. Der Live-Abgleich verhindert genau einen Fall: dasselbe Ticket an zwei Geräten. Weil das Ticket gegen ein Bändchen getauscht wird, kann das nur eine Kopie sein — und Ticketfälschung ist bei 2305 Karten nicht das, was passiert. Was dutzendfach passieren wird, ist der Erfassungsfehler aus Abschnitt 01, und dagegen hilft der Live-Abgleich ohnehin nicht. Dagegen helfen Bestätigungsschritt, abgerissener Kontrollabschnitt und Rückverfolgung — und die arbeiten alle vollständig offline. Der Live-Abgleich sichert den seltenen Fall; die häufigen sind ohne ihn abgedeckt.</p>
     </div>
   </div>
 </section>
@@ -513,6 +519,7 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
       <div class="mini"><span class="tag">Einmalig</span><h4>Grundbestand laden</h4><p>Beim Einrichten zieht das Gerät alle Tickets in die IndexedDB. Rund 100 KB, wenige Sekunden. Danach ist es autark.</p></div>
       <div class="mini"><span class="tag">Laufend</span><h4>Realtime-Push</h4><p>Jede Einlösung wird an alle verbundenen Geräte gesendet. Typische Latenz unter einer Sekunde — damit sehen alle Türen denselben Stand.</p></div>
       <div class="mini"><span class="tag">Auffangnetz</span><h4>Delta-Abruf</h4><p>Alle 20 Sekunden und nach jeder Netzwiederkehr: <code>GET /changes?since=…</code> auf <code>updated_at</code>. Fängt alles, was der Push verpasst hat.</p></div>
+      <div class="mini"><span class="tag">Buchführung</span><h4>Ungeprüfte Zeiträume</h4><p>Jeder ohne Verbindung entstandene Scan wird als solcher markiert. Nach der Netzwiederkehr weiß das Dashboard genau, welche Minuten ungeprüft waren — und was in ihnen passiert ist.</p></div>
     </div>
 
     <div class="stack">
@@ -537,6 +544,7 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
       <div class="mini"><h4>Suchen</h4><p>Nach Name oder Teilnummer, für unleserliche oder beschädigte Tickets. Zeigt Treffer samt Status.</p></div>
       <div class="mini"><h4>Protokoll</h4><p>Die letzten Scans dieses Geräts mit Rückgängig-Funktion. Fängt den häufigsten Bedienfehler ab: das versehentlich gescannte Nachbarticket.</p></div>
       <div class="mini"><h4>Dashboard</h4><p>Eigene Webseite für die Leitung: ausgegebene Bändchen, Verlauf über die Zeit, Status jedes Geräts, offene Konflikte. Zeigt auch, welches Gerät seit fünf Minuten nichts mehr meldet.</p></div>
+        <div class="mini"><h4>Ungeprüfte Zeiträume</h4><p>Nach jedem Netzausfall ein Bericht: <i>„Zwischen 20:41 und 20:59 wurden 34 Tickets ohne Abgleich eingelöst — davon 0 doppelt.“</i> Meistens steht dort null, und dann wisst ihr es auch. Das verhindert nichts, aber es macht aus einem blinden Fleck einen geprüften Zeitraum.</p></div>
         <div class="mini"><h4>Bändchen abgleichen</h4><p>Ein zweiter, körperlicher Zähler: Die Zahl der tatsächlich ausgegebenen Bändchen muss zur Zahl der Einlösungen passen. Jede Schicht trägt ihren Stand einmal ein, das Dashboard zeigt die Abweichung. Läuft die auseinander, ist etwas im Argen — ein stummes Gerät, ein nicht erfasster Einlass, eine Fehlbedienung — und zwar bevor es jemandem an der Tür auffällt.</p></div>
     </div>
   </div>

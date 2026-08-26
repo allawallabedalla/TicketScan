@@ -49,6 +49,10 @@ jobs:
         # nicht auf den Home-Bildschirm legen.
         env:
           VITE_BASE: /TicketScan/
+          # Landet als Fassungskennung sichtbar in der App, damit sich aus der
+          # Ferne unterscheiden lässt, ob ein Fehler noch besteht oder nur eine
+          # alte Fassung im Cache hängt.
+          GITHUB_SHA: ${{ github.sha }}
         run: npm run build
 
       - name: Prüfen, dass die Texterkennung mit im Bundle liegt

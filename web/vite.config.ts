@@ -9,10 +9,23 @@ const base = process.env.VITE_BASE ?? "/";
 
 export default defineConfig({
   base,
+  // Damit auf dem Gerät ablesbar ist, welche Fassung dort tatsächlich läuft.
+  // Ohne diese Angabe ist aus der Ferne nicht zu unterscheiden, ob ein Fehler
+  // noch besteht oder nur eine alte Fassung im Cache hängt.
+  define: {
+    __BUILD__: JSON.stringify(
+      process.env.GITHUB_SHA?.slice(0, 7) ??
+        new Date().toISOString().slice(0, 16).replace("T", " "),
+    ),
+  },
   plugins: [
     react(),
     VitePWA({
-      registerType: "prompt",
+      // Neue Fassungen greifen sofort. Der Schutz vor einem fehlerhaften
+      // Deploy während des Festivals ist nicht diese Einstellung, sondern der
+      // abgeschaltete Ablauf — mit "prompt" hing dagegen jedes Gerät auf der
+      // alten Fassung fest, solange niemand eine Abfrage dafür einbaut.
+      registerType: "autoUpdate",
       includeAssets: ["icon-192.png", "icon-512.png", "icon-512-maskable.png"],
       manifest: {
         name: "TicketScan",

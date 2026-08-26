@@ -4,22 +4,39 @@
 // zusieht, weiß danach, dass das Gerät einsatzbereit ist — und wenn etwas
 // fehlschlägt, fällt es am Vorabend auf und nicht am Eingang.
 
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import * as store from "../lib/store";
 import * as sync from "../lib/sync";
 import { startOcr } from "../lib/ocr";
 import * as Icon from "../onboarding/Icons";
 
 type Phase = "tickets" | "ocr" | "fertig" | "fehler";
+type Step = "tickets" | "ocr";
+
+/** Zustand eines Schrittes für die Anzeige. */
+function stateOf(step: Step, phase: Phase, failedAt: Step | null) {
+  if (failedAt === step) return "fehlt";
+  if (phase === step) return "on";
+  const order: Step[] = ["tickets", "ocr"];
+  const done = failedAt
+    ? order.indexOf(step) < order.indexOf(failedAt)
+    : phase === "fertig" || order.indexOf(step) < order.indexOf(phase as Step);
+  return done ? "done" : "";
+}
 
 export function Setup({ session, onDone }: { session: store.Session; onDone: () => void }) {
   const [phase, setPhase] = useState<Phase>("tickets");
   const [loaded, setLoaded] = useState(0);
   const [ocrRatio, setOcrRatio] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Ohne diese Angabe zeigte die Liste im Fehlerfall beide Schritte als
+  // erledigt an — mit grünem Haken, obwohl gerade einer gescheitert war.
+  const [failedAt, setFailedAt] = useState<Step | null>(null);
 
   const run = useCallback(async () => {
     setError(null);
+    setFailedAt(null);
+    let at: Step = "tickets";
     try {
       setPhase("tickets");
       const total = await sync.bootstrap(session, setLoaded);
@@ -39,6 +56,7 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
       await store.set("codeWidth", width);
       await store.set("codePrefix", prefix);
 
+      at = "ocr";
       setPhase("ocr");
       await startOcr(setOcrRatio);
 
@@ -47,6 +65,7 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
       if (total === 0) setError("Die Ticketliste ist leer. Wurde sie schon importiert?");
     } catch (err) {
       setPhase("fehler");
+      setFailedAt(at);
       // Lieber eine hässliche technische Meldung als „Unbekannter Fehler“ —
       // die Einrichtung passiert am Vorabend, da darf man etwas nachschlagen.
       setError(
@@ -68,26 +87,23 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
       </p>
 
       <ol className="steps">
-        <li className={phase === "tickets" ? "on" : "done"}>
-          <span className="steps-icon">{phase === "tickets" ? <Spinner /> : <Icon.Check />}</span>
-          <span>
-            <b>Ticketliste laden</b>
-            <small>{loaded > 0 ? `${loaded} Tickets auf dem Gerät` : "wird geholt…"}</small>
-          </span>
-        </li>
-        <li className={phase === "ocr" ? "on" : phase === "tickets" ? "" : "done"}>
-          <span className="steps-icon">
-            {phase === "ocr" ? <Spinner /> : phase === "tickets" ? <Icon.Camera /> : <Icon.Check />}
-          </span>
-          <span>
-            <b>Texterkennung vorbereiten</b>
-            <small>
-              {phase === "ocr"
-                ? `${Math.round(ocrRatio * 100)} % von rund 14 MB`
-                : phase === "tickets" ? "danach" : "bereit"}
-            </small>
-          </span>
-        </li>
+        <StepRow
+          state={stateOf("tickets", phase, failedAt)}
+          title="Ticketliste laden"
+          detail={loaded > 0 ? `${loaded} Tickets auf dem Gerät` : "wird geholt…"}
+          idle={<Icon.Install />}
+        />
+        <StepRow
+          state={stateOf("ocr", phase, failedAt)}
+          title="Texterkennung vorbereiten"
+          detail={
+            phase === "ocr"
+              ? `${Math.round(ocrRatio * 100)} % von rund 14 MB`
+              : failedAt === "ocr" ? "nicht geladen"
+              : phase === "tickets" ? "danach" : "bereit"
+          }
+          idle={<Icon.Camera />}
+        />
       </ol>
 
       {error && <p className="error" role="alert">{error}</p>}
@@ -102,7 +118,28 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
           Noch einmal versuchen
         </button>
       )}
+
+      <p className="build">Fassung {__BUILD__}</p>
     </div>
+  );
+}
+
+function StepRow({ state, title, detail, idle }: {
+  state: string; title: string; detail: string; idle: ReactNode;
+}) {
+  return (
+    <li className={state}>
+      <span className="steps-icon">
+        {state === "on" ? <Spinner />
+          : state === "done" ? <Icon.Check />
+          : state === "fehlt" ? <Icon.Warning />
+          : idle}
+      </span>
+      <span>
+        <b>{title}</b>
+        <small>{detail}</small>
+      </span>
+    </li>
   );
 }
 

@@ -441,3 +441,18 @@ b { font-weight: 650; }
 }
 .field-button:active { background: var(--surface-2); }
 .field-button svg { width: 22px; height: 22px; }
+
+/* Ein gescheiterter Schritt darf nicht wie ein erledigter aussehen. */
+.steps li.fehlt { opacity: 1; }
+.steps li.fehlt .steps-icon {
+  background: color-mix(in srgb, var(--bad) 16%, transparent);
+  color: var(--bad);
+}
+.steps li.fehlt small { color: var(--bad); font-weight: 600; }
+
+/* Aus der Ferne muss ablesbar sein, welche Fassung auf dem Gerät läuft. */
+.build {
+  margin-top: 6px; text-align: center;
+  font-size: .74rem; color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}

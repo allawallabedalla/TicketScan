@@ -1,0 +1,509 @@
+<title>TicketScan Einlasskonzept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+:root{
+  --ground:#EFF0F4; --surface:#FFFFFF; --surface-2:#F6F7FA;
+  --line:#D5D8E3; --line-soft:#E6E8F0;
+  --ink:#171A24; --muted:#565C72; --faint:#848AA0;
+  --accent:#2E32A0; --accent-ink:#2E32A0; --accent-soft:#E4E5F5;
+  --ok:#10704A; --ok-soft:#DEF0E6; --ok-line:#9DCFB5;
+  --warn:#87560A; --warn-soft:#F8EDD3; --warn-line:#DCBC77;
+  --bad:#A32014; --bad-soft:#FAE2DF; --bad-line:#E0A69E;
+  --shadow:0 1px 2px rgba(23,26,36,.05), 0 8px 24px -16px rgba(23,26,36,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0E1016; --surface:#161A24; --surface-2:#1B202B;
+    --line:#2C3242; --line-soft:#232936;
+    --ink:#E7EAF3; --muted:#9AA1B8; --faint:#6C7390;
+    --accent:#8E93FF; --accent-ink:#A9ADFF; --accent-soft:#1E2247;
+    --ok:#4FD69C; --ok-soft:#0F2E20; --ok-line:#245C42;
+    --warn:#E5B75A; --warn-soft:#33260C; --warn-line:#6A5220;
+    --bad:#F58174; --bad-soft:#361713; --bad-line:#6E2E26;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0E1016; --surface:#161A24; --surface-2:#1B202B;
+  --line:#2C3242; --line-soft:#232936;
+  --ink:#E7EAF3; --muted:#9AA1B8; --faint:#6C7390;
+  --accent:#8E93FF; --accent-ink:#A9ADFF; --accent-soft:#1E2247;
+  --ok:#4FD69C; --ok-soft:#0F2E20; --ok-line:#245C42;
+  --warn:#E5B75A; --warn-soft:#33260C; --warn-line:#6A5220;
+  --bad:#F58174; --bad-soft:#361713; --bad-line:#6E2E26;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"Literata",Georgia,serif; font-size:17px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px; margin:0 auto; padding:0 24px 96px}
+.prose{max-width:68ch}
+
+h1,h2,h3,h4,.label,.chip,th,.num{font-family:"Archivo",-apple-system,"Helvetica Neue",sans-serif}
+h2,h3,h4{text-wrap:balance; margin:0}
+h2{font-size:1.62rem; font-weight:700; letter-spacing:-.018em; line-height:1.2}
+h3{font-size:1.12rem; font-weight:600; letter-spacing:-.008em; line-height:1.3}
+h4{font-size:.9rem; font-weight:600; letter-spacing:.02em}
+p{margin:0}
+a{color:var(--accent-ink); text-decoration-color:color-mix(in srgb, var(--accent-ink) 40%, transparent); text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:2px}
+code,kbd{font-family:"JetBrains Mono",ui-monospace,monospace; font-size:.86em}
+p code,li code,td code{background:var(--surface-2); border:1px solid var(--line-soft); padding:.08em .34em; border-radius:3px; white-space:nowrap}
+
+/* ---------- masthead ---------- */
+.mast{border-bottom:1px solid var(--line); background:var(--surface)}
+.mast-inner{max-width:1120px; margin:0 auto; padding:44px 24px 0; display:flex; flex-direction:column; gap:20px}
+.eyebrow{font-family:"Archivo",sans-serif; font-size:.72rem; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--faint)}
+h1{font-size:clamp(2.1rem,5.2vw,3.1rem); font-weight:700; letter-spacing:-.03em; line-height:1.02; margin:0; text-wrap:balance}
+.standfirst{max-width:60ch; color:var(--muted); font-size:1.05rem}
+.facts{display:flex; flex-wrap:wrap; gap:0; border-top:1px solid var(--line-soft); margin-top:8px}
+.fact{flex:1 1 150px; padding:14px 20px 18px; border-right:1px solid var(--line-soft)}
+.fact:last-child{border-right:0}
+.fact dt{font-family:"Archivo",sans-serif; font-size:.68rem; font-weight:600; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); margin:0 0 3px}
+.fact dd{margin:0; font-family:"Archivo",sans-serif; font-weight:600; font-size:1rem; font-variant-numeric:tabular-nums}
+
+nav.toc{position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); margin-bottom:56px}
+.toc-inner{max-width:1120px; margin:0 auto; padding:9px 24px; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none}
+.toc-inner::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto; font-size:.76rem; font-weight:500; letter-spacing:.01em; color:var(--muted); text-decoration:none; padding:5px 11px; border-radius:100px; border:1px solid transparent; white-space:nowrap}
+.chip:hover{color:var(--ink); background:var(--surface-2); border-color:var(--line-soft)}
+
+/* ---------- sections ---------- */
+section{margin-bottom:64px; scroll-margin-top:60px}
+.sec-head{display:flex; align-items:baseline; gap:14px; padding-bottom:12px; border-bottom:2px solid var(--ink); margin-bottom:24px}
+.sec-head .k{font-family:"JetBrains Mono",monospace; font-size:.74rem; font-weight:600; color:var(--accent-ink); letter-spacing:.06em; flex:0 0 auto; padding-top:4px}
+.stack{display:flex; flex-direction:column; gap:18px}
+.stack-lg{display:flex; flex-direction:column; gap:32px}
+
+/* ---------- cards / callouts ---------- */
+.card{background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:20px 22px; box-shadow:var(--shadow)}
+.note{border-left:3px solid var(--accent); background:var(--surface); padding:16px 20px; border-radius:0 5px 5px 0; display:flex; flex-direction:column; gap:8px}
+.note.risk{border-left-color:var(--bad)}
+.note.ok{border-left-color:var(--ok)}
+.note .label{font-size:.7rem; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--faint)}
+.note.risk .label{color:var(--bad)}
+.note.ok .label{color:var(--ok)}
+.note p{font-size:.96rem}
+
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px}
+.grid3{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px}
+.mini{background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:16px 18px; display:flex; flex-direction:column; gap:7px}
+.mini h4{color:var(--ink)}
+.mini p{font-size:.9rem; color:var(--muted); line-height:1.55}
+.tag{align-self:flex-start; font-family:"Archivo",sans-serif; font-size:.66rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border-radius:3px; background:var(--accent-soft); color:var(--accent-ink)}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto; border:1px solid var(--line); border-radius:6px; background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-size:.9rem; min-width:520px}
+th{text-align:left; font-size:.68rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); padding:11px 16px; border-bottom:1px solid var(--line); background:var(--surface-2); white-space:nowrap}
+td{padding:11px 16px; border-bottom:1px solid var(--line-soft); vertical-align:top; line-height:1.5}
+tr:last-child td{border-bottom:0}
+td.n{font-family:"JetBrains Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:600}
+.sev-hi{color:var(--bad)} .sev-mid{color:var(--warn)} .sev-lo{color:var(--ok)}
+
+/* ---------- code ---------- */
+pre{margin:0; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:16px 18px; overflow-x:auto; font-family:"JetBrains Mono",monospace; font-size:.8rem; line-height:1.7; color:var(--ink)}
+pre .c{color:var(--faint)}
+pre .k{color:var(--accent-ink); font-weight:600}
+
+/* ---------- status strip ---------- */
+.signals{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px}
+.sig{border-radius:8px; padding:20px; display:flex; flex-direction:column; gap:6px; border:1px solid}
+.sig.g{background:var(--ok-soft); border-color:var(--ok-line); color:var(--ok)}
+.sig.y{background:var(--warn-soft); border-color:var(--warn-line); color:var(--warn)}
+.sig.r{background:var(--bad-soft); border-color:var(--bad-line); color:var(--bad)}
+.sig .verdict{font-family:"Archivo",sans-serif; font-size:1.15rem; font-weight:700; letter-spacing:-.01em}
+.sig .code{font-family:"JetBrains Mono",monospace; font-size:1.7rem; font-weight:600; letter-spacing:.06em; color:var(--ink); font-variant-numeric:tabular-nums}
+.sig .meta{font-family:"Archivo",sans-serif; font-size:.82rem; color:var(--ink); opacity:.72; line-height:1.45}
+.sig .cue{font-family:"Archivo",sans-serif; font-size:.66rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; margin-top:4px; opacity:.85}
+
+/* ---------- flow diagram ---------- */
+.flow{display:grid; grid-template-columns:1fr auto 1fr; gap:0; align-items:stretch; border:1px solid var(--line); border-radius:6px; background:var(--surface); overflow:hidden}
+.flow-col{padding:20px; display:flex; flex-direction:column; gap:12px}
+.flow-col > .label{font-family:"Archivo",sans-serif; font-size:.68rem; font-weight:600; letter-spacing:.13em; text-transform:uppercase; color:var(--faint)}
+.node{border:1px solid var(--line); border-radius:5px; padding:11px 13px; background:var(--surface-2); font-family:"Archivo",sans-serif; font-size:.84rem; line-height:1.4}
+.node b{font-weight:600; display:block; font-size:.88rem}
+.node span{color:var(--muted); font-size:.78rem}
+.node.hi{border-color:var(--accent); background:var(--accent-soft)}
+.flow-mid{display:flex; flex-direction:column; justify-content:center; gap:22px; padding:20px 8px; border-left:1px dashed var(--line); border-right:1px dashed var(--line); background:var(--surface-2)}
+.arrow{font-family:"Archivo",sans-serif; font-size:.64rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); text-align:center; white-space:nowrap}
+.arrow em{display:block; font-style:normal; font-size:1.1rem; color:var(--accent-ink); line-height:1}
+@media (max-width:720px){
+  .flow{grid-template-columns:1fr}
+  .flow-mid{flex-direction:row; justify-content:space-around; border-left:0; border-right:0; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line)}
+}
+
+/* ---------- lists ---------- */
+ul.clean,ol.clean{margin:0; padding:0 0 0 1.15em; display:flex; flex-direction:column; gap:8px}
+ul.clean li,ol.clean li{padding-left:4px}
+ul.clean li::marker{color:var(--faint)}
+ol.clean li::marker{font-family:"Archivo",sans-serif; font-weight:600; font-size:.85em; color:var(--accent-ink)}
+
+/* ---------- phases ---------- */
+.phase{display:grid; grid-template-columns:auto 1fr; gap:18px; align-items:start; padding:18px 0; border-bottom:1px solid var(--line-soft)}
+.phase:last-child{border-bottom:0}
+.phase .num{flex:0 0 auto; width:38px; height:38px; border-radius:50%; border:1.5px solid var(--accent); color:var(--accent-ink); display:grid; place-items:center; font-weight:700; font-size:.9rem; font-variant-numeric:tabular-nums}
+.phase-body{display:flex; flex-direction:column; gap:6px}
+.phase-body .when{font-family:"Archivo",sans-serif; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--faint)}
+.phase-body p{font-size:.94rem; color:var(--muted)}
+
+/* ---------- questions ---------- */
+.q{display:grid; grid-template-columns:auto 1fr; gap:14px; padding:15px 0; border-bottom:1px solid var(--line-soft); align-items:start}
+.q:last-child{border-bottom:0}
+.q .mark{font-family:"JetBrains Mono",monospace; font-size:.95rem; font-weight:600; color:var(--accent-ink); line-height:1.6}
+.q-body{display:flex; flex-direction:column; gap:4px}
+.q-body b{font-family:"Archivo",sans-serif; font-weight:600; font-size:.98rem}
+.q-body span{font-size:.9rem; color:var(--muted); line-height:1.55}
+
+footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); font-size:.85rem; max-width:68ch}
+@media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
+</style>
+
+<header class="mast">
+  <div class="mast-inner">
+    <p class="eyebrow">Detailkonzept · Stand 26. August 2026</p>
+    <h1>TicketScan</h1>
+    <p class="standfirst">Einlasskontrolle für rund 2000 Papiertickets mit festen Zahlencodes, bedient von bis zu zehn Geräten gleichzeitig — offlinefähig, mit einer autoritativen Quelle im Hintergrund.</p>
+    <dl class="facts">
+      <div class="fact"><dt>Tickets</dt><dd>~2 000</dd></div>
+      <div class="fact"><dt>Geräte</dt><dd>bis 10</dd></div>
+      <div class="fact"><dt>Plattform</dt><dd>PWA</dd></div>
+      <div class="fact"><dt>Codes</dt><dd>fix, gedruckt</dd></div>
+      <div class="fact"><dt>Offline</dt><dd>voll funktionsfähig</dd></div>
+    </dl>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a class="chip" href="#risiko">Kernrisiko</a>
+    <a class="chip" href="#architektur">Architektur</a>
+    <a class="chip" href="#daten">Datenmodell</a>
+    <a class="chip" href="#logik">Gerätelogik</a>
+    <a class="chip" href="#sync">Sync &amp; Konflikte</a>
+    <a class="chip" href="#ui">Oberfläche</a>
+    <a class="chip" href="#api">API</a>
+    <a class="chip" href="#zugang">Zugang &amp; Daten</a>
+    <a class="chip" href="#stack">Tech-Stack</a>
+    <a class="chip" href="#betrieb">Betrieb</a>
+    <a class="chip" href="#plan">Umsetzung</a>
+    <a class="chip" href="#fragen">Offene Fragen</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<section id="risiko">
+  <div class="sec-head"><span class="k">01</span><h2>Das Kernrisiko sind nicht die Tickets, sondern die Tippfehler</h2></div>
+  <div class="stack-lg">
+    <div class="prose stack">
+      <p>2000 Datensätze und zehn Clients sind für jede Datenbank der Welt eine Nichtigkeit. Die Ticketliste ist rund 100 KB groß und passt vollständig in den Speicher jedes Telefons. Die technische Last ist kein Thema — was das System entscheidet, ist der Umgang mit falsch eingegebenen Nummern.</p>
+      <p>Weil die Tickets bereits gedruckt sind, lässt sich keine Prüfziffer nachrüsten. Damit fehlt der App jede Möglichkeit, eine falsch getippte Nummer als solche zu erkennen: Sie kann nur nachsehen, ob die Nummer in der Liste steht. Steht sie drin, sagt sie „gültig“ — auch wenn sie zu einer ganz anderen Person gehört.</p>
+    </div>
+
+    <div class="note risk">
+      <span class="label">Wie oft das passiert, hängt an einer einzigen Eigenschaft</span>
+      <p>Entscheidend ist nicht die Länge der Codes, sondern wie dicht sie im Zahlenraum liegen. Bei fortlaufenden Nummern führt fast jeder Vertipper auf ein anderes gültiges Ticket. Liegen dieselben 2000 Codes zufällig verteilt in einem großen Raum, verschwindet das Problem praktisch von selbst.</p>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Codeformat</th><th>Beispiel</th><th>Einstellige Vertipper, die ein anderes gültiges Ticket treffen</th><th>Bewertung</th></tr></thead>
+        <tbody>
+          <tr><td>4-stellig, fortlaufend</td><td class="n">1000–2999</td><td class="n sev-hi">≈ 78 %</td><td>Kritisch — Absicherung zwingend</td></tr>
+          <tr><td>5-stellig, fortlaufend</td><td class="n">10000–11999</td><td class="n sev-hi">≈ 62 %</td><td>Kritisch — Länge hilft nicht</td></tr>
+          <tr><td>5-stellig, zufällig verteilt</td><td class="n">2 000 aus 90 000</td><td class="n sev-mid">≈ 2 %</td><td>Vertretbar</td></tr>
+          <tr><td>8-stellig, zufällig verteilt</td><td class="n">2 000 aus 90 Mio.</td><td class="n sev-lo">≈ 0,002 %</td><td>Unkritisch</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose" style="font-size:.9rem;color:var(--muted)">Zahlendreher benachbarter Ziffern verhalten sich genauso: In einem fortlaufenden Block bleibt das Ergebnis fast immer eine gültige Nummer. <b>Sagt mir euer tatsächliches Codeformat</b> — davon hängt ab, wie viel Aufwand in die folgenden Gegenmaßnahmen fließen muss.</p>
+
+    <div class="stack">
+      <h3>Fünf Gegenmaßnahmen, die ohne Neudruck funktionieren</h3>
+      <div class="grid2">
+        <div class="mini"><span class="tag">Primär</span><h4>Name groß bestätigen</h4><p>Nach jedem Treffer zeigt die App den hinterlegten Namen bildschirmfüllend. Der Einlasser gleicht ihn gegen das Papier ab und tippt erst dann auf „Einlassen“. Kostet rund eine Sekunde und fängt den Großteil aller Fehleingaben ab — <b>setzt allerdings voraus, dass die Tickets personalisiert sind.</b></p></div>
+        <div class="mini"><span class="tag">Primär</span><h4>Klärung statt Blockade</h4><p>Das eigentliche Sicherheitsnetz greift später: Steht die rechtmäßige Person vor der Tür und ihr Ticket gilt als eingelöst, zeigt der Klärungsdialog Uhrzeit, Gerät und Name des Vorgangs. Die Schichtleitung kann den Scan als Fehlbuchung markieren und das Ticket freigeben — protokolliert.</p></div>
+        <div class="mini"><span class="tag">Ergänzend</span><h4>Zweites Merkmal abgleichen</h4><p>Trägt das Ticket ein weiteres Feld — Kategorie, Block, Datum, Vorname —, prüft die App es gegen die Liste und warnt bei Abweichung, ohne eine zweite Eingabe zu verlangen.</p></div>
+        <div class="mini"><span class="tag">Ergänzend</span><h4>Nachbarschaftswarnung</h4><p>Unterscheidet sich der neue Code um genau eine Ziffer von einem, der auf demselben Gerät in der letzten Minute gescannt wurde, ist das mit hoher Wahrscheinlichkeit ein Vertipper. Die App fragt nach.</p></div>
+        <div class="mini"><span class="tag">Ergänzend</span><h4>Eingabe-Echo</h4><p>Der getippte Code erscheint groß, monospaced und in Zweiergruppen — <code>10 42</code> statt <code>1042</code>. Fehler fallen beim Blick aufs Display auf, bevor abgeschickt wird.</p></div>
+        <div class="mini"><span class="tag">Verworfen</span><h4>Doppelte Eingabe</h4><p>Jede Nummer zweimal tippen zu lassen würde die Fehlerrate drücken, halbiert aber den Durchsatz am Einlass. Bei 2000 Personen ist das der falsche Tausch.</p></div>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="label">Ehrliche Einordnung</span>
+      <p>Ohne Prüfziffer lässt sich dieses Problem nicht vollständig lösen, nur eingrenzen. Wer das Gegenteil verspricht, hat nicht nachgerechnet. Die Architektur ist deshalb darauf ausgelegt, jeden Vorgang lückenlos zu protokollieren und rückgängig machen zu können — Fehler werden nicht verhindert, sondern beherrschbar.</p>
+    </div>
+  </div>
+</section>
+
+<section id="architektur">
+  <div class="sec-head"><span class="k">02</span><h2>Architektur: offline entscheiden, zentral beweisen</h2></div>
+  <div class="stack-lg">
+    <p class="prose">Am Einlass ist Mobilfunk unzuverlässig — viele Menschen auf engem Raum, eine überlastete Zelle. Ein System, das für jeden Scan auf eine Antwort aus dem Netz wartet, steht bei der ersten Funklücke still. Deshalb entscheidet jedes Gerät lokal in unter 50 Millisekunden, und der Server ist die Instanz, die diese Entscheidungen zusammenführt und Widersprüche auflöst.</p>
+
+    <div class="flow">
+      <div class="flow-col">
+        <span class="label">Gerät (bis 10×)</span>
+        <div class="node hi"><b>Scan-Oberfläche</b><span>Zifferntastatur, Ergebnisanzeige, Klärung</span></div>
+        <div class="node"><b>Lokale Ticketliste</b><span>IndexedDB · alle 2 000 Tickets · ~100 KB</span></div>
+        <div class="node"><b>Ausgangswarteschlange</b><span>Jeder Scan mit eigener ID, Wiederholung bei Netzverlust</span></div>
+      </div>
+      <div class="flow-mid">
+        <div class="arrow"><em>&rarr;</em>Scans</div>
+        <div class="arrow"><em>&larr;</em>Einlösungen</div>
+      </div>
+      <div class="flow-col">
+        <span class="label">Backend</span>
+        <div class="node hi"><b>Postgres</b><span>Einzige verbindliche Quelle · atomare Einlösung</span></div>
+        <div class="node"><b>Realtime-Kanal</b><span>Push an alle Geräte, typisch unter 1 Sekunde</span></div>
+        <div class="node"><b>Live-Dashboard</b><span>Zählerstand, Gerätestatus, Konflikte</span></div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <h3>Der Kern der Nebenläufigkeit ist eine einzige Anweisung</h3>
+      <p class="prose">Zehn Geräte können denselben Code gleichzeitig einreichen. Es braucht dafür weder Sperren noch Transaktionslogik im Anwendungscode — ein bedingtes <code>UPDATE</code> erledigt das atomar:</p>
+<pre><span class="k">UPDATE</span> tickets
+   <span class="k">SET</span> redeemed_at        = now(),
+       redeemed_by_device = $2,
+       redeemed_scan_id   = $3
+ <span class="k">WHERE</span> code = $1
+   <span class="k">AND</span> redeemed_at <span class="k">IS NULL</span>
+<span class="k">RETURNING</span> code, holder_name, category;
+
+<span class="c">-- 1 Zeile  → dieses Gerät hat eingelöst.</span>
+<span class="c">-- 0 Zeilen → war bereits eingelöst (oder Code existiert nicht).</span></pre>
+      <p class="prose">Postgres serialisiert konkurrierende Schreibzugriffe auf dieselbe Zeile selbst. Genau ein Gerät bekommt eine Zeile zurück, alle anderen bekommen null. Ein Wettlauf ist damit ausgeschlossen, solange die Geräte online sind.</p>
+    </div>
+  </div>
+</section>
+
+<section id="daten">
+  <div class="sec-head"><span class="k">03</span><h2>Datenmodell</h2></div>
+  <div class="stack-lg">
+    <p class="prose">Drei Tabellen genügen. <code>tickets</code> hält den aktuellen Zustand, <code>scan_log</code> die vollständige Historie jedes Versuchs — auch der abgelehnten. Das Protokoll ist nicht optional: Es ist die Grundlage jeder späteren Klärung.</p>
+<pre><span class="k">CREATE TABLE</span> tickets (
+  code               text <span class="k">PRIMARY KEY</span>,      <span class="c">-- exakt wie gedruckt</span>
+  holder_name        text,                    <span class="c">-- für den Sichtabgleich</span>
+  category           text,                    <span class="c">-- Tageskarte, Kombi, Crew …</span>
+  note               text,                    <span class="c">-- Rollstuhlplatz, Begleitperson …</span>
+  redeemed_at        timestamptz,             <span class="c">-- NULL = noch nicht eingelöst</span>
+  redeemed_by_device text,
+  redeemed_scan_id   uuid,
+  updated_at         timestamptz <span class="k">NOT NULL DEFAULT</span> now()
+);
+<span class="k">CREATE INDEX</span> <span class="k">ON</span> tickets (updated_at);   <span class="c">-- treibt den Delta-Abgleich</span>
+
+<span class="k">CREATE TABLE</span> scan_log (
+  scan_id     uuid <span class="k">PRIMARY KEY</span>,             <span class="c">-- vom Gerät erzeugt → idempotent</span>
+  code        text        <span class="k">NOT NULL</span>,
+  device_id   text        <span class="k">NOT NULL</span>,
+  client_ts   timestamptz <span class="k">NOT NULL</span>,        <span class="c">-- wann das Gerät entschied</span>
+  server_ts   timestamptz <span class="k">NOT NULL DEFAULT</span> now(),
+  action      text        <span class="k">NOT NULL</span>,        <span class="c">-- redeem | undo | override</span>
+  result      text        <span class="k">NOT NULL</span>,        <span class="c">-- ok | duplicate | unknown | conflict</span>
+  reason      text                             <span class="c">-- Begründung bei undo/override</span>
+);
+
+<span class="k">CREATE TABLE</span> devices (
+  device_id    text <span class="k">PRIMARY KEY</span>,
+  label        text <span class="k">NOT NULL</span>,               <span class="c">-- "Nordeingang 2"</span>
+  last_seen_at timestamptz,
+  synced_upto  timestamptz
+);</pre>
+    <div class="note ok">
+      <span class="label">Warum die Scan-ID vom Gerät kommt</span>
+      <p>Bricht die Verbindung ab, nachdem der Server geschrieben, aber bevor die Antwort ankam, sendet das Gerät denselben Scan erneut. Weil <code>scan_id</code> Primärschlüssel ist, wird der zweite Versuch verworfen statt doppelt gezählt. Das ist der Unterschied zwischen einem Sync, dem man trauen kann, und einem, der bei jeder Funklücke Geisterbuchungen erzeugt.</p>
+    </div>
+  </div>
+</section>
+
+<section id="logik">
+  <div class="sec-head"><span class="k">04</span><h2>Was das Gerät entscheidet — und wie es das zeigt</h2></div>
+  <div class="stack-lg">
+    <p class="prose">Die Person am Einlass schaut auf das Ticket, nicht auf das Display. Die Rückmeldung muss deshalb aus dem Augenwinkel lesbar sein: ganzflächige Farbe, ein kurzer Ton, ein Vibrationsmuster. Erst danach kommen die Details.</p>
+
+    <div class="signals">
+      <div class="sig g">
+        <span class="verdict">Einlass frei</span>
+        <span class="code">10 42</span>
+        <span class="meta">Marlene Hoffgartner<br>Wochenendticket</span>
+        <span class="cue">Ein Ton · kurze Vibration</span>
+      </div>
+      <div class="sig y">
+        <span class="verdict">Bereits eingelöst</span>
+        <span class="code">20 17</span>
+        <span class="meta">21:14 Uhr · Nordeingang 2<br>Jorin Baltenweck</span>
+        <span class="cue">Zwei Töne · Klärung öffnen</span>
+      </div>
+      <div class="sig r">
+        <span class="verdict">Unbekannter Code</span>
+        <span class="code">30 09</span>
+        <span class="meta">Nicht in der Ticketliste</span>
+        <span class="cue">Tiefer Ton · lange Vibration</span>
+      </div>
+    </div>
+
+    <div class="stack">
+      <h3>Entscheidungsablauf, vollständig offline lauffähig</h3>
+      <ol class="clean prose">
+        <li><b>Code nicht in der lokalen Liste</b> → rot, „Unbekannt“. Protokolliert als <code>unknown</code>. Kein Netz nötig.</li>
+        <li><b>Code lokal bereits als eingelöst markiert</b> → gelb, mit Uhrzeit und Gerät des Erstscans. Öffnet den Klärungsdialog.</li>
+        <li><b>Code frei</b> → Bestätigungsansicht mit Name und Kategorie. Nach dem Tipp auf „Einlassen“: lokal als eingelöst markieren, Scan in die Ausgangswarteschlange, grün.</li>
+        <li><b>Später, beim Abgleich:</b> Meldet der Server, dass ein anderes Gerät früher eingelöst hat, erscheint der Vorgang als <code>conflict</code> im Protokoll. Die Person ist zu diesem Zeitpunkt längst drin — das ist ein Bericht, keine Sperre.</li>
+      </ol>
+    </div>
+
+    <div class="note">
+      <span class="label">Das Offline-Fenster, offen benannt</span>
+      <p>Sind zwei Geräte gleichzeitig ohne Netz, können beide dasselbe Ticket akzeptieren. Das ist keine Nachlässigkeit im Entwurf, sondern eine Konsequenz daraus, dass ein System nicht gleichzeitig konsistent, verfügbar und partitionstolerant sein kann. Wir wählen Verfügbarkeit — ein Scanner, der bei Funklöchern blockiert, produziert am Einlass mehr Schaden als eine Handvoll nachträglich aufgeklärter Doppelbuchungen. Sobald Netz da ist, schließt der Realtime-Push das Fenster binnen einer Sekunde, und bei getrennten Eingängen ist derselbe Code an zwei Türen ohnehin unwahrscheinlich.</p>
+    </div>
+  </div>
+</section>
+
+<section id="sync">
+  <div class="sec-head"><span class="k">05</span><h2>Abgleich in drei Stufen</h2></div>
+  <div class="stack-lg">
+    <div class="grid3">
+      <div class="mini"><span class="tag">Einmalig</span><h4>Grundbestand laden</h4><p>Beim Einrichten zieht das Gerät alle Tickets in die IndexedDB. Rund 100 KB, wenige Sekunden. Danach ist es autark.</p></div>
+      <div class="mini"><span class="tag">Laufend</span><h4>Realtime-Push</h4><p>Jede Einlösung wird an alle verbundenen Geräte gesendet. Typische Latenz unter einer Sekunde — damit sehen alle Türen denselben Stand.</p></div>
+      <div class="mini"><span class="tag">Auffangnetz</span><h4>Delta-Abruf</h4><p>Alle 20 Sekunden und nach jeder Netzwiederkehr: <code>GET /changes?since=…</code> auf <code>updated_at</code>. Fängt alles, was der Push verpasst hat.</p></div>
+    </div>
+
+    <div class="stack">
+      <h3>Die Warteschlange in Richtung Server</h3>
+      <ul class="clean prose">
+        <li>Scans werden gebündelt gesendet, bis zu 50 pro Anfrage — ein Gerät, das zehn Minuten offline war, holt in einem Rutsch auf.</li>
+        <li>Wiederholung mit wachsenden Abständen: 1 s, 2 s, 4 s, … bis 30 s. Kein Aufgeben, kein Datenverlust.</li>
+        <li>Die Warteschlange liegt in der IndexedDB, nicht im Arbeitsspeicher. Ein Neuladen der Seite oder ein Absturz des Browsers verliert nichts.</li>
+        <li>Die Antwort liefert pro Scan ein Ergebnis. Weicht es von der lokalen Entscheidung ab, korrigiert das Gerät seinen Stand und schreibt einen Konflikteintrag.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="ui">
+  <div class="sec-head"><span class="k">06</span><h2>Oberfläche</h2></div>
+  <div class="stack-lg">
+    <div class="grid2">
+      <div class="mini"><h4>Scannen</h4><p>Der einzige Bildschirm, der im Betrieb zählt. Große Zifferntasten im unteren Drittel, damit sie mit dem Daumen erreichbar sind. Code-Echo groß und monospaced. Automatisches Absenden bei erreichter Codelänge, sonst Bestätigungstaste.</p></div>
+      <div class="mini"><h4>Bestätigen</h4><p>Name und Kategorie bildschirmfüllend, darunter „Einlassen“. Dieser eine Zwischenschritt ist die wirksamste Absicherung gegen Vertipper — deshalb ist er Standard und nur bewusst abschaltbar.</p></div>
+      <div class="mini"><h4>Klären</h4><p>Bei „bereits eingelöst“: Uhrzeit, Gerät, hinterlegter Name. Zwei Wege — „Trotzdem einlassen“ mit Begründung, oder „Abweisen“. Beides landet im Protokoll.</p></div>
+      <div class="mini"><h4>Suchen</h4><p>Nach Name oder Teilnummer, für unleserliche oder beschädigte Tickets. Zeigt Treffer samt Status.</p></div>
+      <div class="mini"><h4>Protokoll</h4><p>Die letzten Scans dieses Geräts mit Rückgängig-Funktion. Fängt den häufigsten Bedienfehler ab: das versehentlich gescannte Nachbarticket.</p></div>
+      <div class="mini"><h4>Dashboard</h4><p>Eigene Webseite für die Leitung: Anzahl eingelassen, Verlauf über die Zeit, Status jedes Geräts, offene Konflikte. Zeigt auch, welches Gerät seit fünf Minuten nichts mehr meldet.</p></div>
+    </div>
+
+    <div class="note">
+      <span class="label">Zur Zahlenerfassung per Kamera</span>
+      <p>Safari auf iOS bietet keine Schnittstelle für Texterkennung an, die eine Web-App direkt ansprechen könnte. Es gibt allerdings einen brauchbaren Umweg: iOS blendet in Eingabefeldern die systemeigene Funktion <i>Text scannen</i> ein, die dieselbe Erkennung nutzt wie die Kamera-App. Ob das bei einem rein numerischen Feld zuverlässig erscheint, <b>prüfen wir in der Generalprobe</b> — geplant wird die Zifferntastatur als Hauptweg, alles andere ist Beschleunigung. Erkennung im Browser per <i>Tesseract.js</i> habe ich verworfen: mehrere Sekunden pro Bild bei mäßiger Trefferquote ist langsamer als Tippen.</p>
+    </div>
+  </div>
+</section>
+
+<section id="api">
+  <div class="sec-head"><span class="k">07</span><h2>Schnittstelle</h2></div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Endpunkt</th><th>Zweck</th><th>Anmerkung</th></tr></thead>
+      <tbody>
+        <tr><td class="n">POST /session</td><td>Gerät anmelden: Eventcode + Gerätename → Gerätetoken</td><td>Einmal beim Einrichten</td></tr>
+        <tr><td class="n">GET /tickets</td><td>Vollständige Liste für den Grundbestand</td><td>Gzip, ~30 KB übertragen</td></tr>
+        <tr><td class="n">GET /changes?since</td><td>Alle Änderungen seit einem Zeitstempel</td><td>Regelmäßig und nach Netzwiederkehr</td></tr>
+        <tr><td class="n">POST /scans</td><td>Bündel von bis zu 50 Scans einreichen</td><td>Idempotent über <code>scan_id</code>; Ergebnis pro Scan</td></tr>
+        <tr><td class="n">POST /scans/undo</td><td>Einlösung zurücknehmen, mit Begründung</td><td>Setzt <code>redeemed_at</code> auf NULL, protokolliert</td></tr>
+        <tr><td class="n">GET /stats</td><td>Kennzahlen fürs Dashboard</td><td>Auch als Realtime-Abo</td></tr>
+        <tr><td class="n">GET /export.csv</td><td>Vollständiges Protokoll nach dem Event</td><td>Für Abrechnung und Nachbereitung</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="zugang">
+  <div class="sec-head"><span class="k">08</span><h2>Zugang und Umgang mit den Daten</h2></div>
+  <div class="stack-lg">
+    <div class="prose stack">
+      <p>Am Einlass darf niemand ein Passwort eintippen müssen. Beim Einrichten gibt das Gerät einmal einen Eventcode und einen sprechenden Namen ein — „Nordeingang 2“ — und erhält ein langlebiges Token, das in der IndexedDB liegt. Danach ist die App beim Öffnen sofort einsatzbereit.</p>
+      <p>Wird ein Gerät verloren, lässt sich sein Token im Dashboard sperren; der Grundbestand auf dem Gerät ist damit zwar noch lesbar, aber es kann nichts mehr einlösen. Die Ticketliste liegt vollständig auf zehn Telefonen, und wenn sie Namen enthält, sind das personenbezogene Daten von 2000 Menschen.</p>
+    </div>
+    <div class="grid3">
+      <div class="mini"><h4>Datensparsamkeit</h4><p>Nur die Felder ausliefern, die am Einlass wirklich gebraucht werden. Adressen, E-Mail und Zahlungsdaten bleiben im Ticketshop.</p></div>
+      <div class="mini"><h4>Gerätesperre</h4><p>Alle Einlassgeräte mit Code-Sperre und automatischer Bildschirmsperre. Nicht verhandelbar, wenn Namen mitgeführt werden.</p></div>
+      <div class="mini"><h4>Löschen danach</h4><p>Ein Wisch-Vorgang im Dashboard leert den lokalen Bestand aller Geräte beim nächsten Kontakt. Serverdaten nach der Abrechnung löschen.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="stack">
+  <div class="sec-head"><span class="k">09</span><h2>Tech-Stack</h2></div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Baustein</th><th>Wahl</th><th>Begründung</th></tr></thead>
+      <tbody>
+        <tr><td>App</td><td>Vite + React + TypeScript</td><td>Schnelles Setup, gutes Offline-Tooling, keine Framework-Akrobatik nötig</td></tr>
+        <tr><td>Installierbarkeit</td><td>vite-plugin-pwa (Workbox)</td><td>Service Worker, App-Icon, Vollbild ohne Safari-Leiste</td></tr>
+        <tr><td>Lokaler Speicher</td><td>IndexedDB via <code>idb</code></td><td>Übersteht Neuladen und Absturz; <code>localStorage</code> ist zu klein und synchron</td></tr>
+        <tr><td>Backend</td><td>Supabase</td><td>Postgres, Realtime, Auth und Edge Functions in einem; kostenloser Tarif reicht deutlich</td></tr>
+        <tr><td>Einlöse-Logik</td><td>Edge Function</td><td>Tabellen nicht direkt exponiert; Bündelung und Idempotenz an einer Stelle</td></tr>
+        <tr><td>Hosting</td><td>Cloudflare Pages</td><td>Statisches Bundle, weltweit schnell, kostenlos</td></tr>
+        <tr><td>Datenimport</td><td>Node-Skript</td><td>CSV/XLSX des Ticketshops → <code>tickets</code>, mit Validierungsbericht vorab</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="betrieb">
+  <div class="sec-head"><span class="k">10</span><h2>Betrieb am Einlassabend</h2></div>
+  <div class="stack-lg">
+    <p class="prose">Der Teil, der über Erfolg entscheidet und in Softwarekonzepten regelmäßig fehlt.</p>
+    <div class="grid2">
+      <div class="mini"><span class="tag">Eine Woche vorher</span><h4>Generalprobe</h4><p>Zwanzig echte Tickets, zwei Geräte, ein bewusst herbeigeführter Funkausfall. Hier zeigt sich, ob <i>Text scannen</i> funktioniert und wie schnell eure Leute tatsächlich tippen.</p></div>
+      <div class="mini"><span class="tag">Am Vorabend</span><h4>Geräte einrichten</h4><p>PWA installieren, Eingang benennen, Grundbestand laden, Flugmodus-Test. Danach Geräte beisammen lassen — kein Einrichten unter Zeitdruck am Einlass.</p></div>
+      <div class="mini"><span class="tag">Während des Einlasses</span><h4>Strom und Netz</h4><p>Powerbank pro Gerät, ein WLAN-Hotspot am Eingang. Beides ist Komfort, nicht Voraussetzung — die App läuft ohne beides weiter, nur der Abgleich pausiert.</p></div>
+      <div class="mini"><span class="tag">Rückfallebene</span><h4>Wenn alles ausfällt</h4><p>Eine gedruckte Ticketliste in Papierform am Eingang. Kostet zwanzig Blatt und rettet den Abend, wenn ein unerwartetes Problem alle Geräte gleichzeitig trifft.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="plan">
+  <div class="sec-head"><span class="k">11</span><h2>Umsetzung in fünf Schritten</h2></div>
+  <div class="card">
+    <div class="phase"><span class="num">1</span><div class="phase-body"><span class="when">Fundament</span><h3>Datenmodell, Import, Einlöse-Endpunkt</h3><p>Schema anlegen, eure Ticketliste importieren und dabei auf Dubletten und Formatbrüche prüfen. Der Einlöse-Endpunkt inklusive Idempotenz steht am Ende dieses Schritts und ist per Testskript belegbar.</p></div></div>
+    <div class="phase"><span class="num">2</span><div class="phase-body"><span class="when">Die App, die zählt</span><h3>Scannen, bestätigen, offline speichern</h3><p>Zifferntastatur, Ergebnisanzeige, lokale Ticketliste, Ausgangswarteschlange. Ab hier ist das System im Flugmodus voll benutzbar — der wichtigste Meilenstein.</p></div></div>
+    <div class="phase"><span class="num">3</span><div class="phase-body"><span class="when">Mehrere Geräte</span><h3>Realtime, Delta-Abgleich, Dashboard</h3><p>Alle Geräte sehen denselben Stand, die Leitung sieht alle Geräte. Getestet mit zehn parallel laufenden Browser-Sitzungen.</p></div></div>
+    <div class="phase"><span class="num">4</span><div class="phase-body"><span class="when">Härtung</span><h3>Klärung, Rückgängig, Suche, Export</h3><p>Alles, was gebraucht wird, wenn etwas schiefgeht — und genau deshalb kein Nachgedanke. Dazu die Vertipper-Absicherungen aus Abschnitt 01.</p></div></div>
+    <div class="phase"><span class="num">5</span><div class="phase-body"><span class="when">Vor dem Event</span><h3>Lasttest und Generalprobe</h3><p>2000 Scans in zwanzig Minuten gegen das echte Backend, dazu der Durchlauf mit echten Tickets und echten Menschen.</p></div></div>
+  </div>
+</section>
+
+<section id="fragen">
+  <div class="sec-head"><span class="k">12</span><h2>Was ich von euch brauche</h2></div>
+  <div class="stack-lg">
+    <p class="prose">Die ersten vier Antworten verändern das Konzept substanziell, die übrigen betreffen Details.</p>
+    <div class="card">
+      <div class="q"><span class="mark">01</span><div class="q-body"><b>Wie sehen die Codes konkret aus?</b><span>Ein paar echte Beispiele genügen. Fortlaufend oder gestreut, wie viele Stellen — davon hängt die gesamte Absicherung aus Abschnitt 01 ab.</span></div></div>
+      <div class="q"><span class="mark">02</span><div class="q-body"><b>Steht ein Name auf dem Ticket?</b><span>Ohne personalisierte Tickets fällt der Sichtabgleich als wichtigste Absicherung weg, und wir brauchen einen Ersatz.</span></div></div>
+      <div class="q"><span class="mark">03</span><div class="q-body"><b>Gibt es Wiedereinlass?</b><span>Dürfen Gäste das Gelände verlassen und zurückkommen, taugt „einmal einlösen“ nicht als Modell. Üblicher Weg: beim ersten Einlass ein Bändchen ausgeben, danach zählt das Bändchen, nicht das Ticket.</span></div></div>
+      <div class="q"><span class="mark">04</span><div class="q-body"><b>Gibt es eine Abendkasse?</b><span>Vor Ort verkaufte Tickets stehen nicht in der importierten Liste. Dafür braucht es entweder einen eigenen Nummernblock oder eine Erfassung direkt in der App.</span></div></div>
+      <div class="q"><span class="mark">05</span><div class="q-body"><b>Ein Eingang oder mehrere?</b><span>Beeinflusst, wie wahrscheinlich Offline-Konflikte sind und wie das Dashboard gegliedert wird.</span></div></div>
+      <div class="q"><span class="mark">06</span><div class="q-body"><b>Gibt es Ticketkategorien?</b><span>Tageskarte, Wochenende, Crew, Presse — falls ja, muss die App den Zutritt je nach Tag und Bereich unterschiedlich bewerten.</span></div></div>
+      <div class="q"><span class="mark">07</span><div class="q-body"><b>In welcher Form liegt die Ticketliste vor?</b><span>CSV, Excel, Export aus einem Ticketsystem? Eine Beispieldatei reicht, um den Import zu bauen.</span></div></div>
+      <div class="q"><span class="mark">08</span><div class="q-body"><b>Wie ist die Netzlage am Gelände?</b><span>Kein Ausschlusskriterium — die App läuft offline. Aber es bestimmt, wie eng das Konfliktfenster in der Praxis wird.</span></div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Nächster Schritt: Antworten auf die Fragen 01 bis 04. Danach beginnt Schritt 1 des Umsetzungsplans — Datenmodell, Import und Einlöse-Endpunkt.</p>
+</footer>
+
+</div>

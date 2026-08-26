@@ -32,10 +32,21 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Die Sprachdaten der Texterkennung sind groß und ändern sich nie —
-        // sie müssen mit in den Cache, sonst steht die App ohne Netz still.
-        globPatterns: ["**/*.{js,css,html,png,svg,woff2,wasm,traineddata,gz}"],
-        maximumFileSizeToCacheInBytes: 16 * 1024 * 1024,
+        globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
+        // Die 18 MB der Texterkennung bleiben aus dem Vorab-Cache heraus: Sie
+        // würden die erste Installation lange und ohne Rückmeldung blockieren.
+        // Stattdessen holt sie der Einrichtungsschritt sichtbar und mit
+        // Fortschritt — und landet über diese Regel dauerhaft im Cache.
+        globIgnores: ["**/tesseract/**"],
+        runtimeCaching: [{
+          urlPattern: ({ url }: { url: URL }) => url.pathname.includes("/tesseract/"),
+          handler: "CacheFirst",
+          options: {
+            cacheName: "ticketscan-ocr",
+            expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 120 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        }],
       },
     }),
   ],

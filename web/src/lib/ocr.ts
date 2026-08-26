@@ -1,0 +1,176 @@
+// Texterkennung im Browser.
+//
+// Alle Bestandteile liegen im Bundle (siehe scripts/vendor-ocr.mjs) — kein
+// fremdes CDN, damit die Erkennung auch ohne Netz arbeitet.
+//
+// Zwei Dinge machen den Unterschied zwischen brauchbar und unbrauchbar:
+// ein eng zugeschnittener Ausschnitt statt des ganzen Bildes, und die
+// Mehrfachbestätigung über mehrere Einzelbilder. Ein einzelnes Leseergebnis
+// wird nie angenommen.
+
+import { createWorker, type Worker } from "tesseract.js";
+
+const ASSETS = `${import.meta.env.BASE_URL}tesseract/`;
+
+let worker: Worker | null = null;
+let starting: Promise<Worker> | null = null;
+
+export async function startOcr(onProgress?: (ratio: number) => void): Promise<Worker> {
+  if (worker) return worker;
+
+  starting ??= createWorker("eng", 1, {
+    workerPath: `${ASSETS}worker.min.js`,
+    langPath: ASSETS,
+    corePath: ASSETS,
+    gzip: true,
+    logger: (m: { status: string; progress: number }) => {
+      if (m.status === "loading tesseract core" || m.status === "loading language traineddata") {
+        onProgress?.(m.progress);
+      }
+    },
+  }).then(async (w) => {
+    await w.setParameters({
+      // Nur Ziffern. Schließt die klassischen Verwechslungen zwischen 0 und O
+      // sowie 1 und l von vornherein aus.
+      tessedit_char_whitelist: "0123456789",
+      // Der Ausschnitt enthält genau eine Zeile.
+      tessedit_pageseg_mode: "7" as unknown as never,
+    });
+    worker = w;
+    return w;
+  }).catch((err) => {
+    starting = null;
+    throw err;
+  });
+
+  return starting;
+}
+
+export async function stopOcr(): Promise<void> {
+  const w = worker;
+  worker = null;
+  starting = null;
+  await w?.terminate();
+}
+
+/**
+ * Schneidet den Suchrahmen aus dem Videobild, verkleinert ihn auf eine für die
+ * Erkennung günstige Höhe und wandelt ihn in reines Schwarzweiß.
+ *
+ * Die Schwelle wird nach Otsu aus dem Bild selbst bestimmt, statt fest
+ * vorgegeben — damit funktioniert derselbe Code bei Sonne und bei Lampenlicht.
+ */
+export function prepareFrame(
+  video: HTMLVideoElement,
+  roi: { x: number; y: number; w: number; h: number },
+  canvas: HTMLCanvasElement,
+  targetHeight = 96,
+): HTMLCanvasElement {
+  const sx = roi.x * video.videoWidth;
+  const sy = roi.y * video.videoHeight;
+  const sw = roi.w * video.videoWidth;
+  const sh = roi.h * video.videoHeight;
+
+  const scale = targetHeight / sh;
+  canvas.width = Math.max(1, Math.round(sw * scale));
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const px = image.data;
+
+  const histogram = new Array(256).fill(0);
+  const grey = new Uint8Array(px.length / 4);
+  for (let i = 0, g = 0; i < px.length; i += 4, g++) {
+    const value = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000 | 0;
+    grey[g] = value;
+    histogram[value]++;
+  }
+
+  const threshold = otsu(histogram, grey.length);
+  for (let i = 0, g = 0; i < px.length; i += 4, g++) {
+    const value = grey[g] > threshold ? 255 : 0;
+    px[i] = px[i + 1] = px[i + 2] = value;
+    px[i + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+
+  return canvas;
+}
+
+/** Schwellwert nach Otsu: die Teilung, die die beiden Helligkeitsgruppen am
+ *  deutlichsten trennt. */
+function otsu(histogram: number[], total: number): number {
+  let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * histogram[i];
+
+  let sumBackground = 0, countBackground = 0, best = 0, threshold = 127;
+
+  for (let i = 0; i < 256; i++) {
+    countBackground += histogram[i];
+    if (countBackground === 0) continue;
+    const countForeground = total - countBackground;
+    if (countForeground === 0) break;
+
+    sumBackground += i * histogram[i];
+    const meanBackground = sumBackground / countBackground;
+    const meanForeground = (sum - sumBackground) / countForeground;
+    const between = countBackground * countForeground *
+      (meanBackground - meanForeground) ** 2;
+
+    if (between > best) { best = between; threshold = i; }
+  }
+  return threshold;
+}
+
+/**
+ * Sammelt Leseergebnisse und gibt eine Nummer erst frei, wenn sie mehrfach
+ * hintereinander gleich gelesen wurde.
+ *
+ * Automatisch korrigiert wird dabei nichts: Bei fortlaufenden Nummern ist zu
+ * jeder Nummer auch die Nachbarnummer gültig, die App hätte für eine Korrektur
+ * keine Grundlage und würde raten. Also: übereinstimmend gelesen und in der
+ * Liste vorhanden — oder weiterlesen.
+ */
+export class Consensus {
+  private recent: string[] = [];
+
+  constructor(private needed = 3, private memory = 5) {}
+
+  /** Gibt die Nummer zurück, sobald sie oft genug bestätigt wurde. */
+  offer(reading: string | null): string | null {
+    if (reading) {
+      this.recent.push(reading);
+      if (this.recent.length > this.memory) this.recent.shift();
+    } else {
+      // Ein leeres Bild löscht die Historie nicht sofort — die Hand zittert,
+      // und ein einzelnes unscharfes Bild soll nicht von vorn anfangen lassen.
+      this.recent.shift();
+    }
+
+    const counts = new Map<string, number>();
+    for (const value of this.recent) counts.set(value, (counts.get(value) ?? 0) + 1);
+
+    for (const [value, count] of counts) {
+      if (count >= this.needed) return value;
+    }
+    return null;
+  }
+
+  reset(): void {
+    this.recent = [];
+  }
+}
+
+/** Liest den vorbereiteten Ausschnitt. Gibt nur zurück, was zur erwarteten
+ *  Stellenzahl passt. */
+export async function readFrame(canvas: HTMLCanvasElement, width: number): Promise<string | null> {
+  const w = worker;
+  if (!w) return null;
+
+  const { data } = await w.recognize(canvas);
+  const digits = (data.text ?? "").replace(/\D/g, "");
+  return digits.length === width ? digits : null;
+}

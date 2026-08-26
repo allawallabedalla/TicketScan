@@ -7,10 +7,14 @@ autoritativen Datenquelle im Hintergrund.
 
 ## Stand
 
-Konzept steht, Schritt 1 des Umsetzungsplans ist gebaut: Datenmodell, Import
-und die Endpunkte für Anmeldung, Einlösung und Abgleich. Dazu das Grundgerüst
-der App mit Kurzanleitung und Anmeldung. Die Kameraerfassung folgt in Schritt 2
-und hängt am Spike zur Texterkennung.
+Schritte 1 und 2 des Umsetzungsplans sind gebaut: Datenmodell, Import, die
+Endpunkte für Anmeldung, Einlösung und Abgleich — und die App mit
+Kurzanleitung, Anmeldung, Einrichtung, Kameraerfassung, Zifferntastatur,
+Bestätigungsschritt, Ausgangswarteschlange und Abgleich.
+
+Offen: Realtime-Push und Dashboard (Schritt 3), Klärung, Rücknahme und Export
+(Schritt 4). Die Texterkennung ist gebaut, aber noch nicht gegen ein echtes
+Ticket vermessen — das ist Schritt 0 und braucht ein Exemplar in die Hand.
 
 - [`docs/konzept.html`](docs/konzept.html) — vollständiges Konzept: Risikoanalyse
   zu Erfassungsfehlern, Kamerapipeline, Architektur, Datenmodell, Sync-Protokoll,
@@ -82,6 +86,11 @@ docs/                 Konzept und Vorschau der Kurzanleitung
 ```
 cd web && npm install && npm run build
 ```
+
+Der Build holt die 18 MB der Texterkennung vorher aus `node_modules` nach
+`public/tesseract/` (`npm run vendor:ocr`, läuft automatisch). Sie liegen
+bewusst nicht im Repo, sind aber im fertigen Bundle enthalten — die App lädt
+zur Laufzeit nichts von fremden Servern nach.
 
 Für GitHub Pages liegt die App unter einem Unterpfad, der auch in
 Service-Worker-Scope und Manifest landen muss:

@@ -12,3 +12,6 @@ dist/
 .DS_Store
 web/dist/
 web/dev-dist/
+# 18 MB Texterkennung — kommen reproduzierbar aus node_modules, siehe
+# web/scripts/vendor-ocr.mjs (läuft automatisch vor jedem Build).
+web/public/tesseract/

@@ -46,6 +46,7 @@ export function Scanner({ session }: { session: store.Session }) {
   // die Erkennung greift oder ins Leere schaut.
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [source, setSource] = useState<{ w: number; h: number } | null>(null);
+  const [reachable, setReachable] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -54,27 +55,27 @@ export function Scanner({ session }: { session: store.Session }) {
     })();
   }, []);
 
-  // Die Warteschlange wird an anderer Stelle geleert, sobald wieder Netz da
-  // ist. Ohne regelmäßiges Nachsehen zählte diese Anzeige nur hoch und blieb
-  // dann stehen — sie zeigte offene Vorgänge an, die längst angekommen waren.
+  // Zustand der Übertragung.
+  //
+  // Abgeleitet ausschließlich daraus, wann zuletzt wirklich Kontakt zum Server
+  // bestand. navigator.onLine taugt dafür nicht: Es meldet nur, ob eine
+  // Netzwerkschnittstelle existiert, und steht im Flugmodus mit eingeschaltetem
+  // WLAN weiterhin auf online. Ob Daten ankommen, weiß man erst, wenn sie
+  // angekommen sind.
   useEffect(() => {
-    const check = () => void store.queueSize().then(setPending);
-    check();
-    const timer = window.setInterval(check, 3000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  // Ob gerade Verbindung besteht, gehört sichtbar in die Leiste: Offene
-  // Vorgänge ohne Netz sind normal, offene Vorgänge mit Netz sind es nicht.
-  const [online, setOnline] = useState(navigator.onLine);
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
+    const check = async () => {
+      const [queued, last] = await Promise.all([
+        store.queueSize(),
+        store.get<string>("lastSyncAt"),
+      ]);
+      setPending(queued);
+      // Abgeglichen wird alle 20 Sekunden. Nach drei ausgefallenen Durchläufen
+      // ist der Kontakt weg und nicht bloß eine Runde ausgefallen.
+      setReachable(last !== undefined && Date.now() - Date.parse(last) < 75_000);
     };
+    void check();
+    const timer = window.setInterval(() => void check(), 3000);
+    return () => window.clearInterval(timer);
   }, []);
 
   // ------------------------------------------------------------- Entscheiden --
@@ -210,7 +211,9 @@ export function Scanner({ session }: { session: store.Session }) {
     await store.enqueue({
       scanId: crypto.randomUUID(),
       code, clientTs: now, action: "redeem",
-      offline: !navigator.onLine,
+      // Auch hier gilt: Maßstab ist der letzte echte Serverkontakt, nicht das,
+      // was der Browser über seine Netzwerkschnittstelle meint.
+      offline: !reachable,
       attempts: 0,
     });
 
@@ -274,11 +277,11 @@ export function Scanner({ session }: { session: store.Session }) {
         </button>
         <span className="scanner-state">
           {session.label}
-          {!online
-            ? <em className="warn">{pending > 0 ? `ohne Netz · ${pending} wartet` : "ohne Netz"}</em>
-            : pending > 0
-              ? <em>{pending} wird gesendet…</em>
-              : <em className="ok">gesendet</em>}
+          {pending > 0
+            ? <em className="warn">{pending} {pending === 1 ? "wartet" : "warten"}</em>
+            : reachable
+              ? <em className="ok">alles gesendet</em>
+              : <em className="warn">kein Kontakt</em>}
         </span>
       </div>
 

@@ -130,5 +130,11 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
 export async function syncOnce(session: Session): Promise<api.ScanResult[]> {
   const results = await flushQueue(session);
   await pullChanges(session);
+
+  // Erst hier, nach beiden Schritten: Der Zeitpunkt belegt tatsächlichen
+  // Kontakt zum Server. navigator.onLine sagt dagegen nur, dass das Gerät
+  // irgendeine Netzwerkschnittstelle hat — im Flugmodus mit eingeschaltetem
+  // WLAN steht der Wert weiterhin auf online.
+  await store.set("lastSyncAt", new Date().toISOString());
   return results;
 }

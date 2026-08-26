@@ -11,8 +11,10 @@ import { feedback } from "../lib/feedback";
 import * as store from "../lib/store";
 import * as Icon from "../onboarding/Icons";
 
-/** Der Suchrahmen, in Anteilen des Bildes. Flach wie das Etikett. */
-const ROI = { x: 0.12, y: 0.42, w: 0.76, h: 0.16 };
+/** Der Suchrahmen, in Anteilen der angezeigten Fläche. Flach wie das Etikett,
+ *  aber großzügig: Je größer der Rahmen, desto weiter weg darf das Ticket
+ *  gehalten werden — die Nummer muss ihn nicht ausfüllen, nur darin liegen. */
+const ROI = { x: 0.07, y: 0.36, w: 0.86, h: 0.22 };
 
 /** Zwischen zwei Leseversuchen. Schneller bringt nichts — die Hand braucht
  *  ohnehin länger, um das Ticket ruhig zu halten. */
@@ -36,13 +38,38 @@ export function Scanner({ session }: { session: store.Session }) {
   const [width, setWidth] = useState(5);
   const [prefix, setPrefix] = useState("0");
   const [pending, setPending] = useState(0);
+  // Was gerade gelesen, aber noch nicht bestätigt wurde. Ohne diese Rückmeldung
+  // weiß niemand, ob die App überhaupt etwas sieht oder nur ins Leere schaut.
+  const [sighted, setSighted] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
       setWidth(await store.get<number>("codeWidth") ?? 5);
       setPrefix(await store.get<string>("codePrefix") ?? "");
-      setPending(await store.queueSize());
     })();
+  }, []);
+
+  // Die Warteschlange wird an anderer Stelle geleert, sobald wieder Netz da
+  // ist. Ohne regelmäßiges Nachsehen zählte diese Anzeige nur hoch und blieb
+  // dann stehen — sie zeigte offene Vorgänge an, die längst angekommen waren.
+  useEffect(() => {
+    const check = () => void store.queueSize().then(setPending);
+    check();
+    const timer = window.setInterval(check, 3000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Ob gerade Verbindung besteht, gehört sichtbar in die Leiste: Offene
+  // Vorgänge ohne Netz sind normal, offene Vorgänge mit Netz sind es nicht.
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
   }, []);
 
   // ------------------------------------------------------------- Entscheiden --
@@ -81,9 +108,24 @@ export function Scanner({ session }: { session: store.Session }) {
 
     void (async () => {
       try {
+        // Aus der Entfernung lesen zu können ist vor allem eine Frage der
+        // Auflösung: Je mehr Bildpunkte auf der Nummer liegen, desto weiter
+        // weg darf das Ticket sein. Safari liefert, was das Gerät hergibt.
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 2560 },
+            height: { ideal: 1440 },
+          },
         });
+
+        // Dauerhafter Autofokus, wo verfügbar. Ohne ihn sucht die Kamera bei
+        // jedem neuen Ticket neu.
+        try {
+          await stream.getVideoTracks()[0]?.applyConstraints({
+            advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet],
+          });
+        } catch { /* Gerät kann es nicht — dann eben nicht. */ }
         if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
         if (video.current) {
           video.current.srcObject = stream;
@@ -109,9 +151,13 @@ export function Scanner({ session }: { session: store.Session }) {
         busy.current = true;
         try {
           const frame = prepareFrame(video.current, ROI, canvas.current);
-          const hit = consensus.current.offer(await readFrame(frame, width));
+          const reading = await readFrame(frame, width);
+          setSighted(reading);
+
+          const hit = consensus.current.offer(reading);
           if (hit) {
             consensus.current.reset();
+            setSighted(null);
             await evaluate(hit);
           }
         } finally {
@@ -121,8 +167,13 @@ export function Scanner({ session }: { session: store.Session }) {
       void tick();
     })();
 
+    // Kommt die App aus dem Hintergrund zurück, hat iOS das Video angehalten.
+    const wake = () => { if (!document.hidden) void video.current?.play(); };
+    document.addEventListener("visibilitychange", wake);
+
     return () => {
       stopped = true;
+      document.removeEventListener("visibilitychange", wake);
       window.clearTimeout(timer);
       stream?.getTracks().forEach((t) => t.stop());
     };
@@ -132,7 +183,7 @@ export function Scanner({ session }: { session: store.Session }) {
   // nächste Ticket dazwischenfunkt.
   useEffect(() => {
     busy.current = view.at !== "scan";
-    if (view.at === "scan") consensus.current.reset();
+    if (view.at === "scan") { consensus.current.reset(); setSighted(null); }
   }, [view]);
 
   // ------------------------------------------------------------------ Buchen --
@@ -156,6 +207,7 @@ export function Scanner({ session }: { session: store.Session }) {
     });
 
     setPending(await store.queueSize());
+
     setView({ at: "result", decision: { ...decision, verdict: "ok" } });
     feedback.ok();
   }
@@ -167,26 +219,26 @@ export function Scanner({ session }: { session: store.Session }) {
 
   // --------------------------------------------------------------- Darstellung --
 
-  if (view.at === "confirm") {
-    return <Confirm decision={view.decision} onYes={() => void redeem(view.decision)} onNo={backToScan} />;
-  }
-  if (view.at === "result") {
-    return <Result decision={view.decision} onDone={backToScan} />;
-  }
-
   return (
     <div className="scanner">
-      {!keypad ? (
-        <div className="cam">
-          <video ref={video} playsInline muted autoPlay />
-          <div className="roi" style={{
-            left: `${ROI.x * 100}%`, top: `${ROI.y * 100}%`,
-            width: `${ROI.w * 100}%`, height: `${ROI.h * 100}%`,
-          }} />
-          <p className="cam-hint">Ticketnummer in den Rahmen halten</p>
-          {camError && <p className="cam-error">{camError}</p>}
-        </div>
-      ) : (
+      {/* Das Videobild bleibt immer eingehängt. Wurde es beim Bestätigen
+          ausgetauscht, kam danach ein neues, leeres Element zurück — und der
+          Bildschirm blieb schwarz, weil der Kamerastrom noch am alten hing. */}
+      <div className="cam" hidden={keypad}>
+        <video ref={video} playsInline muted autoPlay />
+        <div className="roi" style={{
+          left: `${ROI.x * 100}%`, top: `${ROI.y * 100}%`,
+          width: `${ROI.w * 100}%`, height: `${ROI.h * 100}%`,
+        }} />
+        <p className="cam-hint">
+          {sighted
+            ? <span className="cam-sighted">{group(sighted)}</span>
+            : "Ticketnummer in den Rahmen halten"}
+        </p>
+        {camError && <p className="cam-error">{camError}</p>}
+      </div>
+
+      {keypad && (
         <Keypad
           value={typed} width={width} prefix={prefix}
           onChange={setTyped}
@@ -203,9 +255,18 @@ export function Scanner({ session }: { session: store.Session }) {
         </button>
         <span className="scanner-state">
           {session.label}
-          {pending > 0 && <em>{pending} offen</em>}
+          {!online
+            ? <em className="warn">{pending > 0 ? `ohne Netz · ${pending} wartet` : "ohne Netz"}</em>
+            : pending > 0
+              ? <em>{pending} wird gesendet…</em>
+              : <em className="ok">gesendet</em>}
         </span>
       </div>
+
+      {view.at === "confirm" && (
+        <Confirm decision={view.decision} onYes={() => void redeem(view.decision)} onNo={backToScan} />
+      )}
+      {view.at === "result" && <Result decision={view.decision} onDone={backToScan} />}
     </div>
   );
 }
@@ -216,7 +277,7 @@ function Confirm({ decision, onYes, onNo }: {
   decision: Decision; onYes: () => void; onNo: () => void;
 }) {
   return (
-    <div className="sheet ok">
+    <div className="sheet ok overlay">
       <p className="sheet-label">Gültig</p>
       <p className="sheet-code">{group(decision.code)}</p>
       <p className="sheet-meta">{decision.ticket?.category}</p>
@@ -243,7 +304,7 @@ function Result({ decision, onDone }: { decision: Decision; onDone: () => void }
 
   if (decision.verdict === "ok") {
     return (
-      <div className="sheet ok full" onClick={onDone}>
+      <div className="sheet ok full overlay" onClick={onDone}>
         <span className="sheet-big"><Icon.Check /></span>
         <p className="sheet-label">Einlass frei</p>
         <p className="sheet-code">{group(decision.code)}</p>
@@ -254,7 +315,7 @@ function Result({ decision, onDone }: { decision: Decision; onDone: () => void }
 
   if (decision.verdict === "unknown") {
     return (
-      <div className="sheet bad full">
+      <div className="sheet bad full overlay">
         <span className="sheet-big"><Icon.Warning /></span>
         <p className="sheet-label">Unbekannte Nummer</p>
         <p className="sheet-code">{group(decision.code)}</p>
@@ -271,7 +332,7 @@ function Result({ decision, onDone }: { decision: Decision; onDone: () => void }
 
   const at = decision.ticket?.redeemedAt;
   return (
-    <div className="sheet warn full">
+    <div className="sheet warn full overlay">
       <p className="sheet-label">Bereits eingelöst</p>
       <p className="sheet-code">{group(decision.code)}</p>
       <p className="sheet-meta">

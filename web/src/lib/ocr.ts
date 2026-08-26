@@ -58,8 +58,48 @@ export async function stopOcr(): Promise<void> {
 }
 
 /**
- * Schneidet den Suchrahmen aus dem Videobild, verkleinert ihn auf eine für die
+ * Bildet den auf dem Bildschirm gezeigten Rahmen auf das Videobild ab.
+ *
+ * Das Videobild füllt die Fläche mit `object-fit: cover`, wird also
+ * beschnitten. Ein Rahmen bei 42 % der Bildschirmhöhe liegt deshalb nicht bei
+ * 42 % der Videohöhe. Ohne diese Umrechnung wertet die App eine andere Stelle
+ * aus als die, die sie dem Benutzer anzeigt — und der rückt so lange näher
+ * heran, bis die Nummer zufällig in den ausgewerteten Bereich gerät.
+ */
+function roiInVideo(
+  video: HTMLVideoElement,
+  roi: { x: number; y: number; w: number; h: number },
+) {
+  const ew = video.clientWidth;
+  const eh = video.clientHeight;
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+
+  if (!ew || !eh || !vw || !vh) {
+    return { sx: roi.x * vw, sy: roi.y * vh, sw: roi.w * vw, sh: roi.h * vh };
+  }
+
+  // cover: das Video wird so skaliert, dass es die Fläche vollständig
+  // bedeckt; der Überstand fällt links/rechts oder oben/unten weg.
+  const scale = Math.max(ew / vw, eh / vh);
+  const offX = (vw * scale - ew) / 2;
+  const offY = (vh * scale - eh) / 2;
+
+  return {
+    sx: (roi.x * ew + offX) / scale,
+    sy: (roi.y * eh + offY) / scale,
+    sw: (roi.w * ew) / scale,
+    sh: (roi.h * eh) / scale,
+  };
+}
+
+/**
+ * Schneidet den Suchrahmen aus dem Videobild, bringt ihn auf eine für die
  * Erkennung günstige Höhe und wandelt ihn in reines Schwarzweiß.
+ *
+ * Vergrößert wird dabei nie: Hochskalieren fügt keine Information hinzu, es
+ * kostet nur Rechenzeit. Ob aus der Entfernung gelesen werden kann, entscheidet
+ * allein die Auflösung, mit der die Kamera aufnimmt.
  *
  * Die Schwelle wird nach Otsu aus dem Bild selbst bestimmt, statt fest
  * vorgegeben — damit funktioniert derselbe Code bei Sonne und bei Lampenlicht.
@@ -68,16 +108,13 @@ export function prepareFrame(
   video: HTMLVideoElement,
   roi: { x: number; y: number; w: number; h: number },
   canvas: HTMLCanvasElement,
-  targetHeight = 96,
+  targetHeight = 110,
 ): HTMLCanvasElement {
-  const sx = roi.x * video.videoWidth;
-  const sy = roi.y * video.videoHeight;
-  const sw = roi.w * video.videoWidth;
-  const sh = roi.h * video.videoHeight;
+  const { sx, sy, sw, sh } = roiInVideo(video, roi);
 
-  const scale = targetHeight / sh;
+  const scale = Math.min(targetHeight / sh, 1);
   canvas.width = Math.max(1, Math.round(sw * scale));
-  canvas.height = targetHeight;
+  canvas.height = Math.max(1, Math.round(sh * scale));
 
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);

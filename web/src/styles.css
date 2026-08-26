@@ -456,3 +456,19 @@ b { font-weight: 650; }
   font-size: .74rem; color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
+
+/* Bestätigung und Ergebnis legen sich über das laufende Kamerabild, statt es
+   zu ersetzen — sonst kommt danach ein leeres Video-Element zurück. */
+.scanner { position: relative; }
+.sheet.overlay { position: absolute; inset: 0; z-index: 10; }
+.cam[hidden] { display: none; }
+
+/* Was gerade gelesen, aber noch nicht bestätigt wurde. Hilft beim Zielen. */
+.cam-sighted {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 1.5rem; letter-spacing: .1em; font-variant-numeric: tabular-nums;
+  opacity: .85;
+}
+
+.scanner-state em.ok { color: var(--ok); }
+.scanner-state em.warn { color: var(--warn); }

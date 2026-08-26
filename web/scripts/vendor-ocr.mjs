@@ -14,12 +14,26 @@ import { stderr, exit } from "node:process";
 
 const OUT = "public/tesseract";
 
-// Die relaxedsimd-Variante läuft auf allen aktuellen iPhones und Android-
-// Geräten und ist deutlich schneller als der Aufbau ohne SIMD.
+// Alle sechs Kern-Varianten. tesseract entscheidet erst im Browser, welche es
+// braucht — je nachdem, ob er relaxed SIMD, nur SIMD oder keines von beidem
+// beherrscht. Safari 17 etwa kann SIMD, aber kein relaxed SIMD und fordert
+// deshalb eine andere Datei an als Safari 18. Fehlt sie, bricht die Erkennung
+// mit einem 404 ab, und zwar erst auf dem Gerät.
+//
+// Heruntergeladen wird zur Laufzeit immer nur eine davon. Die übrigen kosten
+// nichts außer Platz im Bundle.
+const CORE = [
+  "tesseract-core-relaxedsimd-lstm.wasm.js",
+  "tesseract-core-relaxedsimd.wasm.js",
+  "tesseract-core-simd-lstm.wasm.js",
+  "tesseract-core-simd.wasm.js",
+  "tesseract-core-lstm.wasm.js",
+  "tesseract-core.wasm.js",
+];
+
 const FILES = [
   ["node_modules/tesseract.js/dist/worker.min.js", "worker.min.js"],
-  ["node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js", "tesseract-core-relaxedsimd-lstm.wasm.js"],
-  ["node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js", "tesseract-core-lstm.wasm.js"],
+  ...CORE.map((name) => [`node_modules/tesseract.js-core/${name}`, name]),
   // 4.0.0 ist die schnelle Variante. Für schwarze Ziffern auf weißem Etikett
   // reicht sie; die genauere wäre viermal so groß bei kaum besserem Ergebnis.
   ["node_modules/@tesseract.js-data/eng/4.0.0/eng.traineddata.gz", "eng.traineddata.gz"],

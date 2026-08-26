@@ -12,6 +12,7 @@ const API = import.meta.env.VITE_API_URL ?? "";
 
 export function Login({ onDone }: { onDone: (session: store.Session) => void }) {
   const [password, setPassword] = useState("");
+  const [visible, setVisible] = useState(false);
   const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,11 +59,25 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
 
       <label className="field">
         <span>Passwort</span>
-        <input
-          type="password" value={password} required autoComplete="current-password"
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Von der Einlassleitung"
-        />
+        {/* Ein gemeinsames Eventpasswort wird abgetippt, oft im Dunkeln und
+            unter Zeitdruck. Wer sich vertippt, soll das sehen können. */}
+        <div className="field-with-button">
+          <input
+            type={visible ? "text" : "password"}
+            value={password} required autoComplete="current-password"
+            autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Von der Einlassleitung"
+          />
+          <button
+            type="button" className="field-button"
+            onClick={() => setVisible(!visible)}
+            aria-label={visible ? "Passwort verbergen" : "Passwort anzeigen"}
+            aria-pressed={visible}
+          >
+            {visible ? <Icon.EyeOff /> : <Icon.Eye />}
+          </button>
+        </div>
       </label>
 
       <label className="field">

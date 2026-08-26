@@ -146,9 +146,10 @@ der `web/` berührt. Von Hand auslösen geht über *Actions* → *App
 veröffentlichen* → *Run workflow*. Die App liegt anschließend unter
 `https://allawallabedalla.github.io/TicketScan/`.
 
-Der Ablauf prüft dabei, dass die Texterkennung wirklich im Bundle liegt — ohne
-diese Dateien liefe sie gegen ein fremdes CDN und ohne Netz gar nicht. Lieber
-dort scheitern als am Eingang.
+Der Ablauf prüft dabei, dass alle Dateien der Texterkennung im Bundle liegen —
+auch alle sechs Kern-Varianten. Welche davon ein Browser anfordert, entscheidet
+sich erst auf dem Gerät; fehlt genau diese, bricht die Erkennung dort mit einem
+404 ab. Lieber im Ablauf scheitern als am Eingang.
 
 Lokal bauen geht weiterhin:
 

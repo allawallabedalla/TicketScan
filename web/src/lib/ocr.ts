@@ -40,7 +40,11 @@ export async function startOcr(onProgress?: (ratio: number) => void): Promise<Wo
     return w;
   }).catch((err) => {
     starting = null;
-    throw err;
+    // Die Ursache ist fast immer eine fehlende Datei unter ASSETS, und die
+    // Meldung von tesseract nennt sie nicht. Ohne diesen Zusatz steht auf dem
+    // Gerät nur „Unbekannter Fehler“.
+    const cause = err instanceof Error ? err.message : String(err);
+    throw new Error(`Texterkennung konnte nicht starten (${ASSETS}): ${cause}`);
   });
 
   return starting;

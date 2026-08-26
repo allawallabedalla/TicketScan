@@ -47,7 +47,13 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
       if (total === 0) setError("Die Ticketliste ist leer. Wurde sie schon importiert?");
     } catch (err) {
       setPhase("fehler");
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      // Lieber eine hässliche technische Meldung als „Unbekannter Fehler“ —
+      // die Einrichtung passiert am Vorabend, da darf man etwas nachschlagen.
+      setError(
+        err instanceof Error
+          ? `${err.message}${err.cause ? ` (${String(err.cause)})` : ""}`
+          : String(err),
+      );
     }
   }, [session]);
 
@@ -77,7 +83,7 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
             <b>Texterkennung vorbereiten</b>
             <small>
               {phase === "ocr"
-                ? `${Math.round(ocrRatio * 100)} % von 18 MB`
+                ? `${Math.round(ocrRatio * 100)} % von rund 14 MB`
                 : phase === "tickets" ? "danach" : "bereit"}
             </small>
           </span>

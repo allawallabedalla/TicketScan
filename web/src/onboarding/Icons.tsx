@@ -122,3 +122,19 @@ export const Warning = (p: Props) => (
     <path d="M12 10v4M12 17h.01" strokeWidth="2" />
   </svg>
 );
+
+export const Eye = (p: Props) => (
+  <svg {...base} {...p}>
+    <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+export const EyeOff = (p: Props) => (
+  <svg {...base} {...p}>
+    <path d="M9.9 5.7A10.6 10.6 0 0 1 12 5.5c6.4 0 10 6.5 10 6.5a18 18 0 0 1-3.3 4.1" />
+    <path d="M6.3 7.8A17.6 17.6 0 0 0 2 12s3.6 6.5 10 6.5a10.9 10.9 0 0 0 4-.75" />
+    <path d="M10.1 10.1a2.7 2.7 0 0 0 3.8 3.8" />
+    <path d="M3 3l18 18" />
+  </svg>
+);

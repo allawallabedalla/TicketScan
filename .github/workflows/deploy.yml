@@ -55,8 +55,15 @@ jobs:
         working-directory: web
         # Ohne diese Dateien liefe die Erkennung gegen ein fremdes CDN — und
         # ohne Netz gar nicht. Lieber hier scheitern als am Eingang.
+        # Alle sechs Kern-Varianten müssen da sein. Welche der Browser
+        # anfordert, entscheidet sich erst auf dem Gerät — fehlt genau die,
+        # bricht die Erkennung dort mit einem 404 ab. Genau das ist passiert.
         run: |
-          for f in worker.min.js eng.traineddata.gz; do
+          for f in worker.min.js eng.traineddata.gz \
+                   tesseract-core.wasm.js tesseract-core-lstm.wasm.js \
+                   tesseract-core-simd.wasm.js tesseract-core-simd-lstm.wasm.js \
+                   tesseract-core-relaxedsimd.wasm.js \
+                   tesseract-core-relaxedsimd-lstm.wasm.js; do
             test -s "dist/tesseract/$f" || { echo "Fehlt: dist/tesseract/$f"; exit 1; }
           done
           du -sh dist

@@ -394,3 +394,16 @@ b { font-weight: 650; }
 .key.go { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .key.go:disabled { opacity: .35; }
 .key.go svg { width: 26px; height: 26px; }
+
+/* Eingabefeld mit Knopf am Rand — für die Klartext-Anzeige des Passworts. */
+.field-with-button { position: relative; display: flex; }
+.field-with-button input { flex: 1; padding-right: 54px; }
+.field-button {
+  position: absolute; right: 4px; top: 4px; bottom: 4px; width: 46px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 9px; background: none; color: var(--muted);
+  cursor: pointer; touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.field-button:active { background: var(--surface-2); }
+.field-button svg { width: 22px; height: 22px; }

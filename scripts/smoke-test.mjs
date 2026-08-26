@@ -19,6 +19,19 @@ if (!API || !PASSWORD) {
   exit(1);
 }
 
+/** Fängt aus der Anleitung übernommene Beispielwerte ab, bevor sie als
+ *  echter Fehler erscheinen. */
+function rejectPlaceholder(name, value) {
+  if (value && /^(eyJ\.\.\.|\.\.\.|<.*>|xxx+)$/i.test(value.trim())) {
+    stderr.write(
+      `${name} enthält noch den Beispielwert '${value}'.\n` +
+      "Den echten Schlüssel gibt es unter Project Settings → API Keys.\n",
+    );
+    exit(1);
+  }
+}
+rejectPlaceholder("TICKETSCAN_ANON_KEY", env.TICKETSCAN_ANON_KEY);
+
 let failed = 0;
 const results = [];
 
@@ -133,11 +146,20 @@ if (ANON) {
       const res = await fetch(`${REST}/${relation}?select=*&limit=1`, {
         headers: { apikey: ANON, authorization: `Bearer ${ANON}` },
       });
+      const body = await res.text();
+
+      // Ein ungültiger Schlüssel liefert ebenfalls 401 — das sähe aus wie
+      // „abgesichert“, prüft aber gar nichts. Diese Verwechslung darf der
+      // Testlauf nicht durchgehen lassen.
+      if (body.includes("Invalid API key") || body.includes("invalid JWT")) {
+        throw new Error("Schlüssel ungültig — Prüfung sagt nichts aus. Echten anon-Schlüssel setzen.");
+      }
+
       if (res.status === 401 || res.status === 403 || res.status === 404) {
         return `${res.status}, kein Zugriff`;
       }
       if (res.ok) {
-        const rows = await res.json();
+        const rows = JSON.parse(body);
         if (Array.isArray(rows) && rows.length === 0) return "leer, kein Zugriff";
         throw new Error(`${Array.isArray(rows) ? rows.length : "?"} Zeilen lesbar — Migration 0002 eingespielt?`);
       }

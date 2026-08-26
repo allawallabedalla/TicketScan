@@ -183,6 +183,18 @@ if (!url || !key) {
   exit(1);
 }
 
+// Aus der Anleitung übernommene Beispielwerte abfangen, bevor der Server sie
+// als „Invalid API key“ zurückweist — die Meldung führt sonst auf die falsche
+// Fährte.
+if (/^(eyJ\.\.\.|\.\.\.|<.*>)$/i.test(key.trim())) {
+  stderr.write(
+    `SUPABASE_SERVICE_ROLE_KEY enthält noch den Beispielwert '${key}'.\n` +
+    "Den echten Schlüssel gibt es unter Project Settings → API Keys,\n" +
+    "Eintrag `service_role` bzw. `secret`.\n",
+  );
+  exit(1);
+}
+
 const CHUNK = 500;
 let written = 0;
 

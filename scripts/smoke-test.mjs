@@ -142,29 +142,34 @@ const ANON = env.TICKETSCAN_ANON_KEY;
 if (ANON) {
   const REST = API.replace(/\/functions\/v1$/, "/rest/v1");
 
+  // Die neuen Schlüssel (sb_publishable_...) sind keine JWTs. Sie gehören
+  // ausschließlich in den apikey-Kopf; als Bearer-Token weist die Data API sie
+  // ab — und das sah bisher aus wie eine greifende Absicherung.
+  const headers = ANON.startsWith("eyJ")
+    ? { apikey: ANON, authorization: `Bearer ${ANON}` }
+    : { apikey: ANON };
+
   for (const relation of ["tickets", "scan_log", "offline_windows"]) {
     await step(`${relation} ist öffentlich nicht lesbar`, async () => {
-      const res = await fetch(`${REST}/${relation}?select=*&limit=1`, {
-        headers: { apikey: ANON, authorization: `Bearer ${ANON}` },
-      });
+      const res = await fetch(`${REST}/${relation}?select=*&limit=1`, { headers });
       const body = await res.text();
 
-      // Ein ungültiger Schlüssel liefert ebenfalls 401 — das sähe aus wie
-      // „abgesichert“, prüft aber gar nichts. Diese Verwechslung darf der
-      // Testlauf nicht durchgehen lassen.
-      if (body.includes("Invalid API key") || body.includes("invalid JWT")) {
-        throw new Error("Schlüssel ungültig — Prüfung sagt nichts aus. Echten anon-Schlüssel setzen.");
-      }
-
-      if (res.status === 401 || res.status === 403 || res.status === 404) {
-        return `${res.status}, kein Zugriff`;
-      }
+      // Belegt ist die Absicherung nur durch eine *erfolgreiche* Abfrage, die
+      // nichts zurückgibt. Ein Fehlercode beweist gar nichts: er kann ebenso
+      // von einem falschen Schlüssel oder einem falschen Kopf kommen — und
+      // genau so hat dieser Testlauf zweimal grün gemeldet, ohne zu prüfen.
       if (res.ok) {
         const rows = JSON.parse(body);
         if (Array.isArray(rows) && rows.length === 0) return "leer, kein Zugriff";
-        throw new Error(`${Array.isArray(rows) ? rows.length : "?"} Zeilen lesbar — Migration 0002 eingespielt?`);
+        throw new Error(
+          `${Array.isArray(rows) ? rows.length : "?"} Zeilen lesbar — Migration 0002 eingespielt?`,
+        );
       }
-      return `${res.status}`;
+
+      throw new Error(
+        `HTTP ${res.status} — sagt nichts aus. ${body.slice(0, 90)} ` +
+        "(Prüfung braucht einen gültigen öffentlichen Schlüssel.)",
+      );
     });
   }
 } else {

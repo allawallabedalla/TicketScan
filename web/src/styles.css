@@ -472,3 +472,22 @@ b { font-weight: 650; }
 
 .scanner-state em.ok { color: var(--ok); }
 .scanner-state em.warn { color: var(--warn); }
+
+/* Die erkannte Fundstelle des Etiketts. Man sieht daran sofort, ob die
+   Erkennung greift — und muss nicht raten, warum nichts passiert. */
+.lock {
+  position: absolute;
+  border: 2px solid var(--ok);
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35);
+  transition: all .12s linear;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .lock { transition: none; } }
+
+.cam-source {
+  position: absolute; left: 16px; right: 16px; bottom: 10px;
+  text-align: center; font-size: .74rem; color: #fff; opacity: .6;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+}

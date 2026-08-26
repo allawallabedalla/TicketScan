@@ -93,31 +93,147 @@ function roiInVideo(
   };
 }
 
+export interface Frame {
+  canvas: HTMLCanvasElement;
+  /** Wurde das Etikett gefunden? Sonst wurde der ganze Rahmen ausgewertet. */
+  found: boolean;
+  /** Fundstelle in Anteilen der angezeigten Fläche, für die Anzeige. */
+  box: { x: number; y: number; w: number; h: number } | null;
+  /** Auflösung, mit der die Kamera tatsächlich liefert. */
+  source: { w: number; h: number };
+}
+
+const analysis = document.createElement("canvas");
+
 /**
- * Schneidet den Suchrahmen aus dem Videobild, bringt ihn auf eine für die
- * Erkennung günstige Höhe und wandelt ihn in reines Schwarzweiß.
+ * Sucht Text innerhalb des Rahmens — über Kantendichte, nicht über Farbe.
  *
- * Vergrößert wird dabei nie: Hochskalieren fügt keine Information hinzu, es
- * kostet nur Rechenzeit. Ob aus der Entfernung gelesen werden kann, entscheidet
- * allein die Auflösung, mit der die Kamera aufnimmt.
+ * Das ist der entscheidende Schritt für den Abstand: Statt das ganze Rahmenband
+ * auf Lesegröße herunterzurechnen, wobei die Ziffern mitschrumpfen, wird nur
+ * die Textstelle ausgeschnitten, und zwar in voller Kameraauflösung. Das wirkt
+ * wie ein Zoom auf die Nummer, ohne dass jemand näher herangehen muss.
  *
- * Die Schwelle wird nach Otsu aus dem Bild selbst bestimmt, statt fest
- * vorgegeben — damit funktioniert derselbe Code bei Sonne und bei Lampenlicht.
+ * Gesucht wird bewusst nichts Ticketspezifisches. Ein weißer Aufkleber wäre ein
+ * bequemes Merkmal, aber das nächste Ticket sieht anders aus. Was Text dagegen
+ * immer auszeichnet: viele dicht beieinander liegende Hell-dunkel-Wechsel.
+ * Papier, Farbe und Untergrund spielen dabei keine Rolle, helle Schrift auf
+ * dunklem Grund funktioniert genauso wie umgekehrt.
+ */
+function findTextRegion(
+  video: HTMLVideoElement,
+  region: { sx: number; sy: number; sw: number; sh: number },
+) {
+  const W = 240;
+  const H = Math.max(8, Math.round((region.sh / region.sw) * W));
+  analysis.width = W;
+  analysis.height = H;
+
+  const ctx = analysis.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(video, region.sx, region.sy, region.sw, region.sh, 0, 0, W, H);
+
+  const px = ctx.getImageData(0, 0, W, H).data;
+  const grey = new Uint8Array(W * H);
+  for (let i = 0, g = 0; i < px.length; i += 4, g++) {
+    grey[g] = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000 | 0;
+  }
+
+  // Waagerechte Helligkeitssprünge. Ziffern erzeugen davon viele auf engem
+  // Raum; eine Papierkante erzeugt einen einzelnen, eine gleichmäßige Fläche
+  // keinen.
+  const edge = new Uint8Array(W * H);
+  let sum = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const at = y * W + x;
+      const d = Math.abs(grey[at + 1] - grey[at - 1]);
+      edge[at] = d;
+      sum += d;
+    }
+  }
+
+  // Schwelle relativ zum Bildinhalt, damit sie bei jedem Licht passt.
+  const limit = Math.max(18, (sum / (W * H)) * 2.2);
+
+  const perRow = new Int32Array(H);
+  const perColumn = new Int32Array(W);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (edge[y * W + x] >= limit) { perRow[y]++; perColumn[x]++; }
+    }
+  }
+
+  /** Längster zusammenhängender Abschnitt oberhalb eines Schwellwerts. */
+  const run = (profile: Int32Array, floor: number) => {
+    let bestFrom = -1, bestTo = -1, from = -1;
+    for (let i = 0; i <= profile.length; i++) {
+      const inside = i < profile.length && profile[i] >= floor;
+      if (inside && from === -1) from = i;
+      if (!inside && from !== -1) {
+        if (i - from > bestTo - bestFrom) { bestFrom = from; bestTo = i; }
+        from = -1;
+      }
+    }
+    return bestFrom === -1 ? null : { from: bestFrom, to: bestTo };
+  };
+
+  // Zeilen zuerst: Text bildet ein waagerechtes Band.
+  const peakRow = Math.max(...perRow);
+  const rows = run(perRow, Math.max(3, peakRow * 0.35));
+  if (!rows) return null;
+
+  // Spalten nur innerhalb dieses Bandes zählen, sonst zieht Struktur darüber
+  // oder darunter den Ausschnitt in die Breite.
+  const inBand = new Int32Array(W);
+  for (let y = rows.from; y < rows.to; y++) {
+    for (let x = 0; x < W; x++) if (edge[y * W + x] >= limit) inBand[x]++;
+  }
+  const bandHeight = rows.to - rows.from;
+  const cols = run(inBand, Math.max(1, bandHeight * 0.18));
+  if (!cols) return null;
+
+  const width = cols.to - cols.from;
+  if (width < W * 0.05 || bandHeight < 4) return null;
+  // Eine Ziffernfolge ist breiter als hoch. Alles andere ist kein Text.
+  if (width / bandHeight < 1.1) return null;
+
+  const padX = width * 0.08;
+  const padY = bandHeight * 0.35;
+  const scaleX = region.sw / W;
+  const scaleY = region.sh / H;
+
+  const left = Math.max(0, cols.from - padX);
+  const top = Math.max(0, rows.from - padY);
+
+  return {
+    sx: region.sx + left * scaleX,
+    sy: region.sy + top * scaleY,
+    sw: Math.min(W - left, width + 2 * padX) * scaleX,
+    sh: Math.min(H - top, bandHeight + 2 * padY) * scaleY,
+  };
+}
+
+/**
+ * Bereitet ein Einzelbild für die Erkennung vor: Etikett suchen, in voller
+ * Auflösung ausschneiden, auf Lesegröße bringen, schwarzweiß machen.
+ *
+ * Vergrößert wird nie — Hochskalieren fügt keine Information hinzu.
  */
 export function prepareFrame(
   video: HTMLVideoElement,
   roi: { x: number; y: number; w: number; h: number },
   canvas: HTMLCanvasElement,
-  targetHeight = 110,
-): HTMLCanvasElement {
-  const { sx, sy, sw, sh } = roiInVideo(video, roi);
+  targetHeight = 120,
+): Frame {
+  const region = roiInVideo(video, roi);
+  const found = findTextRegion(video, region);
+  const crop = found ?? region;
 
-  const scale = Math.min(targetHeight / sh, 1);
-  canvas.width = Math.max(1, Math.round(sw * scale));
-  canvas.height = Math.max(1, Math.round(sh * scale));
+  const scale = Math.min(targetHeight / crop.sh, 1);
+  canvas.width = Math.max(1, Math.round(crop.sw * scale));
+  canvas.height = Math.max(1, Math.round(crop.sh * scale));
 
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, canvas.width, canvas.height);
 
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const px = image.data;
@@ -130,15 +246,52 @@ export function prepareFrame(
     histogram[value]++;
   }
 
+  // Die Schwelle stammt aus dem Bild selbst — derselbe Code arbeitet damit bei
+  // Sonne wie bei Lampenlicht.
   const threshold = otsu(histogram, grey.length);
+
+  let dark = 0;
+  for (let g = 0; g < grey.length; g++) if (grey[g] <= threshold) dark++;
+  // Überwiegt das Dunkle, steht die Schrift hell auf dunklem Grund. Tesseract
+  // erwartet das Gegenteil, also umdrehen — damit ist die Erkennung auch von
+  // der Gestaltung des Aufdrucks unabhängig.
+  const invert = dark > grey.length * 0.55;
+
   for (let i = 0, g = 0; i < px.length; i += 4, g++) {
-    const value = grey[g] > threshold ? 255 : 0;
+    const bright = grey[g] > threshold;
+    const value = (invert ? !bright : bright) ? 255 : 0;
     px[i] = px[i + 1] = px[i + 2] = value;
     px[i + 3] = 255;
   }
   ctx.putImageData(image, 0, 0);
 
-  return canvas;
+  return {
+    canvas,
+    found: found !== null,
+    box: found ? videoToElement(video, found) : null,
+    source: { w: video.videoWidth, h: video.videoHeight },
+  };
+}
+
+/** Rückweg: Videokoordinaten in Anteile der angezeigten Fläche. */
+function videoToElement(
+  video: HTMLVideoElement,
+  r: { sx: number; sy: number; sw: number; sh: number },
+) {
+  const ew = video.clientWidth, eh = video.clientHeight;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!ew || !eh || !vw || !vh) return null;
+
+  const scale = Math.max(ew / vw, eh / vh);
+  const offX = (vw * scale - ew) / 2;
+  const offY = (vh * scale - eh) / 2;
+
+  return {
+    x: (r.sx * scale - offX) / ew,
+    y: (r.sy * scale - offY) / eh,
+    w: (r.sw * scale) / ew,
+    h: (r.sh * scale) / eh,
+  };
 }
 
 /** Schwellwert nach Otsu: die Teilung, die die beiden Helligkeitsgruppen am

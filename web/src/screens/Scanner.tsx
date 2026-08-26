@@ -41,6 +41,11 @@ export function Scanner({ session }: { session: store.Session }) {
   // Was gerade gelesen, aber noch nicht bestätigt wurde. Ohne diese Rückmeldung
   // weiß niemand, ob die App überhaupt etwas sieht oder nur ins Leere schaut.
   const [sighted, setSighted] = useState<string | null>(null);
+  // Wo die App das Etikett gefunden hat, und mit welcher Auflösung die Kamera
+  // liefert. Beides gehört sichtbar auf den Bildschirm: Man sieht sofort, ob
+  // die Erkennung greift oder ins Leere schaut.
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [source, setSource] = useState<{ w: number; h: number } | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -151,7 +156,10 @@ export function Scanner({ session }: { session: store.Session }) {
         busy.current = true;
         try {
           const frame = prepareFrame(video.current, ROI, canvas.current);
-          const reading = await readFrame(frame, width);
+          setBox(frame.box);
+          setSource(frame.source);
+
+          const reading = await readFrame(frame.canvas, width);
           setSighted(reading);
 
           const hit = consensus.current.offer(reading);
@@ -183,7 +191,7 @@ export function Scanner({ session }: { session: store.Session }) {
   // nächste Ticket dazwischenfunkt.
   useEffect(() => {
     busy.current = view.at !== "scan";
-    if (view.at === "scan") { consensus.current.reset(); setSighted(null); }
+    if (view.at === "scan") { consensus.current.reset(); setSighted(null); setBox(null); }
   }, [view]);
 
   // ------------------------------------------------------------------ Buchen --
@@ -230,11 +238,22 @@ export function Scanner({ session }: { session: store.Session }) {
           left: `${ROI.x * 100}%`, top: `${ROI.y * 100}%`,
           width: `${ROI.w * 100}%`, height: `${ROI.h * 100}%`,
         }} />
+        {box && (
+          <div className="lock" style={{
+            left: `${box.x * 100}%`, top: `${box.y * 100}%`,
+            width: `${box.w * 100}%`, height: `${box.h * 100}%`,
+          }} />
+        )}
         <p className="cam-hint">
           {sighted
             ? <span className="cam-sighted">{group(sighted)}</span>
             : "Ticketnummer in den Rahmen halten"}
         </p>
+        {source && (
+          <p className="cam-source">
+            {source.w}&times;{source.h}{box ? " · Text erkannt" : ""}
+          </p>
+        )}
         {camError && <p className="cam-error">{camError}</p>}
       </div>
 

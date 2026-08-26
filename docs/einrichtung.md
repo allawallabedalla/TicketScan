@@ -89,16 +89,24 @@ des Projekts heißt er `sb_secret_...` oder `service_role`. Nicht zu verwechseln
 mit dem öffentlichen (`sb_publishable_...` bzw. `anon`) — der darf nicht
 schreiben.
 
+Schlüssel im Browser kopieren, dann im Terminal:
+
 ```bash
 export SUPABASE_URL="https://$REF.supabase.co"
-export SUPABASE_SERVICE_ROLE_KEY='sb_secret_...'   # niemals ins Repo
+export SUPABASE_SERVICE_ROLE_KEY="$(pbpaste)"   # aus der Zwischenablage
 
 node scripts/import-tickets.mjs data/tickets.sample.csv            # nur prüfen
 node scripts/import-tickets.mjs data/tickets.sample.csv --commit   # schreiben
 ```
 
+`pbpaste` statt Einfügen in die Zeile ist kein Umstand, sondern Absicht:
+Manche Terminals verfremden eingefügte Geheimnisse — der Wert sieht dann
+richtig aus und ist es nicht. Außerdem landet er so nicht in der
+Shell-History.
+
 Der Importer prüft erst und schreibt nur mit `--commit`. Er bricht ab bei
-Dubletten, uneinheitlicher Stellenzahl und verschobenen Spalten.
+Dubletten, uneinheitlicher Stellenzahl, verschobenen Spalten und einem
+Schlüssel, der verfremdet wurde.
 
 > **Zur echten Liste:** Excel entfernt führende Nullen — aus `00245` wird `245`.
 > Am besten direkt aus dem Vorverkaufssystem exportieren und die Datei nicht in

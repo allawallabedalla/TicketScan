@@ -199,6 +199,22 @@ if (/^(eyJ\.\.\.|\.\.\.|<.*>)$/i.test(key.trim())) {
 // Der öffentliche Schlüssel wird hier gern verwechselt. Er kommt bis zur
 // Zeilensicherheit und scheitert dann mit einer Meldung, die nach einem
 // Rechteproblem aussieht statt nach der falschen Zutat.
+// Manche Terminals ersetzen eingefügte Geheimnisse in der Anzeige durch
+// Punkte — und je nach Programm landen diese Punkte auch im Wert. Der Fehler
+// kommt dann tief aus der HTTP-Bibliothek und nennt einen Zeichencode, mit dem
+// niemand etwas anfangen kann.
+if (/[^\x21-\x7e]/.test(key.trim())) {
+  stderr.write(
+    "SUPABASE_SERVICE_ROLE_KEY enthält Zeichen, die in einem Schlüssel nicht\n" +
+    "vorkommen — vermutlich hat das Terminal die Eingabe verfremdet.\n\n" +
+    "Zuverlässiger Weg auf dem Mac: Schlüssel im Browser kopieren, dann\n\n" +
+    "  export SUPABASE_SERVICE_ROLE_KEY=\"$(pbpaste)\"\n\n" +
+    "So wandert der Wert aus der Zwischenablage direkt in die Variable, ohne\n" +
+    "je durch die Eingabezeile zu laufen.\n",
+  );
+  exit(1);
+}
+
 if (/^sb_publishable_/.test(key.trim())) {
   stderr.write(
     "SUPABASE_SERVICE_ROLE_KEY enthält den öffentlichen Schlüssel\n" +

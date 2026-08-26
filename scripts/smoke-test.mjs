@@ -154,13 +154,23 @@ if (ANON) {
       const res = await fetch(`${REST}/${relation}?select=*&limit=1`, { headers });
       const body = await res.text();
 
-      // Belegt ist die Absicherung nur durch eine *erfolgreiche* Abfrage, die
-      // nichts zurückgibt. Ein Fehlercode beweist gar nichts: er kann ebenso
-      // von einem falschen Schlüssel oder einem falschen Kopf kommen — und
-      // genau so hat dieser Testlauf zweimal grün gemeldet, ohne zu prüfen.
+      // Zwei Antworten belegen die Absicherung, und nur diese zwei:
+      //
+      //   42501 — Postgres hat den Zugriff mangels Rechten verweigert. Der
+      //           Schlüssel wurde also angenommen, die Anfrage kam bis zur
+      //           Datenbank, und dort greift der Rechteentzug aus 0002.
+      //   200 [] — durchgelassen, aber die Zeilensicherheit gibt nichts heraus.
+      //
+      // Alles andere sagt nichts aus. Ein 401 vom Gateway etwa kommt von einem
+      // ungültigen Schlüssel und sähe nur aus wie Sicherheit — dieser Testlauf
+      // hat genau darauf schon zweimal fälschlich grün gemeldet.
+      if (body.includes('"42501"') || body.includes("permission denied")) {
+        return "Rechte entzogen (42501)";
+      }
+
       if (res.ok) {
         const rows = JSON.parse(body);
-        if (Array.isArray(rows) && rows.length === 0) return "leer, kein Zugriff";
+        if (Array.isArray(rows) && rows.length === 0) return "durchgelassen, aber leer";
         throw new Error(
           `${Array.isArray(rows) ? rows.length : "?"} Zeilen lesbar — Migration 0002 eingespielt?`,
         );

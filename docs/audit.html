@@ -1,0 +1,253 @@
+<title>TicketScan Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap">
+<style>
+:root{
+  --ground:#EFE3C0; --surface:#FBF6E6; --surface-2:#EADEBB; --line:#D5C69B;
+  --ink:#2E2A1E; --muted:#6B6250; --faint:#99907A;
+  --accent:#C0327B; --accent-soft:#F7DCE9; --on-accent:#FFF;
+  --violet:#6E4B9E; --azure:#2F7FB8; --olive:#7E8F2E;
+  --ok:#15794B; --ok-soft:#DCEEDF;
+  --warn:#8A5A0B; --warn-soft:#F7E7C2;
+  --bad:#A62A1B; --bad-soft:#F8DDD6;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#101208; --surface:#1F2317; --surface-2:#2A2F20; --line:#3E4531;
+  --ink:#EFE9D6; --muted:#A9A28C; --faint:#7C7561;
+  --accent:#FF83B9; --accent-soft:#3B1829; --on-accent:#24101A;
+  --violet:#B79BE6; --azure:#7CBCE8; --olive:#B9CB5E;
+  --ok:#55D89B; --ok-soft:#123020;
+  --warn:#E9B94F; --warn-soft:#33260C;
+  --bad:#F5847A; --bad-soft:#351613;
+}}
+:root[data-theme="dark"]{
+  --ground:#101208; --surface:#1F2317; --surface-2:#2A2F20; --line:#3E4531;
+  --ink:#EFE9D6; --muted:#A9A28C; --faint:#7C7561;
+  --accent:#FF83B9; --accent-soft:#3B1829; --on-accent:#24101A;
+  --violet:#B79BE6; --azure:#7CBCE8; --olive:#B9CB5E;
+  --ok:#55D89B; --ok-soft:#123020;
+  --warn:#E9B94F; --warn-soft:#33260C;
+  --bad:#F5847A; --bad-soft:#351613;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:Literata,Georgia,serif;font-size:17px;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px 90px}
+h1,h2,h3,h4,.eyebrow,.chip,th,.tag,.num{font-family:Archivo,-apple-system,sans-serif}
+h2,h3{margin:0;text-wrap:balance}
+p{margin:0}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.86em;
+  background:var(--surface-2);border:1px solid var(--line);padding:.08em .34em;border-radius:3px}
+
+.mast{background:var(--surface);border-bottom:1px solid var(--line)}
+.mast-in{max-width:1080px;margin:0 auto;padding:40px 24px 0;display:flex;flex-direction:column;gap:16px}
+.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--faint)}
+h1{font-size:clamp(2rem,5vw,2.9rem);font-weight:700;letter-spacing:-.03em;line-height:1.03;margin:0}
+.stand{max-width:62ch;color:var(--muted)}
+.tally{display:flex;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:6px}
+.tally div{flex:1 1 140px;padding:14px 20px 18px;border-right:1px solid var(--line)}
+.tally div:last-child{border-right:0}
+.tally dt{font-size:.68rem;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin:0 0 3px;font-family:Archivo,sans-serif}
+.tally dd{margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums}
+.tally dd.ok{color:var(--ok)} .tally dd.warn{color:var(--warn)}
+
+section{margin-top:56px}
+.head{display:flex;align-items:baseline;gap:13px;border-bottom:2px solid var(--ink);padding-bottom:11px;margin-bottom:22px}
+.head .k{font-family:ui-monospace,monospace;font-size:.74rem;font-weight:600;color:var(--accent);padding-top:4px}
+h2{font-size:1.5rem;font-weight:700;letter-spacing:-.018em}
+.lede{max-width:66ch;color:var(--muted);margin-bottom:22px}
+
+.item{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--line);
+  border-radius:0 7px 7px 0;padding:16px 19px;margin-bottom:11px;display:flex;flex-direction:column;gap:7px}
+.item.krit{border-left-color:var(--bad)}
+.item.hoch{border-left-color:var(--warn)}
+.item.mittel{border-left-color:var(--azure)}
+.item.klein{border-left-color:var(--faint)}
+.item-top{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
+.tag{font-size:.63rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+  padding:3px 8px;border-radius:3px;background:var(--surface-2);color:var(--muted)}
+.item.krit .tag{background:var(--bad-soft);color:var(--bad)}
+.item.hoch .tag{background:var(--warn-soft);color:var(--warn)}
+.item.mittel .tag{background:color-mix(in srgb,var(--azure) 15%,transparent);color:var(--azure)}
+h3{font-size:1.02rem;font-weight:650;letter-spacing:-.005em}
+.item p{font-size:.94rem;color:var(--muted);line-height:1.55}
+.item p.fix{color:var(--ink)}
+.item p.fix::before{content:"→ ";color:var(--ok);font-weight:700}
+
+.note{border-left:3px solid var(--accent);background:var(--surface);padding:17px 20px;
+  border-radius:0 7px 7px 0;display:flex;flex-direction:column;gap:9px;margin-top:22px}
+.note .lbl{font-size:.7rem;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);font-family:Archivo,sans-serif}
+.note p{font-size:.95rem}
+ol.steps{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:9px}
+ol.steps li{padding-left:4px}
+ol.steps li::marker{font-family:Archivo,sans-serif;font-weight:700;color:var(--accent)}
+pre{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:7px;
+  padding:15px 17px;overflow-x:auto;font-family:ui-monospace,Menlo,monospace;font-size:.8rem;line-height:1.65}
+footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:var(--faint);font-size:.86rem;max-width:66ch}
+</style>
+
+<header class="mast">
+  <div class="mast-in">
+    <p class="eyebrow">TicketScan &middot; Audit und Backlog</p>
+    <h1>Was drei Durchgänge gefunden haben</h1>
+    <p class="stand">Ein vollständiger Durchgang durch App, Endpunkte, Datenbank und Veröffentlichung. Gefunden wurde mehr als erwartet — darunter zwei Fehler, die den Einlass gekostet hätten, und einer, den ich selbst eingebaut hatte, während ich einen anderen behob.</p>
+    <dl class="tally">
+      <div><dt>Befunde</dt><dd>18</dd></div>
+      <div><dt>Behoben</dt><dd class="ok">17</dd></div>
+      <div><dt>Offen</dt><dd class="warn">1</dd></div>
+      <div><dt>Blockiert</dt><dd class="warn">1</dd></div>
+    </dl>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <div class="head"><span class="k">01</span><h2>Kritisch — hätte den Einlass gekostet</h2></div>
+
+  <div class="item krit">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Die Erkennung verkleinerte, was sie vergrößern musste</h3></div>
+    <p>Der Ausschnitt wurde auf eine feste Höhe von 120 Bildpunkten gebracht — wobei die Ziffern mitschrumpften, und zwar umso stärker, je weiter weg jemand stand. Genau das sollte die Änderung beheben. Ich hatte im Code sogar notiert, Vergrößern füge keine Information hinzu; das stimmt, ist hier aber irrelevant: Tesseract arbeitet am besten bei einer Zeichenhöhe um 30 bis 40 Bildpunkte, und kleinere Vorlagen zu vergrößern hilft tatsächlich.</p>
+    <p class="fix">Maßstab richtet sich nach der Breite und vergrößert bis zum Dreifachen.</p>
+  </div>
+
+  <div class="item krit">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Erzwungene Ziffern erzeugten gültige Falschtreffer</h3></div>
+    <p>Die Beschränkung der Erkennung auf 0 bis 9 klang nach Absicherung, war aber das Gegenteil: Jeder Buchstabe des Festivalschriftzugs wurde zu einer Zahl. Bei 2305 lückenlos fortlaufenden Nummern ist so ein Zufallstreffer mit hoher Wahrscheinlichkeit ein gültiges Ticket — und wird still entwertet.</p>
+    <p class="fix">Buchstaben bleiben Buchstaben. Aus dem Text werden Ziffernfolgen gezogen, Verwechslungen gezielt zurückgedreht, und angenommen wird nur, was in der lokalen Liste steht. Gegen zwölf Fälle geprüft: Preis, Datum, Mehrwertsteuersatz und Hotline fallen sämtlich durch.</p>
+  </div>
+
+  <div class="item krit">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Rücknahme war Pflicht und fehlte vollständig</h3></div>
+    <p>Das Konzept nennt sie als eine von zwei Pflichtmaßnahmen gegen Erfassungsfehler. Im Code gab es sie nicht — weder Oberfläche noch Aufruf. Der häufigste Bedienfehler am Eingang, das versehentlich erfasste Nachbarticket, wäre damit jedes Mal ein Fall für die Schichtleitung geworden.</p>
+    <p class="fix">Verlauf der letzten Vorgänge, jeder Einlass mit einem Griff zurücknehmbar, wirksam auch ohne Netz.</p>
+  </div>
+
+  <div class="item krit">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Zum dritten Mal: Änderung an eingespielter Migration</h3></div>
+    <p>Ich habe <code>0001_init.sql</code> nach dem Einspielen erneut geändert — der Parameter <code>p_offline</code> kam dazu, und in <code>undo_redemption</code> stand <code>row_count</code> in einer als <code>boolean</code> deklarierten Variablen, was jede Rücknahme zur Laufzeit hätte scheitern lassen. Supabase spielt eine gelaufene Migration nicht erneut ein. Im Repo sah alles richtig aus. Dieselbe Falle wie bei <code>0002</code>, und ich hatte die Regel dagegen selbst aufgeschrieben.</p>
+    <p class="fix"><code>0003_funktionen.sql</code> legt beide Funktionen mehrfach ausführbar neu an. Auf aktuellem Stand ändert sie nichts.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="k">02</span><h2>Schwerwiegend</h2></div>
+
+  <div class="item hoch">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Geräumter Speicher wurde nicht erkannt</h3></div>
+    <p>iOS darf den Speicher einer Web-App räumen. Danach galt das Gerät weiter als eingerichtet, hatte aber keine Ticketnummern mehr — und hätte am Eingang <em>jede</em> Nummer als unbekannt abgewiesen, mit voller Überzeugung und rotem Vollbild.</p>
+    <p class="fix">Eingerichtet gilt nur mit vorhandener Liste. Ist sie weg, führt ein klarer Bildschirm zurück zur Einrichtung.</p>
+  </div>
+
+  <div class="item hoch">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Anmeldung ohne Netz war unmöglich</h3></div>
+    <p>Das Konzept versprach eine Prüfung gegen einen zwischengespeicherten Hashwert. Gebaut war sie nicht. Ohne Netz am Morgen wäre das Gerät stehen geblieben — ausgerechnet dann.</p>
+    <p class="fix">PBKDF2 mit 210 000 Durchläufen gegen den Wert der letzten erfolgreichen Anmeldung. Bewusst die schwächere Prüfung; sobald Netz da ist, entscheidet wieder der Server.</p>
+  </div>
+
+  <div class="item hoch">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Erkennung lief während Bestätigung und Listen weiter</h3></div>
+    <p>Pause und Arbeitszustand teilten sich eine Variable. Endete ein laufendes Einzelbild, während der Bestätigungsschritt offen war, setzte es die Erkennung wieder in Gang — und das nächste Ticket funkte dazwischen.</p>
+    <p class="fix">Getrennte Zustände; auch offener Verlauf, Suche und Übersicht halten die Erkennung an.</p>
+  </div>
+
+  <div class="item hoch">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Klärung zeigte das Problem, ohne es lösbar zu machen</h3></div>
+    <p>Bei einem bereits eingelösten Ticket nannte die App den wahrscheinlichen Fehlscan — und bot dann nur „Weiter“ an. Die Erkenntnis war da, die Handlung fehlte.</p>
+    <p class="fix">Rücknahme des Fehlscans, Freigabe des vorgelegten Tickets oder Abweisen, direkt aus der Klärung.</p>
+  </div>
+
+  <div class="item hoch">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Eingegrenzte Suche ohne Rückfall</h3></div>
+    <p>Lag die selbstgebaute Texteingrenzung daneben, wurde konsequent die falsche Stelle ausgewertet. Ein Erkenner, der danebenliegt, ist schlechter als gar keiner.</p>
+    <p class="fix">Abwechselnd eingegrenzt und ganzflächig, dazu übernimmt die Layoutanalyse jetzt Tesseract selbst.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="k">03</span><h2>Fehlende Funktionen aus dem Konzept</h2></div>
+
+  <div class="item mittel">
+    <div class="item-top"><span class="tag">Gebaut</span><h3>Suche</h3></div>
+    <p>Für Tickets, deren Nummer sich nicht mehr lesen lässt. Über einen Teil der Nummer, damit auch drei erhaltene Ziffern weiterhelfen.</p>
+  </div>
+
+  <div class="item mittel">
+    <div class="item-top"><span class="tag">Gebaut</span><h3>Übersicht mit Bändchenabgleich</h3></div>
+    <p>Eingelöst, ausstehend, Geräte samt Zeitpunkt der letzten Meldung, ungeprüfte Zeiträume, doppelte Einlösungen. Dazu der zweite, körperliche Zähler: Wer den Stand der ausgegebenen Bändchen einträgt, sieht die Abweichung sofort. Neuer Endpunkt <code>stats</code>.</p>
+  </div>
+
+  <div class="item mittel">
+    <div class="item-top"><span class="tag">Gebaut</span><h3>Veröffentlichungssperre</h3></div>
+    <p>Eine Datei <code>DEPLOY-GESPERRT</code> lässt den Ablauf mit klarer Meldung abbrechen. Ab dem Vortag angelegt, kommt kein neuer Stand mehr auf die Geräte — egal wer was pusht.</p>
+  </div>
+
+  <div class="item mittel">
+    <div class="item-top"><span class="tag">Entschieden</span><h3>Realtime-Push entfällt bewusst</h3></div>
+    <p>Ein Abo auf die Ticket-Tabelle setzte voraus, der öffentlichen Rolle Leserechte zu geben — genau die, die Migration <code>0002</code> ihr entzieht. Diese Absicherung für eine Sekunde Latenz aufzugeben wäre ein schlechter Tausch. Stattdessen alle acht statt zwanzig Sekunden abgeglichen: In acht Sekunden müsste dasselbe Ticket an zwei Geräten vorgelegt werden, damit etwas durchrutscht.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="k">04</span><h2>Bedienung</h2></div>
+
+  <div class="item klein">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Die Kurzanleitung kam bei jedem Start</h3></div>
+    <p>Sie hielt sich daran fest, ob die App auf dem Home-Bildschirm liegt — und erschien deshalb im Browser jedes Mal von Neuem. Als Erinnerung gedacht, als Belästigung angekommen.</p>
+    <p class="fix">Einmal beim ersten Start. Danach eine schmale Leiste, die sich wegtippen lässt und am nächsten Tag wiederkommt.</p>
+  </div>
+
+  <div class="item klein">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Zeitschaltung der grünen Rückmeldung startete neu</h3></div>
+    <p>Sie hing an einer Funktion, die bei jedem Neuzeichnen der Leiste neu entstand — und begann damit alle drei Sekunden von vorn.</p>
+  </div>
+
+  <div class="item klein">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Leiste lief auf schmalen Telefonen über</h3></div>
+    <p>Drei Knöpfe und der Status passten nicht mehr nebeneinander.</p>
+  </div>
+
+  <div class="item klein">
+    <div class="item-top"><span class="tag">Gebaut</span><h3>Logo</h3></div>
+    <p>Der Herzberg-Schriftzug auf Kurzanleitung, Anmeldung, Einrichtung und im App-Symbol. Als Maske eingebunden, nicht als Bild — die Vorlage ist eine weiße Silhouette und wäre auf dem Pergamentgrund unsichtbar.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="k">05</span><h2>Offen</h2></div>
+
+  <div class="item hoch">
+    <div class="item-top"><span class="tag">Blockiert</span><h3>Die Texterkennung ist nicht vermessen</h3></div>
+    <p>Alles daran ist gebaut und die Auswertelogik geprüft. Wie zuverlässig sie eure gedruckten Etiketten tatsächlich liest, bei eurem Licht und aus eurem Abstand, ist bislang geschätzt. Das ist der einzige Punkt, der sich nicht am Schreibtisch klären lässt.</p>
+    <p class="fix">Braucht ein echtes Ticket in die Hand.</p>
+  </div>
+
+  <div class="item klein">
+    <div class="item-top"><span class="tag">Offen</span><h3>Ausfuhr des Protokolls nach dem Festival</h3></div>
+    <p>Für Abrechnung und Nachbereitung. Kein Betriebsrisiko, deshalb nach hinten gestellt — die Daten liegen vollständig in der Datenbank und lassen zur Not über den SQL-Editor ausleiten.</p>
+  </div>
+
+  <div class="item klein">
+    <div class="item-top"><span class="tag">Offen</span><h3>Warteschlange wird einzeln abgearbeitet</h3></div>
+    <p>Ein Gerät, das nach langem Ausfall 50 Scans nachreicht, löst 50 einzelne Datenbankaufrufe aus. Spürbar, aber folgenlos: Die Warteschlange bleibt bestehen, bis alles durch ist.</p>
+  </div>
+</section>
+
+<div class="note">
+  <span class="lbl">Was du dafür tun musst</span>
+  <p>Der neue Endpunkt und die neue Migration müssen einmal veröffentlicht werden:</p>
+  <pre>git pull
+npx supabase db push
+npx supabase functions deploy stats --no-verify-jwt
+node scripts/smoke-test.mjs</pre>
+  <p>Danach in der App: Gerätenamen unten rechts antippen öffnet die Übersicht, die beiden Knöpfe links daneben Suche und Verlauf.</p>
+</div>
+
+<footer>
+  <p>Drei Durchgänge. Der dritte fand noch zwei Befunde, der vierte keinen mehr — was nicht heißt, dass keiner mehr da ist, sondern dass ich am Schreibtisch nichts mehr finde. Was jetzt noch fehlt, findet nur ein echtes Ticket vor einer echten Kamera.</p>
+</footer>
+
+</div>

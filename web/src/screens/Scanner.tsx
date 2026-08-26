@@ -65,6 +65,7 @@ export function Scanner({ session }: { session: store.Session }) {
   const [showRecent, setShowRecent] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [loaded, setLoaded] = useState<number | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -75,6 +76,7 @@ export function Scanner({ session }: { session: store.Session }) {
       // Datenbank wäre bei drei Bildern je Sekunde spürbar.
       const codes = new Set((await store.allTickets()).map((t) => t.code));
       known.current = (code) => codes.has(code);
+      setLoaded(codes.size);
     })();
   }, []);
 
@@ -348,6 +350,24 @@ export function Scanner({ session }: { session: store.Session }) {
         </button>
       </div>
 
+      {loaded === 0 && (
+        <div className="sheet bad full overlay">
+          <span className="sheet-big"><Icon.Warning /></span>
+          <p className="sheet-label">Keine Ticketliste auf dem Gerät</p>
+          <p className="sheet-meta">
+            Jede Nummer würde jetzt als unbekannt abgewiesen. Das Gerät muss
+            einmal neu eingerichtet werden — dafür braucht es Netz.
+          </p>
+          <div className="sheet-actions">
+            <button
+              type="button" className="btn primary wide"
+              onClick={() => { void store.remove("setupDone").then(() => location.reload()); }}
+            >
+              Neu einrichten
+            </button>
+          </div>
+        </div>
+      )}
       {view.at === "confirm" && (
         <Confirm decision={view.decision} onYes={() => void redeem(view.decision)} onNo={backToScan} />
       )}

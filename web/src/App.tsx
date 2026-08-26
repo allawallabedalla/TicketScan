@@ -31,10 +31,11 @@ export function App() {
 
   useEffect(() => {
     void (async () => {
-      const [seen, active, ready] = await Promise.all([
+      const [seen, active, ready, onDevice] = await Promise.all([
         store.get<boolean>("guideSeen"),
         store.loadSession(),
         store.get<boolean>("setupDone"),
+        store.countTickets(),
       ]);
       setSession(active);
 
@@ -43,7 +44,11 @@ export function App() {
       // einer schmalen Leiste erinnert, die sich wegtippen lässt.
       if (!seen) setStage("guide");
       else if (!active) setStage("login");
-      else setStage(ready ? "scanner" : "setup");
+      // Eingerichtet heißt nur dann eingerichtet, wenn die Ticketliste auch
+      // wirklich noch da ist. iOS darf den Speicher einer Web-App räumen —
+      // ohne diese Prüfung stünde am Eingang ein Gerät, das jede Nummer für
+      // unbekannt hält und das mit voller Überzeugung anzeigt.
+      else setStage(ready && onDevice > 0 ? "scanner" : "setup");
     })();
   }, []);
 

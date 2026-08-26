@@ -19,6 +19,8 @@ ein echtes Ticket vermessen. Dafür braucht es ein Exemplar in die Hand.
 - [`docs/konzept.html`](docs/konzept.html) — vollständiges Konzept: Risikoanalyse
   zu Erfassungsfehlern, Kamerapipeline, Architektur, Datenmodell, Sync-Protokoll,
   Oberfläche, Betriebskonzept und Umsetzungsplan.
+- [`docs/audit.html`](docs/audit.html) — Audit und Backlog: 18 Befunde aus drei
+  Durchgängen, davon 17 behoben.
 - [`docs/einrichtung.md`](docs/einrichtung.md) — Backend aufsetzen, in
   sieben Schritten, mit Testlauf am Ende.
 - [`docs/kurzanleitung-vorschau.html`](docs/kurzanleitung-vorschau.html) — die

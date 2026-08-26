@@ -10,6 +10,7 @@
 
 import { readFileSync } from "node:fs";
 import { argv, env, exit, stderr, stdout } from "node:process";
+import { keyFromCli, looksMangled, refFromUrl } from "./supabase-key.mjs";
 
 const file = argv[2];
 const commit = argv.includes("--commit");
@@ -177,49 +178,43 @@ if (!commit) {
 // --------------------------------------------------------------- schreiben --
 
 const url = env.SUPABASE_URL;
-const key = env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) {
-  stderr.write("SUPABASE_URL und SUPABASE_SERVICE_ROLE_KEY müssen gesetzt sein.\n");
+if (!url) {
+  stderr.write("SUPABASE_URL muss gesetzt sein.\n");
   exit(1);
 }
 
-// Aus der Anleitung übernommene Beispielwerte abfangen, bevor der Server sie
-// als „Invalid API key“ zurückweist — die Meldung führt sonst auf die falsche
-// Fährte.
-if (/^(eyJ\.\.\.|\.\.\.|<.*>)$/i.test(key.trim())) {
-  stderr.write(
-    `SUPABASE_SERVICE_ROLE_KEY enthält noch den Beispielwert '${key}'.\n` +
-    "Den echten Schlüssel gibt es unter Project Settings → API Keys.\n" +
-    "Gesucht ist der geheime: `sb_secret_...` (neu) oder `service_role`\n" +
-    "als langer eyJ-Wert (älter). Nicht der publishable/anon-Schlüssel.\n",
-  );
-  exit(1);
+// Bevorzugt die angemeldete CLI. Das umgeht die fehleranfälligste Stelle der
+// Einrichtung: Das Dashboard zeigt den Schlüssel maskiert, und wer den
+// angezeigten Text markiert, kopiert Aufzählungspunkte.
+let key = env.SUPABASE_SERVICE_ROLE_KEY;
+if (!key || looksMangled(key)) {
+  if (key) stderr.write("Der gesetzte Schlüssel ist unbrauchbar — frage die Supabase-CLI…\n");
+  else stderr.write("Kein Schlüssel gesetzt — frage die Supabase-CLI…\n");
+
+  const found = keyFromCli(refFromUrl(url), "secret");
+  if (found) {
+    key = found;
+    stderr.write("Schlüssel von der CLI erhalten.\n\n");
+  } else {
+    stderr.write(
+      "\nDie CLI konnte nicht helfen. Zwei Wege:\n\n" +
+      "  npx supabase login && npx supabase link --project-ref <kennung>\n\n" +
+      "oder den geheimen Schlüssel selbst setzen. Dabei im Supabase-Dashboard\n" +
+      "den Kopier-Knopf benutzen — der angezeigte Text ist maskiert und ergibt\n" +
+      "beim Markieren nur Aufzählungspunkte.\n",
+    );
+    exit(1);
+  }
 }
 
 // Der öffentliche Schlüssel wird hier gern verwechselt. Er kommt bis zur
-// Zeilensicherheit und scheitert dann mit einer Meldung, die nach einem
+// Zeilensicherheit durch und scheitert dann mit einer Meldung, die nach einem
 // Rechteproblem aussieht statt nach der falschen Zutat.
-// Manche Terminals ersetzen eingefügte Geheimnisse in der Anzeige durch
-// Punkte — und je nach Programm landen diese Punkte auch im Wert. Der Fehler
-// kommt dann tief aus der HTTP-Bibliothek und nennt einen Zeichencode, mit dem
-// niemand etwas anfangen kann.
-if (/[^\x21-\x7e]/.test(key.trim())) {
+if (/^sb_publishable_/.test(key.trim()) || /"role":"anon"/.test(atob(key.split(".")[1] ?? "") || "")) {
   stderr.write(
-    "SUPABASE_SERVICE_ROLE_KEY enthält Zeichen, die in einem Schlüssel nicht\n" +
-    "vorkommen — vermutlich hat das Terminal die Eingabe verfremdet.\n\n" +
-    "Zuverlässiger Weg auf dem Mac: Schlüssel im Browser kopieren, dann\n\n" +
-    "  export SUPABASE_SERVICE_ROLE_KEY=\"$(pbpaste)\"\n\n" +
-    "So wandert der Wert aus der Zwischenablage direkt in die Variable, ohne\n" +
-    "je durch die Eingabezeile zu laufen.\n",
-  );
-  exit(1);
-}
-
-if (/^sb_publishable_/.test(key.trim())) {
-  stderr.write(
-    "SUPABASE_SERVICE_ROLE_KEY enthält den öffentlichen Schlüssel\n" +
-    "(`sb_publishable_...`). Zum Schreiben braucht es den geheimen:\n" +
-    "`sb_secret_...` unter Project Settings → API Keys.\n",
+    "Das ist der öffentliche Schlüssel. Zum Schreiben braucht es den geheimen —\n" +
+    "am einfachsten, indem du SUPABASE_SERVICE_ROLE_KEY gar nicht setzt und die\n" +
+    "angemeldete Supabase-CLI ihn holen lässt.\n",
   );
   exit(1);
 }

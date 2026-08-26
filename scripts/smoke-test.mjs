@@ -10,6 +10,7 @@
 //   node scripts/smoke-test.mjs
 
 import { env, exit, stderr } from "node:process";
+import { keyFromCli, looksMangled, refFromUrl } from "./supabase-key.mjs";
 
 const API = env.TICKETSCAN_API?.replace(/\/$/, "");
 const PASSWORD = env.TICKETSCAN_EVENT_PASSWORD;
@@ -19,19 +20,13 @@ if (!API || !PASSWORD) {
   exit(1);
 }
 
-/** Fängt aus der Anleitung übernommene Beispielwerte ab, bevor sie als
- *  echter Fehler erscheinen. */
-function rejectPlaceholder(name, value) {
-  if (value && /^(eyJ\.\.\.|\.\.\.|<.*>|xxx+)$/i.test(value.trim())) {
-    stderr.write(
-      `${name} enthält noch den Beispielwert '${value}'.\n` +
-      "Den echten gibt es unter Project Settings → API Keys: der öffentliche,\n" +
-      "also `sb_publishable_...` (neu) oder `anon` als langer eyJ-Wert (älter).\n",
-    );
-    exit(1);
-  }
+// Der öffentliche Schlüssel wird nur für die letzte Prüfgruppe gebraucht.
+// Ist er nicht gesetzt oder unbrauchbar, holt ihn die angemeldete CLI —
+// zuverlässiger als der Weg über die Zwischenablage.
+let anonKey = env.TICKETSCAN_ANON_KEY;
+if (!anonKey || looksMangled(anonKey)) {
+  anonKey = keyFromCli(refFromUrl(API), "public") ?? null;
 }
-rejectPlaceholder("TICKETSCAN_ANON_KEY", env.TICKETSCAN_ANON_KEY);
 
 let failed = 0;
 const results = [];
@@ -138,7 +133,7 @@ if (session) {
 // die Tabellen noch die Sicht dürfen mit dem öffentlichen Schlüssel lesbar
 // sein. Die Sicht ist dabei der interessante Fall, weil sie ohne
 // security_invoker die Zeilensicherheit der Tabellen darunter umginge.
-const ANON = env.TICKETSCAN_ANON_KEY;
+const ANON = anonKey;
 if (ANON) {
   const REST = API.replace(/\/functions\/v1$/, "/rest/v1");
 
@@ -184,9 +179,9 @@ if (ANON) {
   }
 } else {
   stderr.write(
-    "\nHinweis: Ohne TICKETSCAN_ANON_KEY entfällt die Prüfung, ob die Tabellen\n" +
-    "öffentlich abfragbar sind. Der Schlüssel steht unter Project Settings → API\n" +
-    "und ist ohnehin öffentlich.\n",
+    "\nHinweis: Ohne öffentlichen Schlüssel entfällt die Prüfung, ob die Tabellen\n" +
+    "öffentlich abfragbar sind. Entweder TICKETSCAN_ANON_KEY setzen oder die\n" +
+    "Supabase-CLI anmelden, dann holt der Testlauf ihn selbst.\n",
   );
 }
 

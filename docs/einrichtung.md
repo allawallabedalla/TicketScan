@@ -84,29 +84,24 @@ Ursache man lange sucht.
 
 Bis die echte Liste da ist, geht es mit der erzeugten Testliste.
 
-Den **geheimen** Schlüssel holen: *Project Settings → API Keys*. Je nach Alter
-des Projekts heißt er `sb_secret_...` oder `service_role`. Nicht zu verwechseln
-mit dem öffentlichen (`sb_publishable_...` bzw. `anon`) — der darf nicht
-schreiben.
-
-Schlüssel im Browser kopieren, dann im Terminal:
-
 ```bash
 export SUPABASE_URL="https://$REF.supabase.co"
-export SUPABASE_SERVICE_ROLE_KEY="$(pbpaste)"   # aus der Zwischenablage
 
 node scripts/import-tickets.mjs data/tickets.sample.csv            # nur prüfen
 node scripts/import-tickets.mjs data/tickets.sample.csv --commit   # schreiben
 ```
 
-`pbpaste` statt Einfügen in die Zeile ist kein Umstand, sondern Absicht:
-Manche Terminals verfremden eingefügte Geheimnisse — der Wert sieht dann
-richtig aus und ist es nicht. Außerdem landet er so nicht in der
-Shell-History.
+**Kein Schlüssel nötig.** Weil die CLI aus Schritt 3 angemeldet ist, holt sich
+das Skript den geheimen Schlüssel selbst. Das ist Absicht: Das Dashboard zeigt
+Schlüssel maskiert an, und wer den angezeigten Text markiert, kopiert
+Aufzählungspunkte statt des Schlüssels — die fehleranfälligste Stelle der
+ganzen Einrichtung.
+
+Wer ihn doch von Hand setzen will, kann `SUPABASE_SERVICE_ROLE_KEY` angeben;
+dann bitte über den Kopier-Knopf im Dashboard, nicht durch Markieren.
 
 Der Importer prüft erst und schreibt nur mit `--commit`. Er bricht ab bei
-Dubletten, uneinheitlicher Stellenzahl, verschobenen Spalten und einem
-Schlüssel, der verfremdet wurde.
+Dubletten, uneinheitlicher Stellenzahl und verschobenen Spalten.
 
 > **Zur echten Liste:** Excel entfernt führende Nullen — aus `00245` wird `245`.
 > Am besten direkt aus dem Vorverkaufssystem exportieren und die Datei nicht in
@@ -118,8 +113,6 @@ Schlüssel, der verfremdet wurde.
 ```bash
 export TICKETSCAN_API="https://$REF.supabase.co/functions/v1"
 export TICKETSCAN_EVENT_PASSWORD='herzberg2027'
-export TICKETSCAN_ANON_KEY='sb_publishable_...'   # der öffentliche, darf geteilt werden
-
 node scripts/smoke-test.mjs
 ```
 

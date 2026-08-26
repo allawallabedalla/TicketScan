@@ -548,7 +548,7 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
     <table>
       <thead><tr><th>Endpunkt</th><th>Zweck</th><th>Anmerkung</th></tr></thead>
       <tbody>
-        <tr><td class="n">POST /session</td><td>Gerät anmelden: Eventcode + Gerätename → Gerätetoken</td><td>Einmal beim Einrichten</td></tr>
+        <tr><td class="n">POST /session</td><td>Gerät anmelden: Eventpasswort + Gerätename → Gerätetoken</td><td>Einmal beim Einrichten; Passwortprüfung ausschließlich hier, siehe Abschnitt 09</td></tr>
         <tr><td class="n">GET /tickets</td><td>Vollständige Liste für den Grundbestand</td><td>Gzip, ~30 KB übertragen</td></tr>
         <tr><td class="n">GET /changes?since</td><td>Alle Änderungen seit einem Zeitstempel</td><td>Regelmäßig und nach Netzwiederkehr</td></tr>
         <tr><td class="n">POST /scans</td><td>Bündel von bis zu 50 Scans einreichen</td><td>Idempotent über <code>scan_id</code>; Ergebnis pro Scan</td></tr>
@@ -564,8 +564,45 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
   <div class="sec-head"><span class="k">09</span><h2>Zugang und Umgang mit den Daten</h2></div>
   <div class="stack-lg">
     <div class="prose stack">
-      <p>Am Einlass darf niemand ein Passwort eintippen müssen. Beim Einrichten gibt das Gerät einmal einen Eventcode und einen sprechenden Namen ein — „Nordeingang 2“ — und erhält ein langlebiges Token, das in der IndexedDB liegt. Danach ist die App beim Öffnen sofort einsatzbereit.</p>
-      <p>Wird ein Gerät verloren, lässt sich sein Token im Dashboard sperren; der Grundbestand auf dem Gerät ist damit zwar noch lesbar, aber es kann nichts mehr einlösen. Die Ticketliste liegt vollständig auf zehn Telefonen, und wenn sie Namen enthält, sind das personenbezogene Daten von 2000 Menschen.</p>
+      <p>Der Zugang zur App ist durch ein gemeinsames Eventpasswort gesperrt. Es wird <b>einmal je Gerät und Festivaltag</b> abgefragt — beim ersten Öffnen am Morgen, zusammen mit einem sprechenden Gerätenamen wie „Nordeingang 2“. Im Gegenzug erhält das Gerät ein Token, das in der IndexedDB liegt und den Tag über gilt.</p>
+      <p><b>Beim Scannen wird nie ein Passwort verlangt.</b> Nicht je Ticket, nicht je Vorgang, nicht nach einer Pause, nicht nach dem Sperren des Bildschirms. Genau dafür gibt es das Token: Die Anmeldung passiert einmal, außerhalb des Betriebs, und danach ist die App den ganzen Tag über beim Öffnen sofort im Scanner.</p>
+    </div>
+
+    <div class="note risk">
+      <span class="label">Das Passwort darf nicht im Browser geprüft werden</span>
+      <p>Das Repo ist öffentlich, und selbst ein privates Repo änderte nichts daran, dass das JavaScript-Bundle beim Aufruf der Seite ausgeliefert wird. Ein im Frontend hinterlegtes Passwort steht damit jedem offen, der die Entwicklerwerkzeuge aufklappt — auch als Hashwert, denn zum Vergleichen muss der Browser ihn kennen. Ein Passwortvergleich im Browser ist eine Anzeige, keine Sperre.</p>
+      <p>Geprüft wird deshalb <b>serverseitig</b>, in der Edge Function <code>POST /session</code>. Der Wert selbst liegt als Umgebungsvariable beim Backend und taucht weder im Repo noch im ausgelieferten Bundle auf. <code>.env.example</code> dokumentiert nur den Namen der Variablen, nie ihren Inhalt.</p>
+    </div>
+
+<pre><span class="c">// supabase/functions/session — Passwortprüfung, serverseitig</span>
+<span class="k">const</span> { password, deviceLabel } = <span class="k">await</span> req.json();
+
+<span class="c">// Zeitkonstanter Vergleich: die Antwortdauer verrät nichts über</span>
+<span class="c">// die Zahl der übereinstimmenden Zeichen.</span>
+<span class="k">const</span> ok = timingSafeEqual(
+  encoder.encode(password ?? <span class="k">""</span>),
+  encoder.encode(Deno.env.get(<span class="k">"TICKETSCAN_EVENT_PASSWORD"</span>)),
+);
+<span class="k">if</span> (!ok) <span class="k">return</span> json({ error: <span class="k">"Passwort stimmt nicht"</span> }, { status: <span class="k">401</span> });
+
+<span class="k">const</span> token = <span class="k">await</span> issueDeviceToken(deviceLabel);   <span class="c">// wird protokolliert</span>
+<span class="k">return</span> json({ token, deviceId });</pre>
+
+    <div class="grid2">
+      <div class="mini"><h4>Die Grenze liegt um 6 Uhr morgens</h4><p>Das Token läuft nicht 24 Stunden nach der Anmeldung ab, sondern zum nächsten Tageswechsel um 6 Uhr. Der Unterschied ist entscheidend: Eine Schicht, die um 14 Uhr beginnt und bis 2 Uhr nachts geht, wird nie unterbrochen. Eine Frist von 24 Stunden hätte genau in der Nacht darauf zugeschlagen — in der ungünstigsten denkbaren Minute.</p></div>
+      <div class="mini"><h4>Gefragt wird beim Öffnen, nie mittendrin</h4><p>Der Passwortdialog erscheint ausschließlich vor dem Scanner, nie während eines Vorgangs. Läuft das Token bei geöffneter App über die Grenze, bleibt der laufende Vorgang unberührt und der Dialog wartet, bis er abgeschlossen ist.</p></div>
+      <div class="mini"><h4>Ohne Netz trotzdem anmeldbar</h4><p>Steht morgens kein Netz, kann der Server das Passwort nicht prüfen. Die App vergleicht dann gegen einen gesalzenen Hashwert, den sie bei der letzten erfolgreichen Anmeldung hinterlegt hat. Das ist bewusst die schwächere Prüfung — sie greift nur auf einem Gerät, das bereits legitim angemeldet war, und der Server bleibt die maßgebliche Instanz, sobald wieder Netz da ist.</p></div>
+      <div class="mini"><h4>Kein Scan geht verloren</h4><p>Die Ausgangswarteschlange hängt nicht am Token. Läuft es ab, während noch Scans unversendet sind, bleiben die liegen und fließen nach der nächsten Anmeldung ab. Ein abgelaufenes Token kostet nie Daten, nur einen Dialog.</p></div>
+      <div class="mini"><h4>Passwort wechseln</h4><p>Eine Umgebungsvariable tauschen, mehr nicht — und die Tagesgrenze staffelt den Wechsel von selbst: Wer gerade arbeitet, merkt nichts, alle anderen bekommen das neue Passwort am nächsten Morgen. Aktuell steht ein Platzhalter, der vor dem Einsatz ersetzt wird.</p></div>
+      <div class="mini"><h4>Alle Geräte sofort abmelden</h4><p>Wenn der Tageswechsel zu spät kommt — ein Telefon verschwindet mitten im Einlass: Ein Knopf im Dashboard rotiert den Schlüssel, mit dem die Tokens signiert sind. Danach meldet sich jedes Gerät einmal neu an. Härter als nötig, aber in zwei Minuten erledigt.</p></div>
+      <div class="mini"><h4>Bremse gegen Ausprobieren</h4><p>Höchstens zehn Anmeldeversuche je Viertelstunde und Absender. Ein gemeinsames Passwort wird nicht erraten, es wird weitergegeben — deshalb ist die Protokollierung wichtiger als die Bremse.</p></div>
+      <div class="mini"><h4>Jede Anmeldung wird protokolliert</h4><p>Gerätename, Zeitpunkt, Absender. Bei zehn erwarteten Geräten fällt ein elftes sofort auf, und das Dashboard zeigt es. Einzelne Geräte lassen sich dort auch gezielt sperren, ohne die anderen zu stören.</p></div>
+    </div>
+
+    <div class="prose stack">
+      <p>Die Tagesgrenze ist damit auch die Antwort auf ein verlorenes Telefon: Es ist längstens bis zum nächsten Morgen zu gebrauchen, und das nur, wenn jemand zusätzlich an der Gerätesperre vorbeikommt.</p>
+      <p>Ein Wort zur Einordnung: Weil die Ticketnummern fortlaufend sind, kennt jeder, der ein einziges echtes Ticket in der Hand hält, praktisch alle gültigen Nummern. Das Passwort schützt also nicht die Nummern — die sind kein Geheimnis und waren nie eines. Es verhindert, dass Unbeteiligte Einlösungen auslösen, Tickets entwerten oder das Protokoll einsehen können. Der Einlass selbst hängt am physischen Ticket und an der Regel „ein Bändchen je Nummer“.</p>
+      <p>Wird ein Gerät verloren, lässt sich sein Token im Dashboard sperren; die Ticketliste darauf bleibt lesbar, einlösen kann es nichts mehr. Und weil diese Liste vollständig auf zehn Telefonen liegt, gilt für sie:</p>
     </div>
     <div class="grid3">
       <div class="mini"><h4>Datensparsamkeit</h4><p>Nur die Felder ausliefern, die am Einlass wirklich gebraucht werden. Adressen, E-Mail und Zahlungsdaten bleiben im Ticketshop.</p></div>

@@ -46,6 +46,20 @@ Schwäche der Web-App, kein Zugriff auf das Telefonlicht, löst eine Lampe am
 Eingang. Schritt 0 des Umsetzungsplans bestätigt das durch Messung an einem
 echten Ticket.
 
+## Zugang
+
+Die App ist durch ein gemeinsames Eventpasswort gesperrt. Es wird **einmal je
+Gerät und Festivaltag** abgefragt, beim ersten Öffnen am Morgen — beim Scannen
+nie. Das Gerät erhält dafür ein Token, das bis zum Tageswechsel um 6 Uhr gilt;
+die Grenze liegt bewusst dort und nicht 24 Stunden nach der Anmeldung, damit
+sie keine Nachtschicht unterbricht.
+
+Geprüft wird das Passwort **ausschließlich serverseitig** in der Edge Function
+`session`. Ein Vergleich im Browser wäre wirkungslos: Das ausgelieferte Bundle
+kann jeder lesen, ein Hashwert darin ebenso. Der Wert liegt als Secret beim
+Backend und steht weder im Repo noch im Bundle — `.env.example` dokumentiert
+nur die Variablennamen.
+
 ## Testdaten
 
 ```

@@ -1,0 +1,12 @@
+# Konfiguration mit echten Werten — siehe .env.example
+.env
+.env.*
+!.env.example
+
+# Die echte Ticketliste gehört nicht ins Repo, sie wird direkt importiert.
+data/tickets.csv
+data/tickets.xlsx
+
+node_modules/
+dist/
+.DS_Store

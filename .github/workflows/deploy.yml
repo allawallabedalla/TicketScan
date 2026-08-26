@@ -1,0 +1,77 @@
+# Baut die App und veröffentlicht sie auf GitHub Pages.
+#
+# Läuft bei jedem Push auf den Arbeitszweig und lässt sich von Hand auslösen.
+#
+# WICHTIG vor dem Festival: Ab dem Vortag nicht mehr ausrollen. Ein fehlerhafter
+# Build verteilt sich über den Service Worker auf alle Geräte gleichzeitig. Was
+# am Donnerstag läuft, läuft bis Sonntag unverändert — dafür diesen Ablauf in
+# den Repo-Einstellungen abschalten oder einfach nicht mehr pushen.
+
+name: App veröffentlichen
+
+on:
+  push:
+    branches: [claude/festival-ticket-scanner-app-20ycst]
+    paths: ["web/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Ein Ausrollen zur Zeit; ein laufendes wird nicht abgebrochen, damit keine
+# halb veröffentlichte Fassung entsteht.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Abhängigkeiten installieren
+        working-directory: web
+        run: npm ci
+
+      - name: Bauen
+        working-directory: web
+        # Auf GitHub Pages liegt die App unter /TicketScan/. Der Unterpfad muss
+        # auch in Service-Worker-Scope und Manifest landen, sonst lässt sie sich
+        # nicht auf den Home-Bildschirm legen.
+        env:
+          VITE_BASE: /TicketScan/
+        run: npm run build
+
+      - name: Prüfen, dass die Texterkennung mit im Bundle liegt
+        working-directory: web
+        # Ohne diese Dateien liefe die Erkennung gegen ein fremdes CDN — und
+        # ohne Netz gar nicht. Lieber hier scheitern als am Eingang.
+        run: |
+          for f in worker.min.js eng.traineddata.gz; do
+            test -s "dist/tesseract/$f" || { echo "Fehlt: dist/tesseract/$f"; exit 1; }
+          done
+          du -sh dist
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  veroeffentlichen:
+    needs: bauen
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - id: pages
+        uses: actions/deploy-pages@v4

@@ -129,19 +129,26 @@ Alles steht. Die App kann gegen dieses Backend arbeiten.
 Der Testlauf bucht nichts und ändert nichts. Führ ihn ruhig noch einmal am
 Vorabend des Festivals aus.
 
-## 7 · App bauen
+## 7 · App veröffentlichen
+
+Die Adresse der Endpunkte steht bereits in `web/.env.production` — beim Bauen
+ist nichts mehr zu setzen.
+
+**Einmalig:** Repo → *Settings* → *Pages* → **Source: GitHub Actions**.
+
+Danach baut und veröffentlicht `.github/workflows/deploy.yml` bei jedem Push,
+der `web/` berührt. Von Hand auslösen geht über *Actions* → *App
+veröffentlichen* → *Run workflow*. Die App liegt anschließend unter
+`https://allawallabedalla.github.io/TicketScan/`.
+
+Der Ablauf prüft dabei, dass die Texterkennung wirklich im Bundle liegt — ohne
+diese Dateien liefe sie gegen ein fremdes CDN und ohne Netz gar nicht. Lieber
+dort scheitern als am Eingang.
+
+Lokal bauen geht weiterhin:
 
 ```bash
-cd web
-npm install
-VITE_API_URL="https://$REF.supabase.co/functions/v1" npm run build
-```
-
-Das Ergebnis in `web/dist/` ist statisch und gehört auf GitHub Pages oder
-Cloudflare Pages. Für GitHub Pages kommt der Unterpfad dazu:
-
-```bash
-VITE_BASE=/TicketScan/ VITE_API_URL="https://$REF.supabase.co/functions/v1" npm run build
+cd web && npm install && npm run build
 ```
 
 ---

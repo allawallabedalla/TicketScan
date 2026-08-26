@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Enthält nur die öffentliche Adresse der Endpunkte, keine Geheimnisse.
+!web/.env.production
 
 # Die echte Ticketliste gehört nicht ins Repo, sie wird direkt importiert.
 data/tickets.csv

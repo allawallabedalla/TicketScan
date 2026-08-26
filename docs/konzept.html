@@ -204,12 +204,13 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
   <div class="mast-inner">
     <p class="eyebrow">Detailkonzept · Stand 26. August 2026</p>
     <h1>TicketScan</h1>
-    <p class="standfirst">Einlasskontrolle für rund 2000 Papiertickets mit festen Zahlencodes, bedient von bis zu zehn Geräten gleichzeitig — offlinefähig, mit einer autoritativen Quelle im Hintergrund.</p>
+    <p class="standfirst">Einlasskontrolle für 2305 Papiertickets mit festen Zahlencodes, erfasst per Handykamera, bedient von bis zu zehn Geräten gleichzeitig — offlinefähig, mit einer autoritativen Quelle im Hintergrund.</p>
     <dl class="facts">
-      <div class="fact"><dt>Tickets</dt><dd>~2 000</dd></div>
+      <div class="fact"><dt>Tickets</dt><dd>2 305</dd></div>
       <div class="fact"><dt>Geräte</dt><dd>bis 10</dd></div>
-      <div class="fact"><dt>Plattform</dt><dd>PWA, zu bestätigen</dd></div>
-      <div class="fact"><dt>Codes</dt><dd>5-stellig, fortlaufend</dd></div>
+      <div class="fact"><dt>Plattform</dt><dd>PWA</dd></div>
+      <div class="fact"><dt>Codes</dt><dd style="font-family:'JetBrains Mono',monospace;font-size:.92rem">00001–02305</dd></div>
+      <div class="fact"><dt>Erfassung</dt><dd>Etikett per Kamera</dd></div>
       <div class="fact"><dt>Offline</dt><dd>voll funktionsfähig</dd></div>
     </dl>
   </div>
@@ -239,24 +240,24 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
   <div class="sec-head"><span class="k">01</span><h2>Dichte Nummern sind das eigentliche Problem — egal ob getippt oder gescannt</h2></div>
   <div class="stack-lg">
     <div class="prose stack">
-      <p>Fünfstellig und fortlaufend ist von allen realistischen Codeformaten das ungünstigste. Nicht wegen der Länge — die hilft hier nichts —, sondern weil 2000 aufeinanderfolgende Nummern den Zahlenraum, in dem sie liegen, fast lückenlos ausfüllen. Jede Nachbarnummer eines gültigen Tickets ist wieder ein gültiges Ticket.</p>
-      <p>Nehmen wir einen Bereich wie <code>10000</code>&#8202;–&#8202;<code>11999</code>. Ein Erfassungsfehler verändert typischerweise genau eine Ziffer. Es gibt 45 solcher Varianten pro Code — fünf Stellen mal neun andere Ziffern. Entscheidend ist, an welcher Stelle der Fehler passiert:</p>
+      <p>Fünfstellig und fortlaufend ist von allen realistischen Codeformaten das ungünstigste. Nicht wegen der Länge — die hilft hier nichts —, sondern weil 2305 aufeinanderfolgende Nummern den Zahlenraum, in dem sie liegen, fast lückenlos ausfüllen. Jede Nachbarnummer eines gültigen Tickets ist wieder ein gültiges Ticket.</p>
+      <p>Euer Bereich ist <code>00001</code>&#8202;–&#8202;<code>02305</code>, mit führenden Nullen aufgefüllt. Ein Erfassungsfehler verändert typischerweise genau eine Ziffer; es gibt 45 solcher Varianten pro Code, fünf Stellen mal neun andere Ziffern. Entscheidend ist, an welcher Stelle der Fehler passiert — hier am Beispiel der Nummer <code>00245</code> vom Foto:</p>
     </div>
 
     <div class="digits">
-      <div class="dg safe"><span class="pos"><b>1</b>0000</span><span class="hit">0 von 9</span><span class="sub">Führende Ziffer ist konstant — jeder Fehler fällt sofort auf</span></div>
-      <div class="dg mid"><span class="pos">1<b>0</b>000</span><span class="hit">1 von 9</span><span class="sub">Nur zwei Werte möglich, Verwechslung untereinander</span></div>
-      <div class="dg risk"><span class="pos">10<b>0</b>00</span><span class="hit">9 von 9</span><span class="sub">Frei — jeder Fehler bleibt gültig</span></div>
-      <div class="dg risk"><span class="pos">100<b>0</b>0</span><span class="hit">9 von 9</span><span class="sub">Frei — jeder Fehler bleibt gültig</span></div>
-      <div class="dg risk"><span class="pos">1000<b>0</b></span><span class="hit">9 von 9</span><span class="sub">Frei — jeder Fehler bleibt gültig</span></div>
+      <div class="dg safe"><span class="pos"><b>0</b>0245</span><span class="hit">0 von 9</span><span class="sub">Über alle 2305 Tickets eine Null — die App blendet sie fest ein</span></div>
+      <div class="dg mid"><span class="pos">0<b>0</b>245</span><span class="hit">2 von 9</span><span class="sub">Nur 0, 1 und 2 kommen vor; über 02305 wird es wieder sicher</span></div>
+      <div class="dg risk"><span class="pos">00<b>2</b>45</span><span class="hit">9 von 9</span><span class="sub">Frei — jeder Fehler bleibt gültig</span></div>
+      <div class="dg risk"><span class="pos">002<b>4</b>5</span><span class="hit">9 von 9</span><span class="sub">Frei — jeder Fehler bleibt gültig</span></div>
+      <div class="dg risk"><span class="pos">0024<b>5</b></span><span class="hit">9 von 9</span><span class="sub">Frei — jeder Fehler bleibt gültig</span></div>
     </div>
 
-    <p class="prose"><b>28 von 45 Varianten — rund 62 % — treffen ein anderes gültiges Ticket.</b> Zahlendreher sind noch ungünstiger: Werden zwei der hinteren drei Ziffern vertauscht, ist das Ergebnis <i>immer</i> eine gültige Nummer. Die App kann in keinem dieser Fälle erkennen, dass etwas falsch gelaufen ist. Sie sieht eine Nummer, findet sie in der Liste und sagt „gültig“.</p>
+    <p class="prose"><b>29 von 45 Varianten — rund 64 % — treffen ein anderes gültiges Ticket.</b> Zwei kleine Lichtblicke: Die erste Stelle ist über den gesamten Bestand eine Null, also blendet die App sie fest ein — die Tastatureingabe wird eine Stelle kürzer und die Texterkennung bekommt eine Plausibilitätsregel geschenkt. Und die 305 Tickets oberhalb von <code>02000</code> sind etwas besser geschützt, weil viele ihrer Nachbarn aus dem Bereich fallen. Zahlendreher bleiben ungünstig: Werden zwei der hinteren drei Ziffern vertauscht, ist das Ergebnis <i>immer</i> eine gültige Nummer. Die App kann in keinem dieser Fälle erkennen, dass etwas falsch gelaufen ist. Sie sieht eine Nummer, findet sie in der Liste und sagt „gültig“.</p>
 
     <div class="stats">
-      <div class="stat"><span class="v">~20</span><span class="d">Erfassungsfehler über den Abend, bei 2000 Vorgängen und einer Fehlerquote von einem Prozent</span></div>
-      <div class="stat"><span class="v warn">~12</span><span class="d">davon treffen ein anderes gültiges Ticket, statt sichtbar ins Leere zu laufen</span></div>
-      <div class="stat"><span class="v bad">~6</span><span class="d">bleiben unbemerkt, bis die berechtigte Person vor der Tür steht und abgewiesen wird</span></div>
+      <div class="stat"><span class="v">~23</span><span class="d">Erfassungsfehler über den Einlass, bei 2305 Vorgängen und einer Fehlerquote von einem Prozent</span></div>
+      <div class="stat"><span class="v warn">~15</span><span class="d">davon treffen ein anderes gültiges Ticket, statt sichtbar ins Leere zu laufen</span></div>
+      <div class="stat"><span class="v bad">~7</span><span class="d">bleiben unbemerkt, bis die berechtigte Person vor der Tür steht und abgewiesen wird</span></div>
     </div>
 
     <p class="prose" style="font-size:.9rem;color:var(--muted)">Die Hälfte der Treffer korrigiert sich von selbst: Je voller das Gelände, desto wahrscheinlicher landet ein Fehler auf einem bereits eingelösten Ticket — und das zeigt die App sofort gelb an. Früh am Abend ist fast jeder Fehler still, spät am Abend fast keiner mehr.</p>
@@ -271,27 +272,27 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
       <div class="grid2">
         <div class="mini"><span class="tag">Pflicht</span><h4>Bestätigen mit Rücklesen</h4><p>Der erfasste Code erscheint groß und in Zweiergruppen — <code>11&#8202;42&#8202;4</code> —, daneben Name und Kategorie. Der Einlasser gleicht gegen das Papier ab und tippt dann auf „Einlassen“. Kostet etwa eine Sekunde; auf zehn Geräte verteilt sind das drei Minuten über den ganzen Abend. Das ist die wirksamste Einzelmaßnahme und deshalb nicht verhandelbar.</p></div>
         <div class="mini"><span class="tag">Pflicht</span><h4>Rückgängig machen</h4><p>Die letzten Scans jedes Geräts stehen als Liste bereit, jeder mit einem Tipp zurücknehmbar. Fängt den häufigsten Bedienfehler ab, bevor er zum Fall für die Schichtleitung wird.</p></div>
-        <div class="mini"><span class="tag">Stark empfohlen</span><h4>Namensabgleich</h4><p>Ein falsch erfasster Code führt auf einen <i>zufälligen anderen</i> Namen — und der passt so gut wie nie zum Papier. Damit fängt der Bestätigungsschritt fast alle Fehler ab. <b>Setzt personalisierte Tickets voraus</b>, siehe offene Frage 02.</p></div>
+        <div class="mini"><span class="tag">Stark empfohlen</span><h4>Kontrollabschnitt abreißen</h4><p>Die Tickets tragen keinen Namen, ein Sichtabgleich fällt also aus. Dafür bringen sie etwas mit, das genauso gut trägt: einen perforierten Abschnitt mit derselben Nummer. Wird der beim Einlass abgerissen, ist jedes benutzte Ticket <i>körperlich</i> als benutzt erkennbar — und damit ist die Frage an der Tür entschieden.</p></div>
         <div class="mini"><span class="tag">Empfohlen</span><h4>Vertipper-Rückverfolgung</h4><p>Der eigentliche Trick: Weil die Nummern dicht liegen, lässt sich ein Fehler im Nachhinein sehr genau lokalisieren. Wird ein Ticket als „bereits eingelöst“ abgewiesen, sucht die App nach Codes, die sich um eine Ziffer unterscheiden und kurz zuvor auf demselben Gerät erfasst wurden.</p></div>
       </div>
     </div>
 
     <div class="stack">
       <h3>Wie sich ein Fehler an der Tür auflösen lässt</h3>
-      <p class="prose">Aus dem Problem „irgendwo heute Abend ist etwas schiefgelaufen“ wird damit ein konkreter, in Sekunden korrigierbarer Vorgang:</p>
+      <p class="prose">Aus dem Problem „irgendwo heute ist etwas schiefgelaufen“ wird ein konkreter, in Sekunden korrigierbarer Vorgang. Der abgerissene Kontrollabschnitt liefert dazu die Entscheidungsgrundlage, die der fehlende Name nicht liefern kann: <b>Wer ein unversehrtes Ticket in der Hand hält, war noch nicht drin.</b> Steht jemand mit vollständigem Ticket an der Tür und das System sagt „bereits eingelöst“, ist das ein Erfassungsfehler und kein Betrugsversuch — die Einlasskraft entscheidet ohne Rückfrage.</p>
       <div class="screen">
         <div class="screen-bar">Klärung &middot; Westeingang 1</div>
         <div class="screen-body">
           <div class="head">
             <span class="t">Bereits eingelöst</span>
-            <span class="s">Ticket <b>11424</b> &middot; Marlene Hoffgartner<br>Eingelöst 21:14 Uhr an Nordeingang 2</span>
+            <span class="s">Ticket <b>00246</b><br>Eingelöst 21:14 Uhr an Nordeingang 2</span>
           </div>
           <div class="hint">
             <span class="h">Möglicher Erfassungsfehler</span>
-            <p>Um 21:14 wurde an Nordeingang 2 der Code <b>11423</b> erfasst — eine Ziffer Unterschied. Sehr wahrscheinlich war dieses Ticket gemeint.</p>
+            <p>Um 21:14 wurde an Nordeingang 2 der Code <b>00245</b> erfasst — eine Ziffer Unterschied. Sehr wahrscheinlich war dieses Ticket gemeint.</p>
           </div>
           <div class="btnrow">
-            <span class="btn primary">11424 freigeben, 11423 korrigieren</span>
+            <span class="btn primary">00246 freigeben, 00245 korrigieren</span>
             <span class="btn">Nur einlassen</span>
             <span class="btn">Abweisen</span>
           </div>
@@ -301,7 +302,7 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
 
     <div class="note">
       <span class="label">Ehrliche Einordnung</span>
-      <p>Ohne Prüfziffer lässt sich dieses Problem nicht beseitigen, nur eingrenzen und schnell aufklären. Mit Bestätigungsschritt und Namensabgleich rechne ich über den Abend mit ein bis zwei Fällen statt sechs — und jeder davon ist an der Tür in unter einer Minute geklärt. Wer euch etwas anderes verspricht, hat nicht nachgerechnet.</p>
+      <p>Ohne Prüfziffer lässt sich dieses Problem nicht beseitigen, nur eingrenzen und schnell aufklären. Mit Bestätigungsschritt, doppelter Lesung und abgerissenem Kontrollabschnitt rechne ich mit ein bis zwei Fällen über den gesamten Einlass statt sieben — und jeder davon ist an der Tür in unter einer Minute entschieden. Wer euch etwas anderes verspricht, hat nicht nachgerechnet.</p>
     </div>
   </div>
 </section>
@@ -310,33 +311,39 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
   <div class="sec-head"><span class="k">02</span><h2>Erfassung per Kamera</h2></div>
   <div class="stack-lg">
     <div class="prose stack">
-      <p>Auf dem Ticket steht eine reine Klartextzahl, kein Barcode und kein QR-Code. Die Kamera muss die Ziffern also <i>lesen</i> — Texterkennung, nicht Codeerkennung. Das ist technisch der deutlich anspruchsvollere Fall, und es ist genau der Punkt, an dem die Entscheidung für eine Web-App wehtut.</p>
+      <p>Auf dem Ticket steht eine reine Klartextzahl, kein Barcode und kein QR-Code. Die Kamera muss die Ziffern also <i>lesen</i> — Texterkennung, nicht Codeerkennung. Das ist technisch der anspruchsvollere Fall, aber das Foto eurer Tickets hat die Aussichten deutlich verbessert.</p>
+      <p>Die Nummer sitzt nicht im Ticketdesign, sondern auf einem <b>weißen Aufkleber, schwarz bedruckt, in einer klaren fetten Groteske</b>. Das ist praktisch der Idealfall: maximaler Kontrast, klare Kanten, keine verschnörkelte Festivalschrift, kein Muster im Untergrund. Und die Nummer steht <b>zweimal auf demselben Ticket</b> — einmal oben, einmal auf dem perforierten Kontrollabschnitt.</p>
     </div>
 
     <div class="stack">
       <h3>Die Verarbeitungskette</h3>
       <ol class="clean prose">
-        <li><b>Videobild mit festem Suchrahmen.</b> Ein Rechteck auf dem Bildschirm markiert, wohin die Nummer gehalten wird. Ausgewertet wird nur dieser Ausschnitt — das ist der größte Geschwindigkeitsgewinn überhaupt.</li>
+        <li><b>Videobild mit festem Suchrahmen.</b> Ein flaches Rechteck auf dem Bildschirm, im Seitenverhältnis des Aufklebers. Ausgewertet wird nur dieser Ausschnitt — das ist der größte Geschwindigkeitsgewinn überhaupt und hält gleichzeitig alle anderen Zahlen des Tickets aus dem Bild heraus.</li>
         <li><b>Zuschneiden, verkleinern, schwellwerten.</b> Aus dem Ausschnitt wird ein kleines Schwarz-Weiß-Bild. Weniger Pixel bedeutet schnellere und zuverlässigere Erkennung.</li>
         <li><b>Texterkennung, auf Ziffern beschränkt.</b> Tesseract im Browser, konfiguriert auf eine einzelne Textzeile und ausschließlich die Zeichen <code>0–9</code>. Das schließt die klassischen Verwechslungen zwischen <code>0</code>/<code>O</code> und <code>1</code>/<code>l</code> von vornherein aus.</li>
         <li><b>Mehrfachbestätigung.</b> Ein Einzelbild reicht nie. Akzeptiert wird erst, wenn dieselbe fünfstellige Zahl in drei aufeinanderfolgenden Bildern erscheint. Das ist der Unterschied zwischen brauchbar und unbrauchbar.</li>
-        <li><b>Abgleich gegen die lokale Liste.</b> Nur ein exakter Treffer wird angenommen. Alles andere: weiterlesen.</li>
-        <li><b>Bestätigungsschritt.</b> Wie in Abschnitt 01 — Code, Name und Kategorie zum Rücklesen, dann „Einlassen“.</li>
+        <li><b>Vier Plausibilitätsregeln.</b> Angenommen wird nur, was genau fünf Ziffern hat, mit einer Null beginnt, höchstens <code>02305</code> ist und exakt so in der lokalen Liste steht. Alles andere: weiterlesen. Damit fallen der Preis, die Datumsangaben, der Mehrwertsteuersatz und die Hotline-Nummer des Tickets automatisch durch, selbst wenn sie versehentlich ins Bild geraten.</li>
+        <li><b>Bestätigungsschritt.</b> Wie in Abschnitt 01 — der Code groß zum Rücklesen, dann „Einlassen“.</li>
       </ol>
+    </div>
+
+    <div class="note ok">
+      <span class="label">Die doppelte Nummer ist ein Geschenk</span>
+      <p>Weil dieselbe Nummer oben und auf dem Kontrollabschnitt steht, kann die App beide Aufkleber im selben Bild lesen und auf Übereinstimmung prüfen. Zwei unabhängige Lesungen desselben Codes sind eine echte Redundanz — nicht bloß dasselbe Bild zweimal ausgewertet, sondern zwei verschiedene Druckstellen mit eigenem Licht, eigener Schärfe und eigenem Winkel. Stimmen sie überein, ist ein Lesefehler nahezu ausgeschlossen. Stimmen sie nicht überein, liest die App einfach weiter. Das kostet nichts und ersetzt einen großen Teil dessen, was ein Prüfziffernverfahren geleistet hätte.</p>
     </div>
 
     <div class="note risk">
       <span class="label">Keine automatische Korrektur</span>
-      <p>Naheliegend wäre, ein unsicheres Leseergebnis auf die nächstgelegene gültige Nummer zu ziehen. Bei fortlaufenden Codes ist das aber die schlechteste denkbare Idee: Zu <code>11424</code> sind <code>11423</code> und <code>11425</code> ebenfalls gültig, die App hätte keine Grundlage für eine Wahl und würde raten. Deshalb gilt: exakter Treffer oder weiterlesen. Lieber eine Sekunde länger scannen als still das falsche Ticket entwerten.</p>
+      <p>Naheliegend wäre, ein unsicheres Leseergebnis auf die nächstgelegene gültige Nummer zu ziehen. Bei fortlaufenden Codes ist das aber die schlechteste denkbare Idee: Zu <code>00246</code> sind <code>00245</code> und <code>00247</code> ebenfalls gültig, die App hätte keine Grundlage für eine Wahl und würde raten. Deshalb gilt: exakter Treffer oder weiterlesen. Lieber eine Sekunde länger scannen als still das falsche Ticket entwerten.</p>
     </div>
 
     <div class="stack">
       <h3>Wo die Web-App an ihre Grenzen stößt</h3>
       <div class="grid2">
-        <div class="mini"><span class="tag">Schwerwiegend</span><h4>Keine Taschenlampe</h4><p>Safari erlaubt einer Web-App nicht, das Licht des iPhones einzuschalten — die entsprechende Kamera-Einstellung ist auf iOS schlicht nicht verfügbar. Bei einem Einlass, der abends im Dunkeln stattfindet, ist das kein Detail: Ohne Licht liest keine Texterkennung zuverlässig eine gedruckte Zahl. Eine native App kann das Licht steuern.</p></div>
-        <div class="mini"><span class="tag">Schwerwiegend</span><h4>Keine System-Texterkennung</h4><p>Apples eigene Erkennung — dieselbe, die in der Kamera-App Text markiert — ist für genau diesen Zweck gebaut, inklusive Mehrbildstabilisierung, und läuft in Millisekunden. Für Web-Apps ist sie nicht zugänglich. Tesseract im Browser ist der Ersatz: langsamer, empfindlicher gegenüber schlechtem Licht und schrägem Blickwinkel.</p></div>
+        <div class="mini"><span class="tag">Lösbar</span><h4>Keine Taschenlampe</h4><p>Safari erlaubt einer Web-App nicht, das Licht des iPhones einzuschalten. Das war mein stärkstes Argument für eine native App — bis klar war, wie die Tickets aussehen. Schwarz auf weißem Aufkleber braucht kein Blitzlicht, sondern nur Licht am Einlass. <b>Eine Baustrahler-Leuchte pro Eingang, zwanzig Euro, löst das Problem vollständig</b> und macht den Job für die Einlasskräfte ohnehin angenehmer.</p></div>
+        <div class="mini"><span class="tag">Vertretbar</span><h4>Keine System-Texterkennung</h4><p>Apples eigene Erkennung ist für genau diesen Zweck gebaut und läuft in Millisekunden, ist für Web-Apps aber nicht zugänglich. Tesseract im Browser bleibt langsamer — bei schwarzen Ziffern auf weißem Grund und einem eng zugeschnittenen Ausschnitt allerdings deutlich schneller und treffsicherer, als der allgemeine Ruf vermuten lässt. Meine Erwartung: unter einer halben Sekunde je Bild.</p></div>
         <div class="mini"><span class="tag">Zu prüfen</span><h4>Kamerazugriff in installierten Web-Apps</h4><p>Der Kamerazugriff aus einer zum Homebildschirm hinzugefügten Web-App war auf iOS über mehrere Versionen hinweg fehlerhaft. Aktuell funktioniert er, war aber schon mehrfach kaputt. Das gehört an den Anfang des Spikes.</p></div>
-        <div class="mini"><span class="tag">Bleibt</span><h4>Zifferntastatur als Rückfall</h4><p>Unabhängig von der Plattform: zerknitterte, nasse, eingerissene oder überstempelte Tickets wird keine Kamera lesen. Die Tastatureingabe bleibt in jedem Fall vollwertig erhalten — sie ist kein Notbehelf, sondern der zweite reguläre Weg.</p></div>
+        <div class="mini"><span class="tag">Bleibt</span><h4>Zifferntastatur als zweiter Weg</h4><p>Unabhängig von der Plattform: verregnete, zerknitterte oder eingerissene Aufkleber wird keine Kamera lesen. Die Tastatureingabe bleibt vollwertig erhalten — vier Ziffern statt fünf, weil die führende Null fest steht. Sie ist kein Notbehelf, sondern der gleichberechtigte zweite Weg.</p></div>
       </div>
     </div>
 
@@ -347,9 +354,9 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
         <table>
           <thead><tr><th></th><th>Web-App</th><th>Native App</th></tr></thead>
           <tbody>
-            <tr><td>Texterkennung</td><td class="sev-mid">Tesseract, ~0,3–0,6 s je Bild</td><td class="sev-lo">System-Erkennung, ~0,05 s</td></tr>
-            <tr><td>Licht steuerbar</td><td class="sev-hi">Nein</td><td class="sev-lo">Ja</td></tr>
-            <tr><td>Erwartete Zeit je Ticket</td><td class="sev-mid">2–4 s bei gutem Licht</td><td class="sev-lo">1–2 s</td></tr>
+            <tr><td>Texterkennung</td><td class="sev-mid">Tesseract, ~0,2–0,5 s je Bild</td><td class="sev-lo">System-Erkennung, ~0,05 s</td></tr>
+            <tr><td>Licht steuerbar</td><td class="sev-mid">Nein — Lampe am Eingang</td><td class="sev-lo">Ja</td></tr>
+            <tr><td>Erwartete Zeit je Ticket</td><td class="sev-mid">1,5–3 s</td><td class="sev-lo">1–2 s</td></tr>
             <tr><td>Verteilung auf die Geräte</td><td class="sev-lo">Link öffnen, fertig</td><td class="sev-mid">Entwicklerkonto, TestFlight, Vorlauf</td></tr>
             <tr><td>Kosten</td><td class="sev-lo">Keine</td><td class="sev-mid">99 € im Jahr</td></tr>
             <tr><td>Auch auf Leihgeräten mit Android</td><td class="sev-lo">Ja</td><td class="sev-hi">Nein</td></tr>
@@ -360,7 +367,8 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
 
     <div class="note">
       <span class="label">Meine Empfehlung</span>
-      <p>Nicht auf gut Glück entscheiden, sondern messen — und zwar bevor irgendetwas anderes gebaut wird. Ein Spike von wenigen Stunden beantwortet die Frage: Texterkennung im Browser, gegen ein echtes Ticket, im Dunkeln, mit einem echten iPhone. Liegt die Trefferquote über 90 % und die Zeit unter drei Sekunden, bleibt es bei der Web-App und wir sparen uns Entwicklerkonto und Verteilungsaufwand. Liegt sie darunter, ist die native App die richtige Antwort — und dann ist es gut, das jetzt zu wissen und nicht drei Wochen später. <b>Dafür brauche ich zwei, drei Fotos echter Tickets</b>, siehe offene Frage 02.</p>
+      <p>Nach dem Foto halte ich die Web-App für tragfähig: schwarze Ziffern auf weißem Aufkleber, zweimal pro Ticket vorhanden, in einem Zahlenraum, gegen den sich jede Lesung sofort prüfen lässt. Das einzige ernsthafte Gegenargument — kein Zugriff auf das Telefonlicht — kostet zwanzig Euro Lampe statt eines Entwicklerkontos und drei Wochen Verteilungsaufwand.</p>
+      <p>Belegt ist das damit noch nicht. Schritt 0 des Umsetzungsplans bleibt der Spike, aber er ist jetzt eine Bestätigung statt einer Weichenstellung: Texterkennung im Browser, gegen ein echtes Ticket, bei Tageslicht und im Dunkeln, auf einem echten iPhone. Zielmarke: über 95 % Trefferquote, unter zwei Sekunden je Ticket. <b>Dafür brauche ich ein echtes Ticket in die Hand — oder ersatzweise ein scharfes, formatfüllendes Foto nur des Aufklebers.</b> Verfehlt der Spike die Marke deutlich, ist die native App die Antwort, und dann ist es gut, das nach einem halben Tag zu wissen statt nach drei Wochen.</p>
     </div>
   </div>
 </section>
@@ -481,6 +489,11 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
         <li><b>Code frei</b> → Bestätigungsansicht mit Name und Kategorie. Nach dem Tipp auf „Einlassen“: lokal als eingelöst markieren, Scan in die Ausgangswarteschlange, grün.</li>
         <li><b>Später, beim Abgleich:</b> Meldet der Server, dass ein anderes Gerät früher eingelöst hat, erscheint der Vorgang als <code>conflict</code> im Protokoll. Die Person ist zu diesem Zeitpunkt längst drin — das ist ein Bericht, keine Sperre.</li>
       </ol>
+    </div>
+
+    <div class="note ok">
+      <span class="label">Einmal einlösen, danach zählt das Bändchen</span>
+      <p>Auf den Tickets steht <i>29. Juli bis 1. August</i> — vier Tage, also mit Camping und mit Gästen, die das Gelände zwischendurch verlassen. Ein Ticket bei jedem Betreten erneut zu prüfen, funktioniert dann nicht. Der übliche und hier richtige Weg: <b>Das Ticket wird genau einmal eingelöst und gegen ein Bändchen getauscht, danach regelt das Bändchen den Zutritt.</b> Genau dafür ist das hier beschriebene Modell gebaut, und es erklärt auch, warum der Kontrollabschnitt abgerissen gehört: Ticket rein, Bändchen raus, Abschnitt in die Kiste. Die App zählt Einlösungen, keine Betretungen — bitte einmal bestätigen, dass ihr es so haltet.</p>
     </div>
 
     <div class="note">
@@ -605,23 +618,22 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
 <section id="fragen">
   <div class="sec-head"><span class="k">13</span><h2>Was ich von euch brauche</h2></div>
   <div class="stack-lg">
-    <p class="prose">Die ersten drei Antworten verändern das Konzept substanziell — Frage 02 am meisten. Die übrigen betreffen Details.</p>
+    <p class="prose">Codeformat, Nummernbereich und das Aussehen der Tickets sind geklärt und eingearbeitet. Was bleibt: Die ersten drei Antworten verändern das Konzept substanziell, die übrigen betreffen Details.</p>
     <div class="card">
-      <div class="q"><span class="mark">01</span><div class="q-body"><b>Welcher Nummernbereich genau?</b><span>Erste und letzte Nummer genügen. Ist die führende Ziffer über alle 2000 Tickets konstant, blendet die App sie fest ein und die Tastatureingabe wird eine Stelle kürzer — weniger Tippen, weniger Fehler. Die App leitet das beim Import automatisch ab, aber ich will es vorher wissen.</span></div></div>
-      <div class="q"><span class="mark">02</span><div class="q-body"><b>Schickt mir zwei, drei Fotos eines echten Tickets.</b><span>Das ist gerade das Wertvollste überhaupt. Daran lässt sich ablesen, ob die Texterkennung im Browser eine Chance hat: Schriftart und -größe, Kontrast, Untergrund, wie viele andere Zahlen auf dem Ticket stehen und wo die Nummer sitzt. Idealerweise einmal glatt und einmal zerknittert.</span></div></div>
-      <div class="q"><span class="mark">03</span><div class="q-body"><b>Sind die Tickets personalisiert?</b><span>Steht ein Name drauf, ist der Sichtabgleich im Bestätigungsschritt die wirksamste Absicherung gegen Fehlerfassungen. Steht keiner drauf, fällt sie weg und wir brauchen Ersatz.</span></div></div>
-      <div class="q"><span class="mark">04</span><div class="q-body"><b>Gibt es Wiedereinlass?</b><span>Dürfen Gäste das Gelände verlassen und zurückkommen, taugt „einmal einlösen“ nicht als Modell. Üblicher Weg: beim ersten Einlass ein Bändchen ausgeben, danach zählt das Bändchen, nicht das Ticket.</span></div></div>
-      <div class="q"><span class="mark">05</span><div class="q-body"><b>Gibt es eine Abendkasse?</b><span>Vor Ort verkaufte Tickets stehen nicht in der importierten Liste. Dafür braucht es entweder einen eigenen Nummernblock oder eine Erfassung direkt in der App.</span></div></div>
-      <div class="q"><span class="mark">06</span><div class="q-body"><b>Ein Eingang oder mehrere?</b><span>Beeinflusst, wie wahrscheinlich Offline-Konflikte sind und wie das Dashboard gegliedert wird.</span></div></div>
-      <div class="q"><span class="mark">07</span><div class="q-body"><b>Gibt es Ticketkategorien?</b><span>Tageskarte, Wochenende, Crew, Presse — falls ja, muss die App den Zutritt je nach Tag und Bereich unterschiedlich bewerten.</span></div></div>
-      <div class="q"><span class="mark">08</span><div class="q-body"><b>In welcher Form liegt die Ticketliste vor?</b><span>CSV, Excel, Export aus einem Ticketsystem? Eine Beispieldatei reicht, um den Import zu bauen.</span></div></div>
-      <div class="q"><span class="mark">09</span><div class="q-body"><b>Wie ist die Netzlage am Gelände?</b><span>Kein Ausschlusskriterium — die App läuft offline. Aber es bestimmt, wie eng das Konfliktfenster in der Praxis wird.</span></div></div>
+      <div class="q"><span class="mark">01</span><div class="q-body"><b>Löst ihr die Tickets gegen Bändchen ein?</b><span>Bei vier Festivaltagen gehe ich fest davon aus. Falls nicht, ändert sich das Grundmodell: Dann zählt die App nicht Einlösungen, sondern Betretungen, und Ticket 00245 muss viermal grün werden dürfen. Das ist ein anderer Entwurf — bitte bestätigen, bevor gebaut wird.</span></div></div>
+      <div class="q"><span class="mark">02</span><div class="q-body"><b>Wird der Kontrollabschnitt abgerissen?</b><span>Weil die Tickets keinen Namen tragen, ist der abgerissene Abschnitt die einzige verlässliche Antwort auf die Frage „war diese Person schon drin?“. Falls ihr ihn bisher nicht abreißt: Es lohnt sich, damit anzufangen — es kostet nichts und macht jeden Erfassungsfehler an der Tür entscheidbar.</span></div></div>
+      <div class="q"><span class="mark">03</span><div class="q-body"><b>Ein echtes Ticket für den Spike.</b><span>Ein Exemplar in die Hand oder ersatzweise ein scharfes, formatfüllendes Foto nur des Aufklebers, einmal glatt und einmal zerknittert. Damit lässt sich die Texterkennung gegen die Wirklichkeit messen statt gegen eine Annahme.</span></div></div>
+      <div class="q"><span class="mark">04</span><div class="q-body"><b>Gibt es eine Abendkasse?</b><span>Vor Ort verkaufte Tickets stehen nicht in der Liste. Wenn sie aus demselben Nummernkreis kommen, ist es einfach — sie sind schon drin und müssen nur freigeschaltet werden. Kommen sie aus einem anderen Block, braucht es einen zweiten Bereich in der App.</span></div></div>
+      <div class="q"><span class="mark">05</span><div class="q-body"><b>Gibt es unterschiedliche Ticketarten?</b><span>Das Foto zeigt ein Festival-Ticket zu 210 Euro. Falls es daneben Tages-, Crew- oder Pressetickets gibt: Laufen die im selben Nummernkreis mit, oder haben sie eigene Nummern? Und dürfen sie andere Bereiche betreten?</span></div></div>
+      <div class="q"><span class="mark">06</span><div class="q-body"><b>Wie viele Eingänge, wie viele Geräte je Eingang?</b><span>Bestimmt, wie wahrscheinlich Offline-Konflikte werden und wie das Dashboard gegliedert wird.</span></div></div>
+      <div class="q"><span class="mark">07</span><div class="q-body"><b>In welcher Form kommt die Ticketliste?</b><span>CSV, Excel, Export aus einem Vorverkaufssystem? Bis sie da ist, arbeite ich mit der erzeugten Testliste <code>data/tickets.sample.csv</code>.</span></div></div>
+      <div class="q"><span class="mark">08</span><div class="q-body"><b>Wie ist die Netzlage am Gelände?</b><span>Kein Ausschlusskriterium — die App läuft offline. Aber es bestimmt, wie eng das Konfliktfenster in der Praxis wird.</span></div></div>
     </div>
   </div>
 </section>
 
 <footer>
-  <p>Nächster Schritt ist Schritt 0 des Umsetzungsplans: der Spike zur Texterkennung. Dafür brauche ich Fotos echter Tickets — bis dahin steht die Entscheidung zwischen Web-App und nativer App offen, und alles Weitere hängt daran.</p>
+  <p>Nächster Schritt ist Schritt 0 des Umsetzungsplans: der Spike zur Texterkennung gegen ein echtes Ticket. Bis die tatsächliche Ticketliste vorliegt, arbeitet der Import gegen die erzeugte Testliste über den vollen Bereich <span style="font-family:'JetBrains Mono',monospace">00001–02305</span>.</p>
 </footer>
 
 </div>

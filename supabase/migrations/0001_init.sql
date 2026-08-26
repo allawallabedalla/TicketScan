@@ -100,7 +100,8 @@ create or replace function redeem_ticket(
   p_code      text,
   p_device_id uuid,
   p_scan_id   uuid,
-  p_client_ts timestamptz
+  p_client_ts timestamptz,
+  p_offline   boolean default false
 ) returns table (result text, code text, category text, redeemed_at timestamptz,
                  redeemed_by_device text) as $$
 declare
@@ -125,8 +126,8 @@ begin
   returning t.* into v_row;
 
   if found then
-    insert into scan_log (scan_id, code, device_id, client_ts, action, result)
-    values (p_scan_id, p_code, p_device_id, p_client_ts, 'redeem', 'ok');
+    insert into scan_log (scan_id, code, device_id, client_ts, action, result, offline)
+    values (p_scan_id, p_code, p_device_id, p_client_ts, 'redeem', 'ok', p_offline);
     return query select 'ok'::text, v_row.code, v_row.category,
                         v_row.redeemed_at, v_row.redeemed_by_device;
     return;
@@ -135,18 +136,18 @@ begin
   select * into v_row from tickets where tickets.code = p_code;
 
   if not found then
-    insert into scan_log (scan_id, code, device_id, client_ts, action, result)
-    values (p_scan_id, p_code, p_device_id, p_client_ts, 'redeem', 'unknown');
+    insert into scan_log (scan_id, code, device_id, client_ts, action, result, offline)
+    values (p_scan_id, p_code, p_device_id, p_client_ts, 'redeem', 'unknown', p_offline);
     return query select 'unknown'::text, p_code, null::text, null::timestamptz, null::text;
     return;
   end if;
 
   -- Bereits eingelöst. War es dasselbe Gerät, ist es ein doppelt gesendeter
   -- Scan; war es ein anderes, hat ein Offline-Fenster zugeschlagen.
-  insert into scan_log (scan_id, code, device_id, client_ts, action, result)
+  insert into scan_log (scan_id, code, device_id, client_ts, action, result, offline)
   values (p_scan_id, p_code, p_device_id, p_client_ts, 'redeem',
           case when v_row.redeemed_by_device = p_device_id::text
-               then 'duplicate' else 'conflict' end);
+               then 'duplicate' else 'conflict' end, p_offline);
 
   return query select
     case when v_row.redeemed_by_device = p_device_id::text
@@ -163,22 +164,34 @@ create or replace function undo_redemption(
   p_reason    text
 ) returns boolean as $$
 declare
-  v_hit boolean;
+  v_rows integer;
 begin
   update tickets
      set redeemed_at = null, redeemed_by_device = null, redeemed_scan_id = null
    where code = p_code and redeemed_at is not null;
 
-  get diagnostics v_hit = row_count;
+  get diagnostics v_rows = row_count;
 
   insert into scan_log (scan_id, code, device_id, client_ts, action, result, reason)
   values (p_scan_id, p_code, p_device_id, now(), 'undo',
-          case when v_hit then 'ok' else 'unknown' end, p_reason)
+          case when v_rows > 0 then 'ok' else 'unknown' end, p_reason)
   on conflict (scan_id) do nothing;
 
-  return v_hit;
+  return v_rows > 0;
 end;
 $$ language plpgsql;
+
+-- Bericht über die Zeiträume, in denen ohne Abgleich eingelöst wurde. Macht
+-- aus einem blinden Fleck einen geprüften Zeitraum, siehe Konzept Abschnitt 05.
+create or replace view offline_windows as
+select device_id,
+       min(server_ts) as von,
+       max(server_ts) as bis,
+       count(*)                                    as eingeloest,
+       count(*) filter (where result = 'conflict') as doppelt
+  from scan_log
+ where offline and action = 'redeem'
+ group by device_id, date_trunc('hour', server_ts);
 
 -- Die Tabellen werden ausschließlich über die Edge Functions angesprochen,
 -- die mit dem Service-Role-Schlüssel arbeiten. Kein direkter Zugriff für

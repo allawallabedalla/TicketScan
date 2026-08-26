@@ -21,16 +21,57 @@ if (!file) {
 
 // ------------------------------------------------------------------ lesen --
 
-function parseCsv(text) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (lines.length < 2) throw new Error("Die Datei enthält keine Datenzeilen.");
+/**
+ * Zerlegt CSV nach RFC 4180: Felder dürfen in Anführungszeichen stehen und
+ * darin Kommas, Zeilenumbrüche und verdoppelte Anführungszeichen enthalten.
+ *
+ * Ein Zeilenweise-Trennen an Kommas wäre kürzer, würde bei einem Export aus
+ * Excel aber stillschweigend Unsinn einlesen — ein Name wie "Meier, Jonna"
+ * verschiebt alle folgenden Spalten, ohne dass irgendwo ein Fehler auftaucht.
+ */
+function splitCsv(text) {
+  const rows = [];
+  let row = [], field = "", quoted = false;
 
-  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+
+    if (quoted) {
+      if (c !== '"') { field += c; continue; }
+      // Verdoppeltes Anführungszeichen steht für ein einzelnes im Feld.
+      if (text[i + 1] === '"') { field += '"'; i++; continue; }
+      quoted = false;
+      continue;
+    }
+
+    if (c === '"' && field === "") { quoted = true; continue; }
+    if (c === ",") { row.push(field); field = ""; continue; }
+    if (c === "\r") continue;
+    if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; continue; }
+    field += c;
+  }
+
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  if (quoted) throw new Error("Ein Anführungszeichen wurde nicht geschlossen.");
+
+  return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+}
+
+function parseCsv(text) {
+  const rows = splitCsv(text);
+  if (rows.length < 2) throw new Error("Die Datei enthält keine Datenzeilen.");
+
+  const header = rows[0].map((h) => h.trim().toLowerCase());
   const codeAt = header.indexOf("code");
   if (codeAt === -1) throw new Error("Es fehlt eine Spalte `code`.");
 
-  return lines.slice(1).map((line, i) => {
-    const cells = line.split(",");
+  return rows.slice(1).map((cells, i) => {
+    if (cells.length !== header.length) {
+      throw new Error(
+        `Zeile ${i + 2}: ${cells.length} Felder, erwartet ${header.length}. ` +
+        "Der Export passt nicht zur Kopfzeile.",
+      );
+    }
     const value = (name) => {
       const at = header.indexOf(name);
       return at === -1 ? "" : (cells[at] ?? "").trim();
@@ -87,11 +128,14 @@ if (codes.some((c) => !/^\d+$/.test(c))) {
 
 // Die gemeinsame führende Ziffernfolge blendet die App im Eingabefeld fest
 // ein — jede Stelle weniger ist eine Fehlerquelle weniger.
-const prefix = codes.reduce((acc, code) => {
+let prefix = codes.reduce((acc, code) => {
   let i = 0;
   while (i < acc.length && acc[i] === code[i]) i++;
   return acc.slice(0, i);
 }, codes[0] ?? "");
+// Bei nur einer Nummer wäre der ganze Code die Vorsilbe und es bliebe nichts
+// zum Eintippen übrig. Mindestens drei Stellen bleiben immer stehen.
+prefix = prefix.slice(0, Math.max(0, (codes[0]?.length ?? 0) - 3));
 
 const numeric = codes.filter((c) => /^\d+$/.test(c)).map(Number).sort((a, b) => a - b);
 const gaps = [];
@@ -109,7 +153,7 @@ const width = codes[0]?.length ?? 0;
 stderr.write([
   `Datei:            ${file}`,
   `Tickets:          ${rows.length}`,
-  `Bereich:          ${codes[0]} – ${codes.at(-1)}`,
+  `Bereich:          ${[...codes].sort()[0]} – ${[...codes].sort().at(-1)}`,
   `Feste Vorsilbe:   ${prefix || "(keine)"} — Eingabe mit ${width - prefix.length} statt ${width} Stellen`,
   `Kategorien:       ${[...new Set(rows.map((r) => r.category))].join(", ")}`,
   `Personalisiert:   ${rows.some((r) => r.holder_name) ? "ja" : "nein"}`,

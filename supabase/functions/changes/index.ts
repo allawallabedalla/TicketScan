@@ -20,6 +20,12 @@ Deno.serve(async (req) => {
   const device = await requireDevice(req);
   if (!device) return json({ error: "Anmeldung abgelaufen" }, 401);
 
+  // Ein gesperrtes Gerät konnte bisher zwar nichts mehr einlösen, aber weiter
+  // die vollständige Ticketliste abrufen.
+  const { data: row } = await db.from("devices")
+    .select("revoked_at").eq("device_id", device.deviceId).single();
+  if (row?.revoked_at) return json({ error: "Gerät gesperrt" }, 403);
+
   const since = new URL(req.url).searchParams.get("since");
 
   let query = db.from("tickets")

@@ -29,12 +29,47 @@ async function key(secret: string): Promise<CryptoKey> {
   );
 }
 
-/** Nächstes Erreichen der Tageswechsel-Stunde, als Unix-Sekunden. */
-export function nextRollover(hour: number, now = new Date()): number {
-  const next = new Date(now);
-  next.setHours(hour, 0, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  return Math.floor(next.getTime() / 1000);
+/** Versatz einer Zeitzone gegenüber UTC zum gegebenen Zeitpunkt, in Millisekunden. */
+function zoneOffset(at: Date, zone: string): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: zone, hour12: false,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(at).map((p) => [p.type, p.value]),
+  );
+  const wall = Date.UTC(
+    +parts.year, +parts.month - 1, +parts.day,
+    +parts.hour, +parts.minute, +parts.second,
+  );
+  return wall - at.getTime();
+}
+
+/**
+ * Nächstes Erreichen der Tageswechsel-Stunde in Ortszeit, als Unix-Sekunden.
+ *
+ * Die Zone muss ausdrücklich angegeben werden: Edge Functions laufen in UTC,
+ * und `setHours` hätte den Wechsel im Sommer auf 8 Uhr deutscher Zeit gelegt —
+ * mitten in die Zeit, in der schon Geräte in Betrieb sind.
+ */
+export function nextRollover(
+  hour: number,
+  zone = Deno.env.get("TICKETSCAN_TIMEZONE") ?? "Europe/Berlin",
+  now = new Date(),
+): number {
+  const offset = zoneOffset(now, zone);
+  // Ein Datum, dessen UTC-Felder die Wanduhr in der Zone abbilden.
+  const wall = new Date(now.getTime() + offset);
+
+  const target = new Date(wall);
+  target.setUTCHours(hour, 0, 0, 0);
+  if (target <= wall) target.setUTCDate(target.getUTCDate() + 1);
+
+  // Zurück nach UTC. Den Versatz am Zielzeitpunkt neu bestimmen, damit eine
+  // Zeitumstellung dazwischen nicht um eine Stunde danebenliegt.
+  const rough = target.getTime() - offset;
+  const exact = target.getTime() - zoneOffset(new Date(rough), zone);
+  return Math.floor(exact / 1000);
 }
 
 export async function issue(claims: DeviceClaims, secret: string): Promise<string> {

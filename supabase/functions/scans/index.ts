@@ -20,6 +20,9 @@ interface Scan {
   clientTs: string;
   action?: "redeem" | "undo";
   reason?: string;
+  /** Entstand der Scan ohne Verbindung? Dann war er im Moment der
+   *  Entscheidung nicht gegen die anderen Geräte prüfbar. */
+  offline?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -56,10 +59,11 @@ Deno.serve(async (req) => {
     const { data, error } = await db.rpc("redeem_ticket", {
       p_code: scan.code, p_device_id: device.deviceId,
       p_scan_id: scan.scanId, p_client_ts: scan.clientTs,
+      p_offline: scan.offline ?? false,
     });
-    if (error) {
-      // Nicht abbrechen: der Rest des Bündels soll trotzdem durchlaufen, und
-      // das Gerät sendet die gescheiterten Scans beim nächsten Mal erneut.
+    // Nicht abbrechen: der Rest des Bündels soll trotzdem durchlaufen, und das
+    // Gerät sendet die gescheiterten Scans beim nächsten Mal erneut.
+    if (error || !data?.[0]) {
       results.push({ scanId: scan.scanId, code: scan.code, result: "error" });
       continue;
     }

@@ -349,7 +349,10 @@ function otsu(histogram: number[], total: number): number {
 export class Consensus {
   private recent: string[] = [];
 
-  constructor(private needed = 3, private memory = 5) {}
+  // Zwei übereinstimmende Lesungen genügen, seit nur noch Nummern aus der
+  // Liste überhaupt angeboten werden. Drei kosteten spürbar Zeit, ohne noch
+  // etwas abzufangen.
+  constructor(private needed = 2, private memory = 4) {}
 
   /** Gibt die Nummer zurück, sobald sie oft genug bestätigt wurde. */
   offer(reading: string | null): string | null {

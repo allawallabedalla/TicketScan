@@ -104,20 +104,41 @@ if (session) {
     return (await res.json()).token;
   })();
 
-  await step("Ticketliste abrufbar", async () => {
-    const res = await fetch(`${API}/changes`, { headers: { authorization: `Bearer ${token}` } });
-    if (res.status === 500) throw new Error("500 — ist die Migration eingespielt?");
-    if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 120)}`);
+  // Bewusst über alle Seiten: Die Data API gibt höchstens 1000 Zeilen je
+  // Anfrage heraus. Eine Prüfung, die nur die erste Seite ansieht, meldet bei
+  // 2305 Tickets grün und lässt 1305 davon am Eingang als unbekannt auflaufen —
+  // genau das ist einmal passiert.
+  await step("Ticketliste vollständig abrufbar", async () => {
+    const seen = new Map();
+    let offset = 0;
+    let seiten = 0;
 
-    const { tickets } = await res.json();
-    if (!Array.isArray(tickets)) throw new Error("unerwartete Antwort");
-    if (tickets.length === 0) {
+    for (;;) {
+      const res = await fetch(`${API}/changes?offset=${offset}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (res.status === 500) throw new Error("500 — ist die Migration eingespielt?");
+      if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 120)}`);
+
+      const page = await res.json();
+      if (!Array.isArray(page.tickets)) throw new Error("unerwartete Antwort");
+
+      for (const t of page.tickets) seen.set(t.code, t);
+      seiten++;
+
+      if (!page.more || page.tickets.length === 0) break;
+      offset = page.nextOffset ?? offset + page.tickets.length;
+      if (seiten > 50) throw new Error("Blättern endet nicht — Cursor bewegt sich nicht");
+    }
+
+    if (seen.size === 0) {
       throw new Error("0 Tickets — Liste noch nicht importiert (scripts/import-tickets.mjs)");
     }
 
-    const codes = tickets.map((t) => t.code).sort();
-    const offen = tickets.filter((t) => !t.redeemed_at).length;
-    return `${tickets.length} Tickets, ${codes[0]} – ${codes.at(-1)}, ${offen} noch nicht eingelöst`;
+    const codes = [...seen.keys()].sort();
+    const offen = [...seen.values()].filter((t) => !t.redeemed_at).length;
+    return `${seen.size} Tickets über ${seiten} Seiten, ${codes[0]} – ${codes.at(-1)}, ` +
+      `${offen} noch nicht eingelöst`;
   });
 
   await step("Abgelaufenes Token wird abgewiesen", async () => {

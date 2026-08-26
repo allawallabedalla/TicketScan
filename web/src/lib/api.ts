@@ -34,8 +34,19 @@ interface ChangesResponse {
     updated_at: string;
   }>;
   more: boolean;
+  nextOffset: number | null;
   cursor: string | null;
+  cursorCode: string | null;
   serverTime: string;
+}
+
+export interface PageRequest {
+  /** Grundbestand: ab welcher Zeile weiterblättern. */
+  offset?: number;
+  /** Änderungen: Fortsetzung nach diesem Zeitstempel … */
+  since?: string | null;
+  /** … und dieser Nummer, für Zeilen mit gleichem Zeitstempel. */
+  sinceCode?: string | null;
 }
 
 export interface ScanResult {
@@ -46,10 +57,16 @@ export interface ScanResult {
   redeemed_by_device?: string | null;
 }
 
-/** Holt Änderungen seit einem Zeitstempel, oder den Grundbestand ohne. */
-export async function fetchChanges(session: Session, since: string | null) {
-  const query = since ? `?since=${encodeURIComponent(since)}` : "";
-  const data = await call<ChangesResponse>(`/changes${query}`, session);
+/** Holt eine Seite: Änderungen seit einem Zeitstempel, oder den Grundbestand. */
+export async function fetchChanges(session: Session, page: PageRequest = {}) {
+  const params = new URLSearchParams();
+  if (page.since) params.set("since", page.since);
+  if (page.sinceCode) params.set("sinceCode", page.sinceCode);
+  if (page.offset) params.set("offset", String(page.offset));
+
+  const query = params.toString();
+  const data = await call<ChangesResponse>(`/changes${query ? `?${query}` : ""}`, session);
+
   const tickets: Ticket[] = data.tickets.map((t) => ({
     code: t.code,
     category: t.category,
@@ -57,7 +74,15 @@ export async function fetchChanges(session: Session, since: string | null) {
     redeemedAt: t.redeemed_at,
     redeemedByDevice: t.redeemed_by_device,
   }));
-  return { tickets, more: data.more, cursor: data.cursor, serverTime: data.serverTime };
+
+  return {
+    tickets,
+    more: data.more,
+    nextOffset: data.nextOffset,
+    cursor: data.cursor,
+    cursorCode: data.cursorCode,
+    serverTime: data.serverTime,
+  };
 }
 
 export async function submitScans(session: Session, scans: QueuedScan[]) {

@@ -23,48 +23,67 @@ export async function bootstrap(
   session: Session,
   onProgress?: (loaded: number) => void,
 ): Promise<number> {
-  let cursor: string | null = null;
+  let offset = 0;
   let total = 0;
+  let syncedUpto: string | null = null;
 
   for (;;) {
-    const page = await api.fetchChanges(session, cursor);
+    const page = await api.fetchChanges(session, { offset });
+
+    // Der Zeitstempel der ersten Seite ist der Stand, ab dem später
+    // nachgezogen wird. Nähme man den der letzten, gingen Einlösungen
+    // verloren, die während des Ladens passiert sind.
+    syncedUpto ??= page.serverTime;
+
     await store.putTickets(page.tickets);
     total += page.tickets.length;
     onProgress?.(total);
 
-    if (!page.more || !page.cursor || page.cursor === cursor) break;
-    cursor = page.cursor;
+    if (!page.more || page.tickets.length === 0) break;
+    offset = page.nextOffset ?? offset + page.tickets.length;
   }
 
-  await store.set("syncedUpto", (await lastServerTime(session)) ?? new Date().toISOString());
+  await store.set("syncedUpto", syncedUpto ?? new Date().toISOString());
+  await store.remove("syncedUptoCode");
   return total;
-}
-
-async function lastServerTime(session: Session): Promise<string | null> {
-  try {
-    const page = await api.fetchChanges(session, new Date().toISOString());
-    return page.serverTime;
-  } catch {
-    return null;
-  }
 }
 
 /** Änderungen nachziehen. Läuft regelmäßig und nach jeder Netzwiederkehr. */
 export async function pullChanges(session: Session): Promise<number> {
-  const since = await store.get<string>("syncedUpto") ?? null;
-  const page = await api.fetchChanges(session, since);
+  let since = await store.get<string>("syncedUpto") ?? null;
+  let sinceCode = await store.get<string>("syncedUptoCode") ?? null;
+  let changed = 0;
 
-  if (page.tickets.length) {
-    // Was hier ankommt, ist die Wahrheit des Servers — bis auf Einlösungen,
-    // die dieses Gerät noch in der Warteschlange hat.
-    const pending = new Set((await store.queued()).map((s) => s.code));
-    await store.putTickets(
-      page.tickets.map((t) => pending.has(t.code) ? { ...t, pending: true } : t),
-    );
+  for (;;) {
+    const page = await api.fetchChanges(session, { since, sinceCode });
+
+    if (page.tickets.length) {
+      // Was hier ankommt, ist die Wahrheit des Servers — bis auf Einlösungen,
+      // die dieses Gerät noch in der Warteschlange hat.
+      const pending = new Set((await store.queued()).map((s) => s.code));
+      await store.putTickets(
+        page.tickets.map((t) => pending.has(t.code) ? { ...t, pending: true } : t),
+      );
+      changed += page.tickets.length;
+    }
+
+    if (!page.more || page.tickets.length === 0) {
+      // Erst am Ende weiterstellen, und dann auf die Serverzeit: Ein
+      // abgebrochener Durchlauf wiederholt sich dann einfach.
+      await store.set("syncedUpto", page.serverTime);
+      await store.remove("syncedUptoCode");
+      break;
+    }
+
+    // Mitten im Blättern über (Zeitstempel, Nummer) fortsetzen — nach einem
+    // Import tragen tausende Zeilen denselben Zeitstempel.
+    since = page.cursor;
+    sinceCode = page.cursorCode;
+    await store.set("syncedUpto", since);
+    await store.set("syncedUptoCode", sinceCode);
   }
 
-  await store.set("syncedUpto", page.serverTime);
-  return page.tickets.length;
+  return changed;
 }
 
 /**

@@ -6,25 +6,46 @@
  */
 
 :root {
-  --ground: #F4F5F8;
-  --surface: #FFFFFF;
-  --surface-2: #EDEFF4;
-  --line: #D3D7E2;
-  --ink: #14171F;
-  --muted: #565D72;
-  --faint: #838BA1;
-  --accent: #2E32A0;
-  --accent-soft: #E4E5F6;
-  --on-accent: #FFFFFF;
-  --ok: #10704A;
-  --warn: #87560A;
-  --warn-soft: #F9EFD6;
-  --bad: #A32014;
-  --bad-soft: #FBE4E1;
+  /* Farben vom Ticket selbst.
+   *
+   * Eine Entscheidung ist dabei bewusst gegen den ersten Impuls gefallen: Das
+   * Ticket ist überwiegend mintgrün — aber Grün ist in dieser App das Signal
+   * für „Einlass frei“. Wäre die Oberfläche mintgrün, verlöre der grüne
+   * Vollbild-Blitz genau die Wirkung, für die es ihn gibt. Grün bleibt deshalb
+   * der Rückmeldung vorbehalten.
+   *
+   * Getragen wird die Oberfläche stattdessen vom Pergamentton des
+   * Ticketpapiers, mit dem Magenta des Schriftzugs als Akzent. Beides stammt
+   * vom Ticket, keins kollidiert mit einer Statusfarbe.
+   */
+  --ground: #F1E7C8;      /* Pergament, das Feld unter dem Aufdruck */
+  --surface: #FBF6E6;     /* aufgehellt, für Karten und Flächen */
+  --surface-2: #EADEBB;
+  --line: #D5C69B;
+  --ink: #2E2A1E;         /* das Braunschwarz der gezeichneten Linien */
+  --muted: #6B6250;
+  --faint: #99907A;
 
-  --ok-flood: #DEF0E6;
-  --warn-flood: #F9EFD6;
-  --bad-flood: #FBE4E1;
+  --accent: #C0327B;      /* Magenta aus dem Schriftzug */
+  --accent-soft: #F7DCE9;
+  --on-accent: #FFFFFF;
+
+  /* Die übrigen Buchstabenfarben, für Symbole in der Kurzanleitung —
+     dieselbe Vielfarbigkeit wie auf dem Ticket. */
+  --violet: #6E4B9E;
+  --azure: #2F7FB8;
+  --olive: #7E8F2E;
+
+  /* Semantik. Bleibt reserviert und wird von der Gestaltung nicht angerührt. */
+  --ok: #15794B;
+  --warn: #8A5A0B;
+  --bad: #A62A1B;
+  --ok-soft: #DCEEDF;
+  --warn-soft: #F7E7C2;
+  --bad-soft: #F8DDD6;
+  --ok-flood: #CFE7D3;
+  --warn-flood: #F6E3B6;
+  --bad-flood: #F8D9D1;
 
   --tap: 52px;
   --pad: 20px;
@@ -32,26 +53,35 @@
   color-scheme: light dark;
 }
 
+/* Nachts am Eingang: die Tiefe der gezeichneten Linien statt reinem Schwarz,
+   damit die Oberfläche auch dunkel nach demselben Ticket aussieht. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ground: #101317;
-    --surface: #191D25;
-    --surface-2: #212632;
-    --line: #313747;
-    --ink: #E9ECF4;
-    --muted: #9AA2B8;
-    --faint: #6D7590;
-    --accent: #8E93FF;
-    --accent-soft: #1F2348;
-    --on-accent: #101227;
-    --ok: #4FD69C;
-    --warn: #E5B75A;
+    --ground: #16190F;
+    --surface: #1F2317;
+    --surface-2: #2A2F20;
+    --line: #3E4531;
+    --ink: #EFE9D6;
+    --muted: #A9A28C;
+    --faint: #7C7561;
+
+    --accent: #FF83B9;
+    --accent-soft: #3B1829;
+    --on-accent: #24101A;
+
+    --violet: #B79BE6;
+    --azure: #7CBCE8;
+    --olive: #B9CB5E;
+
+    --ok: #55D89B;
+    --warn: #E9B94F;
+    --bad: #F5847A;
+    --ok-soft: #123020;
     --warn-soft: #33260C;
-    --bad: #F58174;
-    --bad-soft: #371814;
-    --ok-flood: #0E2A1D;
-    --warn-flood: #2E220B;
-    --bad-flood: #331512;
+    --bad-soft: #351613;
+    --ok-flood: #10301F;
+    --warn-flood: #302408;
+    --bad-flood: #331410;
   }
 }
 
@@ -195,6 +225,10 @@ b { font-weight: 650; }
   width: 40px; height: 40px; border-radius: 11px;
   background: var(--accent-soft); color: var(--accent);
 }
+/* Wie der Schriftzug auf dem Ticket: jeder Buchstabe eine andere Farbe. */
+.perk:nth-child(2) .perk-icon { color: var(--violet); background: color-mix(in srgb, var(--violet) 14%, transparent); }
+.perk:nth-child(3) .perk-icon { color: var(--azure);  background: color-mix(in srgb, var(--azure) 14%, transparent); }
+.perk:nth-child(4) .perk-icon { color: var(--olive);  background: color-mix(in srgb, var(--olive) 16%, transparent); }
 .perk-icon svg { width: 21px; height: 21px; }
 
 .alert {

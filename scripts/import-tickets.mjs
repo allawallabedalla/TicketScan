@@ -189,8 +189,21 @@ if (!url || !key) {
 if (/^(eyJ\.\.\.|\.\.\.|<.*>)$/i.test(key.trim())) {
   stderr.write(
     `SUPABASE_SERVICE_ROLE_KEY enthält noch den Beispielwert '${key}'.\n` +
-    "Den echten Schlüssel gibt es unter Project Settings → API Keys,\n" +
-    "Eintrag `service_role` bzw. `secret`.\n",
+    "Den echten Schlüssel gibt es unter Project Settings → API Keys.\n" +
+    "Gesucht ist der geheime: `sb_secret_...` (neu) oder `service_role`\n" +
+    "als langer eyJ-Wert (älter). Nicht der publishable/anon-Schlüssel.\n",
+  );
+  exit(1);
+}
+
+// Der öffentliche Schlüssel wird hier gern verwechselt. Er kommt bis zur
+// Zeilensicherheit und scheitert dann mit einer Meldung, die nach einem
+// Rechteproblem aussieht statt nach der falschen Zutat.
+if (/^sb_publishable_/.test(key.trim())) {
+  stderr.write(
+    "SUPABASE_SERVICE_ROLE_KEY enthält den öffentlichen Schlüssel\n" +
+    "(`sb_publishable_...`). Zum Schreiben braucht es den geheimen:\n" +
+    "`sb_secret_...` unter Project Settings → API Keys.\n",
   );
   exit(1);
 }

@@ -25,7 +25,8 @@ function rejectPlaceholder(name, value) {
   if (value && /^(eyJ\.\.\.|\.\.\.|<.*>|xxx+)$/i.test(value.trim())) {
     stderr.write(
       `${name} enthält noch den Beispielwert '${value}'.\n` +
-      "Den echten Schlüssel gibt es unter Project Settings → API Keys.\n",
+      "Den echten gibt es unter Project Settings → API Keys: der öffentliche,\n" +
+      "also `sb_publishable_...` (neu) oder `anon` als langer eyJ-Wert (älter).\n",
     );
     exit(1);
   }

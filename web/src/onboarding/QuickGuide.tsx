@@ -224,8 +224,8 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
       <>
         <ol className="moves">
           <Move n={1} icon={<Icon.Scan />}>
-            Halte die <b>weiße Klebezahl</b> in den Rahmen. Nicht das ganze
-            Ticket — nur die Zahl.
+            Halte die <b>Ticketnummer</b> in den Rahmen. Nicht das ganze
+            Ticket — nur die Nummer.
           </Move>
           <Move n={2} icon={<Icon.Check />}>
             Warte auf <b>Grün</b>. Die Nummer erscheint groß auf dem Bildschirm.

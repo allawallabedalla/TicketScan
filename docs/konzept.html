@@ -211,6 +211,7 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
       <div class="fact"><dt>Plattform</dt><dd>PWA</dd></div>
       <div class="fact"><dt>Codes</dt><dd style="font-family:'JetBrains Mono',monospace;font-size:.92rem">00001–02305</dd></div>
       <div class="fact"><dt>Erfassung</dt><dd>Etikett per Kamera</dd></div>
+      <div class="fact"><dt>Einlösung</dt><dd>einmalig, gegen Bändchen</dd></div>
       <div class="fact"><dt>Offline</dt><dd>voll funktionsfähig</dd></div>
     </dl>
   </div>
@@ -367,6 +368,7 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
 
     <div class="note">
       <span class="label">Meine Empfehlung</span>
+      <p>Dazu kommt eine Entwarnung aus dem Einlöseverfahren: Weil jedes Ticket gegen ein Bändchen getauscht wird, dauert ein Vorgang ohnehin fünfzehn bis fünfundzwanzig Sekunden — Abschnitt abreißen, richtiges Bändchen greifen, anlegen, schließen. <b>Die Erfassung ist damit nie der Engpass</b>, ob sie nun anderthalb oder drei Sekunden braucht. Auch der verpflichtende Bestätigungsschritt aus Abschnitt 01 kostet in diesem Budget effektiv nichts. Siehe die Rechnung in Abschnitt 12.</p>
       <p>Nach dem Foto halte ich die Web-App für tragfähig: schwarze Ziffern auf weißem Aufkleber, zweimal pro Ticket vorhanden, in einem Zahlenraum, gegen den sich jede Lesung sofort prüfen lässt. Das einzige ernsthafte Gegenargument — kein Zugriff auf das Telefonlicht — kostet zwanzig Euro Lampe statt eines Entwicklerkontos und drei Wochen Verteilungsaufwand.</p>
       <p>Belegt ist das damit noch nicht. Schritt 0 des Umsetzungsplans bleibt der Spike, aber er ist jetzt eine Bestätigung statt einer Weichenstellung: Texterkennung im Browser, gegen ein echtes Ticket, bei Tageslicht und im Dunkeln, auf einem echten iPhone. Zielmarke: über 95 % Trefferquote, unter zwei Sekunden je Ticket. <b>Dafür brauche ich ein echtes Ticket in die Hand — oder ersatzweise ein scharfes, formatfüllendes Foto nur des Aufklebers.</b> Verfehlt der Spike die Marke deutlich, ist die native App die Antwort, und dann ist es gut, das nach einem halben Tag zu wissen statt nach drei Wochen.</p>
     </div>
@@ -493,7 +495,8 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
 
     <div class="note ok">
       <span class="label">Einmal einlösen, danach zählt das Bändchen</span>
-      <p>Auf den Tickets steht <i>29. Juli bis 1. August</i> — vier Tage, also mit Camping und mit Gästen, die das Gelände zwischendurch verlassen. Ein Ticket bei jedem Betreten erneut zu prüfen, funktioniert dann nicht. Der übliche und hier richtige Weg: <b>Das Ticket wird genau einmal eingelöst und gegen ein Bändchen getauscht, danach regelt das Bändchen den Zutritt.</b> Genau dafür ist das hier beschriebene Modell gebaut, und es erklärt auch, warum der Kontrollabschnitt abgerissen gehört: Ticket rein, Bändchen raus, Abschnitt in die Kiste. Die App zählt Einlösungen, keine Betretungen — bitte einmal bestätigen, dass ihr es so haltet.</p>
+      <p><b>Bestätigt: Das Ticket wird genau einmal gegen ein Bändchen getauscht, danach regelt das Bändchen den Zutritt.</b> Das ist bei vier Festivaltagen mit Camping der einzig praktikable Weg, und es legt die Aufgabe der App präzise fest: Sie zählt <i>Einlösungen</i>, keine Betretungen. Wer einmal drin war, taucht nie wieder vor einem Scanner auf.</p>
+      <p>Damit verschiebt sich auch, wogegen das System eigentlich schützt. Es ist keine Zutrittskontrolle — die macht das Bändchen. Es beantwortet genau eine Frage: <b>Hat diese Nummer schon ein Bändchen bekommen?</b> Der Angriff, den es abwehrt, ist das kopierte oder doppelt vorgelegte Ticket, nicht der Gast ohne Ticket.</p>
     </div>
 
     <div class="note">
@@ -533,7 +536,8 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
       <div class="mini"><h4>Klären</h4><p>Bei „bereits eingelöst“: Uhrzeit, Gerät, hinterlegter Name — dazu die Vertipper-Rückverfolgung aus Abschnitt 01, die den wahrscheinlichen Fehlscan gleich mit anbietet. Drei Wege: freigeben und korrigieren, nur einlassen, oder abweisen. Alles landet im Protokoll.</p></div>
       <div class="mini"><h4>Suchen</h4><p>Nach Name oder Teilnummer, für unleserliche oder beschädigte Tickets. Zeigt Treffer samt Status.</p></div>
       <div class="mini"><h4>Protokoll</h4><p>Die letzten Scans dieses Geräts mit Rückgängig-Funktion. Fängt den häufigsten Bedienfehler ab: das versehentlich gescannte Nachbarticket.</p></div>
-      <div class="mini"><h4>Dashboard</h4><p>Eigene Webseite für die Leitung: Anzahl eingelassen, Verlauf über die Zeit, Status jedes Geräts, offene Konflikte. Zeigt auch, welches Gerät seit fünf Minuten nichts mehr meldet.</p></div>
+      <div class="mini"><h4>Dashboard</h4><p>Eigene Webseite für die Leitung: ausgegebene Bändchen, Verlauf über die Zeit, Status jedes Geräts, offene Konflikte. Zeigt auch, welches Gerät seit fünf Minuten nichts mehr meldet.</p></div>
+        <div class="mini"><h4>Bändchen abgleichen</h4><p>Ein zweiter, körperlicher Zähler: Die Zahl der tatsächlich ausgegebenen Bändchen muss zur Zahl der Einlösungen passen. Jede Schicht trägt ihren Stand einmal ein, das Dashboard zeigt die Abweichung. Läuft die auseinander, ist etwas im Argen — ein stummes Gerät, ein nicht erfasster Einlass, eine Fehlbedienung — und zwar bevor es jemandem an der Tür auffällt.</p></div>
     </div>
   </div>
 </section>
@@ -594,10 +598,20 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
   <div class="sec-head"><span class="k">11</span><h2>Betrieb am Einlassabend</h2></div>
   <div class="stack-lg">
     <p class="prose">Der Teil, der über Erfolg entscheidet und in Softwarekonzepten regelmäßig fehlt.</p>
+
+    <div class="stack">
+      <h3>Das Zeitbudget — und warum die Software darin keine Rolle spielt</h3>
+      <div class="stats">
+        <div class="stat"><span class="v">~20 s</span><span class="d">je Gast, überwiegend für das Bändchen: Abschnitt abreißen, greifen, anlegen, schließen</span></div>
+        <div class="stat"><span class="v">~2 s</span><span class="d">davon entfallen auf Erfassung und Bestätigung — rund ein Zehntel</span></div>
+        <div class="stat"><span class="v">~77 min</span><span class="d">reine Abfertigungszeit je Gerät, wenn sich 2305 Gäste gleichmäßig auf zehn Geräte verteilen</span></div>
+      </div>
+      <p class="prose">Selbst wenn die Texterkennung doppelt so lange bräuchte wie erwartet, verschiebt das die Gesamtzeit um weniger als zehn Prozent. Der Engpass am Einlass ist die Hand am Bändchen, nicht die Kamera. Das ist der Grund, warum ich beim Bestätigungsschritt kompromisslos bin: Er kostet in diesem Budget nichts und verhindert die teuersten Fehler des Abends. Und weil sich die Anreise über mehrere Tage verteilt, liegt die tatsächliche Spitzenlast deutlich unter diesen Zahlen.</p>
+    </div>
     <div class="grid2">
-      <div class="mini"><span class="tag">Eine Woche vorher</span><h4>Generalprobe</h4><p>Zwanzig echte Tickets, zwei Geräte, ein bewusst herbeigeführter Funkausfall. Hier zeigt sich, ob <i>Text scannen</i> funktioniert und wie schnell eure Leute tatsächlich tippen.</p></div>
+      <div class="mini"><span class="tag">Eine Woche vorher</span><h4>Generalprobe</h4><p>Zwanzig echte Tickets, zwei Geräte, ein bewusst herbeigeführter Funkausfall — und der vollständige Ablauf inklusive Bändchen. Hier zeigt sich, wie gut die Kamera unter euren Lichtverhältnissen liest und wo der Handgriff hakt.</p></div>
       <div class="mini"><span class="tag">Am Vorabend</span><h4>Geräte einrichten</h4><p>PWA installieren, Eingang benennen, Grundbestand laden, Flugmodus-Test. Danach Geräte beisammen lassen — kein Einrichten unter Zeitdruck am Einlass.</p></div>
-      <div class="mini"><span class="tag">Während des Einlasses</span><h4>Strom und Netz</h4><p>Powerbank pro Gerät, ein WLAN-Hotspot am Eingang. Beides ist Komfort, nicht Voraussetzung — die App läuft ohne beides weiter, nur der Abgleich pausiert.</p></div>
+      <div class="mini"><span class="tag">Während des Einlasses</span><h4>Strom, Netz und Licht</h4><p>Powerbank pro Gerät, ein WLAN-Hotspot am Eingang, und eine Lampe auf den Bereich, in dem die Tickets gehalten werden. Die ersten beiden sind Komfort — die App läuft ohne sie weiter, nur der Abgleich pausiert. Die Lampe ist keiner: Ohne Licht liest die Kamera nicht.</p></div>
       <div class="mini"><span class="tag">Rückfallebene</span><h4>Wenn alles ausfällt</h4><p>Eine gedruckte Ticketliste in Papierform am Eingang. Kostet zwanzig Blatt und rettet den Abend, wenn ein unerwartetes Problem alle Geräte gleichzeitig trifft.</p></div>
     </div>
   </div>
@@ -618,22 +632,21 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
 <section id="fragen">
   <div class="sec-head"><span class="k">13</span><h2>Was ich von euch brauche</h2></div>
   <div class="stack-lg">
-    <p class="prose">Codeformat, Nummernbereich und das Aussehen der Tickets sind geklärt und eingearbeitet. Was bleibt: Die ersten drei Antworten verändern das Konzept substanziell, die übrigen betreffen Details.</p>
+    <p class="prose">Codeformat, Nummernbereich, das Aussehen der Tickets und das Einlöseverfahren sind geklärt und eingearbeitet. Damit steht das Konzept. Was bleibt, blockiert den Baubeginn nicht mehr — Frage 02 hält nur den Spike zur Texterkennung auf.</p>
     <div class="card">
-      <div class="q"><span class="mark">01</span><div class="q-body"><b>Löst ihr die Tickets gegen Bändchen ein?</b><span>Bei vier Festivaltagen gehe ich fest davon aus. Falls nicht, ändert sich das Grundmodell: Dann zählt die App nicht Einlösungen, sondern Betretungen, und Ticket 00245 muss viermal grün werden dürfen. Das ist ein anderer Entwurf — bitte bestätigen, bevor gebaut wird.</span></div></div>
-      <div class="q"><span class="mark">02</span><div class="q-body"><b>Wird der Kontrollabschnitt abgerissen?</b><span>Weil die Tickets keinen Namen tragen, ist der abgerissene Abschnitt die einzige verlässliche Antwort auf die Frage „war diese Person schon drin?“. Falls ihr ihn bisher nicht abreißt: Es lohnt sich, damit anzufangen — es kostet nichts und macht jeden Erfassungsfehler an der Tür entscheidbar.</span></div></div>
-      <div class="q"><span class="mark">03</span><div class="q-body"><b>Ein echtes Ticket für den Spike.</b><span>Ein Exemplar in die Hand oder ersatzweise ein scharfes, formatfüllendes Foto nur des Aufklebers, einmal glatt und einmal zerknittert. Damit lässt sich die Texterkennung gegen die Wirklichkeit messen statt gegen eine Annahme.</span></div></div>
-      <div class="q"><span class="mark">04</span><div class="q-body"><b>Gibt es eine Abendkasse?</b><span>Vor Ort verkaufte Tickets stehen nicht in der Liste. Wenn sie aus demselben Nummernkreis kommen, ist es einfach — sie sind schon drin und müssen nur freigeschaltet werden. Kommen sie aus einem anderen Block, braucht es einen zweiten Bereich in der App.</span></div></div>
-      <div class="q"><span class="mark">05</span><div class="q-body"><b>Gibt es unterschiedliche Ticketarten?</b><span>Das Foto zeigt ein Festival-Ticket zu 210 Euro. Falls es daneben Tages-, Crew- oder Pressetickets gibt: Laufen die im selben Nummernkreis mit, oder haben sie eigene Nummern? Und dürfen sie andere Bereiche betreten?</span></div></div>
-      <div class="q"><span class="mark">06</span><div class="q-body"><b>Wie viele Eingänge, wie viele Geräte je Eingang?</b><span>Bestimmt, wie wahrscheinlich Offline-Konflikte werden und wie das Dashboard gegliedert wird.</span></div></div>
-      <div class="q"><span class="mark">07</span><div class="q-body"><b>In welcher Form kommt die Ticketliste?</b><span>CSV, Excel, Export aus einem Vorverkaufssystem? Bis sie da ist, arbeite ich mit der erzeugten Testliste <code>data/tickets.sample.csv</code>.</span></div></div>
-      <div class="q"><span class="mark">08</span><div class="q-body"><b>Wie ist die Netzlage am Gelände?</b><span>Kein Ausschlusskriterium — die App läuft offline. Aber es bestimmt, wie eng das Konfliktfenster in der Praxis wird.</span></div></div>
+      <div class="q"><span class="mark">01</span><div class="q-body"><b>Wird der Kontrollabschnitt abgerissen?</b><span>Weil die Tickets keinen Namen tragen, ist der abgerissene Abschnitt die einzige verlässliche Antwort auf die Frage „war diese Person schon drin?“. Falls ihr ihn bisher nicht abreißt: Es lohnt sich, damit anzufangen — es kostet nichts und macht jeden Erfassungsfehler an der Tür entscheidbar.</span></div></div>
+      <div class="q"><span class="mark">02</span><div class="q-body"><b>Ein echtes Ticket für den Spike.</b><span>Ein Exemplar in die Hand oder ersatzweise ein scharfes, formatfüllendes Foto nur des Aufklebers, einmal glatt und einmal zerknittert. Damit lässt sich die Texterkennung gegen die Wirklichkeit messen statt gegen eine Annahme.</span></div></div>
+      <div class="q"><span class="mark">03</span><div class="q-body"><b>Gibt es eine Abendkasse?</b><span>Vor Ort verkaufte Tickets stehen nicht in der Liste. Wenn sie aus demselben Nummernkreis kommen, ist es einfach — sie sind schon drin und müssen nur freigeschaltet werden. Kommen sie aus einem anderen Block, braucht es einen zweiten Bereich in der App.</span></div></div>
+      <div class="q"><span class="mark">04</span><div class="q-body"><b>Gibt es unterschiedliche Ticketarten?</b><span>Das Foto zeigt ein Festival-Ticket zu 210 Euro. Falls es daneben Tages-, Crew- oder Pressetickets gibt: Laufen die im selben Nummernkreis mit, oder haben sie eigene Nummern? Und dürfen sie andere Bereiche betreten?</span></div></div>
+      <div class="q"><span class="mark">05</span><div class="q-body"><b>Wie viele Eingänge, wie viele Geräte je Eingang?</b><span>Bestimmt, wie wahrscheinlich Offline-Konflikte werden und wie das Dashboard gegliedert wird.</span></div></div>
+      <div class="q"><span class="mark">06</span><div class="q-body"><b>In welcher Form kommt die Ticketliste?</b><span>CSV, Excel, Export aus einem Vorverkaufssystem? Bis sie da ist, arbeite ich mit der erzeugten Testliste <code>data/tickets.sample.csv</code>.</span></div></div>
+      <div class="q"><span class="mark">07</span><div class="q-body"><b>Wie ist die Netzlage am Gelände?</b><span>Kein Ausschlusskriterium — die App läuft offline. Aber es bestimmt, wie eng das Konfliktfenster in der Praxis wird.</span></div></div>
     </div>
   </div>
 </section>
 
 <footer>
-  <p>Nächster Schritt ist Schritt 0 des Umsetzungsplans: der Spike zur Texterkennung gegen ein echtes Ticket. Bis die tatsächliche Ticketliste vorliegt, arbeitet der Import gegen die erzeugte Testliste über den vollen Bereich <span style="font-family:'JetBrains Mono',monospace">00001–02305</span>.</p>
+  <p>Das Konzept ist abgeschlossen. Schritt 1 des Umsetzungsplans — Datenmodell, Import, Einlöse-Endpunkt — ist gegen die erzeugte Testliste sofort umsetzbar; Schritt 0, der Spike zur Texterkennung, wartet auf ein echtes Ticket. Bis die tatsächliche Ticketliste vorliegt, arbeitet der Import gegen die erzeugte Testliste über den vollen Bereich <span style="font-family:'JetBrains Mono',monospace">00001–02305</span>.</p>
 </footer>
 
 </div>

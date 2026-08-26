@@ -24,6 +24,7 @@ Detailkonzept liegt vor, Implementierung noch nicht begonnen.
 | Aufdruck | weißes Etikett, schwarze Groteske, zweimal je Ticket |
 | Erfassung | Handykamera (Texterkennung) + Zifferntastatur |
 | Geräte | bis 10 gleichzeitig |
+| Einlösung | einmalig, Ticket gegen Bändchen |
 | Plattform | Progressive Web App |
 | Offline | vollständig funktionsfähig |
 | Backend | Postgres, atomare Einlösung, Realtime-Push |
@@ -55,10 +56,22 @@ Erzeugt 2305 Zeilen im Importformat (`code,holder_name,category,note`) und
 meldet die feste Vorsilbe der Nummern — hier `0`, weshalb die Tastatureingabe
 mit vier statt fünf Stellen auskommt.
 
-## Offene Punkte vor Implementierungsbeginn
+## Einlösemodell
 
-1. Werden die Tickets gegen Bändchen eingelöst? (Bei vier Festivaltagen angenommen)
-2. Wird der Kontrollabschnitt abgerissen?
-3. Ein echtes Ticket für den Spike zur Texterkennung
-4. Gibt es eine Abendkasse, und aus welchem Nummernkreis?
-5. Gibt es weitere Ticketarten neben dem Festival-Ticket?
+Das Ticket wird genau einmal gegen ein Bändchen getauscht, danach regelt das
+Bändchen den Zutritt. Die App zählt also Einlösungen, keine Betretungen, und
+beantwortet genau eine Frage: Hat diese Nummer schon ein Bändchen bekommen?
+
+Praktische Folge: Ein Vorgang dauert wegen des Bändchens ohnehin fünfzehn bis
+fünfundzwanzig Sekunden. Die Erfassung ist damit nie der Engpass, und der
+verpflichtende Bestätigungsschritt kostet effektiv nichts.
+
+## Offene Punkte
+
+Keiner davon blockiert den Baubeginn.
+
+1. Wird der Kontrollabschnitt abgerissen?
+2. Ein echtes Ticket für den Spike zur Texterkennung
+3. Gibt es eine Abendkasse, und aus welchem Nummernkreis?
+4. Gibt es weitere Ticketarten neben dem Festival-Ticket?
+5. Wie viele Eingänge, wie viele Geräte je Eingang?

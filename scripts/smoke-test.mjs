@@ -118,6 +118,40 @@ if (session) {
   });
 }
 
+// 5 — Ist wirklich nichts über die Data API zu holen?
+//
+// Prüft in der laufenden Datenbank, was die Migration versprochen hat: Weder
+// die Tabellen noch die Sicht dürfen mit dem öffentlichen Schlüssel lesbar
+// sein. Die Sicht ist dabei der interessante Fall, weil sie ohne
+// security_invoker die Zeilensicherheit der Tabellen darunter umginge.
+const ANON = env.TICKETSCAN_ANON_KEY;
+if (ANON) {
+  const REST = API.replace(/\/functions\/v1$/, "/rest/v1");
+
+  for (const relation of ["tickets", "scan_log", "offline_windows"]) {
+    await step(`${relation} ist öffentlich nicht lesbar`, async () => {
+      const res = await fetch(`${REST}/${relation}?select=*&limit=1`, {
+        headers: { apikey: ANON, authorization: `Bearer ${ANON}` },
+      });
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        return `${res.status}, kein Zugriff`;
+      }
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows.length === 0) return "leer, kein Zugriff";
+        throw new Error(`${Array.isArray(rows) ? rows.length : "?"} Zeilen lesbar — Migration 0002 eingespielt?`);
+      }
+      return `${res.status}`;
+    });
+  }
+} else {
+  stderr.write(
+    "\nHinweis: Ohne TICKETSCAN_ANON_KEY entfällt die Prüfung, ob die Tabellen\n" +
+    "öffentlich abfragbar sind. Der Schlüssel steht unter Project Settings → API\n" +
+    "und ist ohnehin öffentlich.\n",
+  );
+}
+
 // ------------------------------------------------------------------ Bericht --
 
 stderr.write("\n");

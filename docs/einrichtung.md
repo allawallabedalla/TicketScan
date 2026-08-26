@@ -25,14 +25,27 @@ export REF=abcdefgh          # eure Projektkennung
 
 ## 2 · Schema einspielen
 
+Ist die GitHub-Verknüpfung eingerichtet (*Project Settings → Integrations*),
+spielt Supabase die Migrationen bei jedem Push auf den Produktionszweig selbst
+ein — dann ist hier nichts zu tun außer nachzusehen, ob es geklappt hat.
+
+Ohne Verknüpfung, oder um nachzuhelfen:
+
 ```bash
 npx supabase login
 npx supabase link --project-ref $REF
 npx supabase db push
 ```
 
-`db push` spielt `supabase/migrations/0001_init.sql` ein: Tabellen, die atomare
-Einlösefunktion und den Bericht über ungeprüfte Zeiträume.
+Was tatsächlich in der Datenbank steht, verrät der SQL-Editor:
+
+```sql
+select version, name from supabase_migrations.schema_migrations order by version;
+```
+
+Es müssen **beide** Migrationen dastehen, `0001_init` und `0002_harden`.
+Fehlt die zweite, ist die Sicht `offline_windows` über die Data API lesbar —
+siehe `supabase/migrations/README.md`.
 
 ## 3 · Geheimnisse setzen
 
@@ -93,6 +106,7 @@ Dubletten, uneinheitlicher Stellenzahl und verschobenen Spalten.
 ```bash
 export TICKETSCAN_API="https://$REF.supabase.co/functions/v1"
 export TICKETSCAN_EVENT_PASSWORD='herzberg2027'
+export TICKETSCAN_ANON_KEY='...'   # Project Settings → API, ist ohnehin öffentlich
 
 node scripts/smoke-test.mjs
 ```
@@ -105,6 +119,9 @@ Erwartete Ausgabe:
   ok    Tagesgrenze liegt in deutscher Ortszeit     31.7.2026, 06:00:00 Ortszeit
   ok    Ticketliste abrufbar                        2305 Tickets, 00001 – 02305, 2305 noch nicht eingelöst
   ok    Abgelaufenes Token wird abgewiesen          401 wie erwartet
+  ok    tickets ist öffentlich nicht lesbar          leer, kein Zugriff
+  ok    scan_log ist öffentlich nicht lesbar         401, kein Zugriff
+  ok    offline_windows ist öffentlich nicht lesbar  401, kein Zugriff
 
 Alles steht. Die App kann gegen dieses Backend arbeiten.
 ```
@@ -142,3 +159,20 @@ VITE_BASE=/TicketScan/ VITE_API_URL="https://$REF.supabase.co/functions/v1" npm 
 
 Das Repo ist öffentlich. `.gitignore` hält `.env` und `data/tickets.csv`
 draußen, aber die Regel oben ist die eigentliche Absicherung.
+
+---
+
+## Wenn die GitHub-Verknüpfung aktiv ist
+
+Bequem, aber mit einer Folge, die man kennen muss: **Jeder Push auf den
+Produktionszweig spielt Migrationen in die Produktionsdatenbank ein.**
+
+- Solange nichts Echtes drinsteht, ist das genau richtig — eine Handbewegung
+  weniger.
+- **Vor dem Festival muss das aus.** Entweder die Verknüpfung trennen oder den
+  Produktionszweig auf einen Zweig zeigen lassen, auf den niemand pusht. Sonst
+  ändert ein beiläufiger Commit am Freitagabend das Schema unter laufendem
+  Einlass.
+
+Das ist dieselbe Regel wie der Deploy-Stopp für die App: Was am Donnerstag
+läuft, läuft bis Sonntag unverändert.

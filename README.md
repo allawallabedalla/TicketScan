@@ -7,11 +7,17 @@ autoritativen Datenquelle im Hintergrund.
 
 ## Stand
 
-Detailkonzept liegt vor, Implementierung noch nicht begonnen.
+Konzept steht, Schritt 1 des Umsetzungsplans ist gebaut: Datenmodell, Import
+und die Endpunkte für Anmeldung, Einlösung und Abgleich. Dazu das Grundgerüst
+der App mit Kurzanleitung und Anmeldung. Die Kameraerfassung folgt in Schritt 2
+und hängt am Spike zur Texterkennung.
 
 - [`docs/konzept.html`](docs/konzept.html) — vollständiges Konzept: Risikoanalyse
   zu Erfassungsfehlern, Kamerapipeline, Architektur, Datenmodell, Sync-Protokoll,
   Oberfläche, Betriebskonzept und Umsetzungsplan.
+- [`docs/kurzanleitung-vorschau.html`](docs/kurzanleitung-vorschau.html) — die
+  fünf Bildschirme der Kurzanleitung als Vorschau, umschaltbar zwischen iPhone
+  und Android.
 - [`data/generate-tickets.mjs`](data/generate-tickets.mjs) — erzeugt eine
   Ticketliste im Importformat. Platzhalter, bis die echte Liste vorliegt.
 
@@ -59,6 +65,30 @@ Geprüft wird das Passwort **ausschließlich serverseitig** in der Edge Function
 kann jeder lesen, ein Hashwert darin ebenso. Der Wert liegt als Secret beim
 Backend und steht weder im Repo noch im Bundle — `.env.example` dokumentiert
 nur die Variablennamen.
+
+## Aufbau
+
+```
+supabase/migrations/  Schema, atomare Einlösung, Rücknahme
+supabase/functions/   session · scans · changes
+scripts/              Import der Ticketliste mit Vorabprüfung
+web/                  Progressive Web App (Vite, React, TypeScript)
+data/                 Testliste und ihr Generator
+docs/                 Konzept und Vorschau der Kurzanleitung
+```
+
+### App bauen
+
+```
+cd web && npm install && npm run build
+```
+
+Für GitHub Pages liegt die App unter einem Unterpfad, der auch in
+Service-Worker-Scope und Manifest landen muss:
+
+```
+VITE_BASE=/TicketScan/ npm run build
+```
 
 ## Testdaten
 

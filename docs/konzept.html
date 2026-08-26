@@ -517,7 +517,7 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
   <div class="stack-lg">
     <div class="grid3">
       <div class="mini"><span class="tag">Einmalig</span><h4>Grundbestand laden</h4><p>Beim Einrichten zieht das Gerät alle Tickets in die IndexedDB. Rund 100 KB, wenige Sekunden. Danach ist es autark.</p></div>
-      <div class="mini"><span class="tag">Laufend</span><h4>Realtime-Push</h4><p>Jede Einlösung wird an alle verbundenen Geräte gesendet. Typische Latenz unter einer Sekunde — damit sehen alle Türen denselben Stand.</p></div>
+      <div class="mini"><span class="tag">Laufend</span><h4>Abgleich alle 8 Sekunden</h4><p>Ursprünglich war ein Realtime-Push vorgesehen. Er ist bewusst entfallen: Ein Abo auf die Ticket-Tabelle setzte voraus, der öffentlichen Rolle Leserechte zu geben — genau die, die Migration 0002 ihr entzieht. Diese Absicherung für eine Sekunde Latenz aufzugeben wäre ein schlechter Tausch. In acht Sekunden müsste dasselbe Ticket an zwei Geräten vorgelegt werden, damit etwas durchrutscht.</p></div>
       <div class="mini"><span class="tag">Auffangnetz</span><h4>Delta-Abruf</h4><p>Alle 20 Sekunden und nach jeder Netzwiederkehr: <code>GET /changes?since=…</code> auf <code>updated_at</code>. Fängt alles, was der Push verpasst hat.</p></div>
       <div class="mini"><span class="tag">Buchführung</span><h4>Ungeprüfte Zeiträume</h4><p>Jeder ohne Verbindung entstandene Scan wird als solcher markiert. Nach der Netzwiederkehr weiß das Dashboard genau, welche Minuten ungeprüft waren — und was in ihnen passiert ist.</p></div>
     </div>
@@ -541,7 +541,7 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
       <div class="mini"><h4>Scannen</h4><p>Der einzige Bildschirm, der im Betrieb zählt. Kamerabild mit festem Suchrahmen, darunter eine dauerhaft sichtbare Taste für die Tastatureingabe — kein Moduswechsel, kein Suchen im Menü. Die Zifferntasten liegen im unteren Drittel, mit dem Daumen erreichbar.</p></div>
       <div class="mini"><h4>Bestätigen</h4><p>Name und Kategorie bildschirmfüllend, darunter „Einlassen“. Dieser eine Zwischenschritt ist die wirksamste Absicherung gegen Vertipper — deshalb ist er Standard und nur bewusst abschaltbar.</p></div>
       <div class="mini"><h4>Klären</h4><p>Bei „bereits eingelöst“: Uhrzeit, Gerät, hinterlegter Name — dazu die Vertipper-Rückverfolgung aus Abschnitt 01, die den wahrscheinlichen Fehlscan gleich mit anbietet. Drei Wege: freigeben und korrigieren, nur einlassen, oder abweisen. Alles landet im Protokoll.</p></div>
-      <div class="mini"><h4>Suchen</h4><p>Nach Name oder Teilnummer, für unleserliche oder beschädigte Tickets. Zeigt Treffer samt Status.</p></div>
+      <div class="mini"><h4>Suchen</h4><p>Über einen Teil der Nummer, für unleserliche oder beschädigte Tickets — auch drei erhaltene Ziffern helfen noch weiter. Zeigt Treffer samt Status, ein freies Ticket lässt sich direkt prüfen.</p></div>
       <div class="mini"><h4>Protokoll</h4><p>Die letzten Scans dieses Geräts mit Rückgängig-Funktion. Fängt den häufigsten Bedienfehler ab: das versehentlich gescannte Nachbarticket.</p></div>
       <div class="mini"><h4>Dashboard</h4><p>Eigene Webseite für die Leitung: ausgegebene Bändchen, Verlauf über die Zeit, Status jedes Geräts, offene Konflikte. Zeigt auch, welches Gerät seit fünf Minuten nichts mehr meldet.</p></div>
         <div class="mini"><h4>Ungeprüfte Zeiträume</h4><p>Nach jedem Netzausfall ein Bericht: <i>„Zwischen 20:41 und 20:59 wurden 34 Tickets ohne Abgleich eingelöst — davon 0 doppelt.“</i> Meistens steht dort null, und dann wisst ihr es auch. Das verhindert nichts, aber es macht aus einem blinden Fleck einen geprüften Zeitraum.</p></div>
@@ -561,7 +561,8 @@ footer{border-top:1px solid var(--line); padding-top:22px; color:var(--faint); f
         <tr><td class="n">GET /changes?since</td><td>Alle Änderungen seit einem Zeitstempel</td><td>Regelmäßig und nach Netzwiederkehr</td></tr>
         <tr><td class="n">POST /scans</td><td>Bündel von bis zu 50 Scans einreichen</td><td>Idempotent über <code>scan_id</code>; Ergebnis pro Scan</td></tr>
         <tr><td class="n">POST /scans</td><td>Rücknahme, als <code>action: "undo"</code> im selben Bündel</td><td>Setzt <code>redeemed_at</code> auf NULL, protokolliert mit Begründung</td></tr>
-        <tr><td class="n">GET /stats</td><td>Kennzahlen fürs Dashboard</td><td>Auch als Realtime-Abo</td></tr>
+        <tr><td class="n">GET /stats</td><td>Kennzahlen für die Übersicht</td><td>Zählerstände, Geräte, ungeprüfte Zeiträume, Konflikte</td></tr>
+        <tr><td class="n">POST /stats</td><td>Stand der ausgegebenen Bändchen melden</td><td>Grundlage der Gegenrechnung</td></tr>
         <tr><td class="n">GET /export.csv</td><td>Vollständiges Protokoll nach dem Event</td><td>Für Abrechnung und Nachbereitung</td></tr>
       </tbody>
     </table>

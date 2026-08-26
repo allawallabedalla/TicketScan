@@ -7,14 +7,14 @@ autoritativen Datenquelle im Hintergrund.
 
 ## Stand
 
-Schritte 1 und 2 des Umsetzungsplans sind gebaut: Datenmodell, Import, die
-Endpunkte für Anmeldung, Einlösung und Abgleich — und die App mit
-Kurzanleitung, Anmeldung, Einrichtung, Kameraerfassung, Zifferntastatur,
-Bestätigungsschritt, Ausgangswarteschlange und Abgleich.
+Die App ist vollständig: Kurzanleitung, Anmeldung mit Offline-Rückfall,
+Einrichtung, Kameraerfassung, Zifferntastatur, Bestätigungsschritt,
+Ausgangswarteschlange, Abgleich, Verlauf mit Rücknahme, Klärung mit
+Vertipper-Rückverfolgung, Suche und eine Übersicht mit Bändchenabgleich.
+Backend: vier Endpunkte, drei Migrationen.
 
-Offen: Realtime-Push und Dashboard (Schritt 3), Klärung, Rücknahme und Export
-(Schritt 4). Die Texterkennung ist gebaut, aber noch nicht gegen ein echtes
-Ticket vermessen — das ist Schritt 0 und braucht ein Exemplar in die Hand.
+Offen ist genau eine Sache: Die Texterkennung ist gebaut, aber noch nicht gegen
+ein echtes Ticket vermessen. Dafür braucht es ein Exemplar in die Hand.
 
 - [`docs/konzept.html`](docs/konzept.html) — vollständiges Konzept: Risikoanalyse
   zu Erfassungsfehlern, Kamerapipeline, Architektur, Datenmodell, Sync-Protokoll,

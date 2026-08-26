@@ -101,3 +101,13 @@ export async function submitScans(session: Session, scans: QueuedScan[]) {
   });
   return results;
 }
+
+/** Kennzahlen für die Übersicht. Braucht Netz — anders als alles andere. */
+export async function fetchStats<T>(session: Session): Promise<T> {
+  return await call<T>("/stats", session);
+}
+
+/** Stand der ausgegebenen Bändchen melden. */
+export async function reportWristbands(session: Session, counted: number): Promise<void> {
+  await call("/stats", session, { method: "POST", body: JSON.stringify({ counted }) });
+}

@@ -6,6 +6,7 @@
 
 import { type FormEvent, useState } from "react";
 import * as store from "../lib/store";
+import * as localAuth from "../lib/localAuth";
 import * as Icon from "../onboarding/Icons";
 import { Logo } from "../onboarding/Logo";
 
@@ -42,9 +43,32 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
 
       const session: store.Session = data;
       await store.set("session", session);
+      // Für den Fall, dass morgens kein Netz da ist.
+      await localAuth.keep(password);
       onDone(session);
     } catch {
-      setError("Kein Netz. Für die erste Anmeldung braucht das Gerät einmal Verbindung.");
+      // Kein Netz. War dieses Gerät schon einmal angemeldet, geht es trotzdem
+      // weiter — der Server entscheidet erneut, sobald er erreichbar ist.
+      const known = await store.get<store.Session>("session");
+      if (known && await localAuth.matches(password)) {
+        const rollover = new Date();
+        rollover.setHours(6, 0, 0, 0);
+        if (rollover <= new Date()) rollover.setDate(rollover.getDate() + 1);
+
+        const offlineSession: store.Session = {
+          ...known,
+          label: label.trim() || known.label,
+          expiresAt: Math.floor(rollover.getTime() / 1000),
+        };
+        await store.set("session", offlineSession);
+        onDone(offlineSession);
+        return;
+      }
+      setError(
+        known
+          ? "Kein Netz — und das Passwort stimmt nicht mit dem der letzten Anmeldung überein."
+          : "Kein Netz. Für die allererste Anmeldung braucht das Gerät einmal Verbindung.",
+      );
     } finally {
       setBusy(false);
     }

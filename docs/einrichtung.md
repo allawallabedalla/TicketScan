@@ -190,3 +190,17 @@ Produktionszweig spielt Migrationen in die Produktionsdatenbank ein.**
 
 Das ist dieselbe Regel wie der Deploy-Stopp für die App: Was am Donnerstag
 läuft, läuft bis Sonntag unverändert.
+
+## Veröffentlichung sperren
+
+Ab dem Vortag darf kein neuer Stand mehr auf die Geräte. Ein fehlerhafter Build
+verteilt sich über den Service Worker sonst auf alle zehn gleichzeitig.
+
+```bash
+echo "Gesperrt bis nach dem Festival — Stand vom Donnerstag" > DEPLOY-GESPERRT
+git add DEPLOY-GESPERRT && git commit -m "Veröffentlichung sperren" && git push
+```
+
+Der Ablauf bricht dann mit einer klaren Meldung ab. Aufheben: Datei löschen und
+pushen. Dieselbe Regel gilt für die GitHub-Verknüpfung von Supabase, die sonst
+Schemaänderungen einspielt.

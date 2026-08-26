@@ -11,8 +11,19 @@ import { unlockSound } from "./lib/feedback";
 
 type Stage = "laden" | "guide" | "login" | "setup" | "scanner";
 
-/** Auffangnetz neben dem Realtime-Push: regelmäßig senden und nachziehen. */
-const SYNC_INTERVAL = 20_000;
+/**
+ * Takt des Abgleichs.
+ *
+ * Das Konzept sah zusätzlich einen Realtime-Push vor. Der ist bewusst
+ * entfallen: Ein Abo auf die Ticket-Tabelle würde voraussetzen, der
+ * öffentlichen Rolle Leserechte zu geben — genau die, die Migration 0002 ihr
+ * ausdrücklich entzieht. Diese Absicherung für eine Sekunde Latenz aufzugeben
+ * wäre ein schlechter Tausch.
+ *
+ * Acht Sekunden halten das Fenster für Doppeleinlösungen klein genug: In dieser
+ * Zeit müsste dasselbe Ticket an zwei Geräten vorgelegt werden.
+ */
+const SYNC_INTERVAL = 8_000;
 
 export function App() {
   const [stage, setStage] = useState<Stage>("laden");

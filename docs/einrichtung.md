@@ -82,12 +82,16 @@ Ursache man lange sucht.
 
 ## 5 · Ticketliste importieren
 
-Bis die echte Liste da ist, geht es mit der erzeugten Testliste. Den
-Service-Role-Schlüssel findest du unter *Project Settings → API*.
+Bis die echte Liste da ist, geht es mit der erzeugten Testliste.
+
+Den **geheimen** Schlüssel holen: *Project Settings → API Keys*. Je nach Alter
+des Projekts heißt er `sb_secret_...` oder `service_role`. Nicht zu verwechseln
+mit dem öffentlichen (`sb_publishable_...` bzw. `anon`) — der darf nicht
+schreiben.
 
 ```bash
 export SUPABASE_URL="https://$REF.supabase.co"
-export SUPABASE_SERVICE_ROLE_KEY='...'   # niemals ins Repo
+export SUPABASE_SERVICE_ROLE_KEY='sb_secret_...'   # niemals ins Repo
 
 node scripts/import-tickets.mjs data/tickets.sample.csv            # nur prüfen
 node scripts/import-tickets.mjs data/tickets.sample.csv --commit   # schreiben
@@ -106,7 +110,7 @@ Dubletten, uneinheitlicher Stellenzahl und verschobenen Spalten.
 ```bash
 export TICKETSCAN_API="https://$REF.supabase.co/functions/v1"
 export TICKETSCAN_EVENT_PASSWORD='herzberg2027'
-export TICKETSCAN_ANON_KEY='...'   # Project Settings → API, ist ohnehin öffentlich
+export TICKETSCAN_ANON_KEY='sb_publishable_...'   # der öffentliche, darf geteilt werden
 
 node scripts/smoke-test.mjs
 ```
@@ -159,7 +163,8 @@ cd web && npm install && npm run build
 |---|---|---|
 | Eventpasswort | Supabase-Secret | **nein** |
 | `TICKETSCAN_TOKEN_SECRET` | Supabase-Secret | **nein** |
-| Service-Role-Schlüssel | nur lokal beim Import | **nein** |
+| `sb_secret_...` / `service_role` | nur lokal beim Import | **nein** |
+| `sb_publishable_...` / `anon` | darf überall stehen | unkritisch |
 | Datenbank-Passwort | Passwortverwaltung | **nein** |
 | Echte Ticketliste | direkt in die Datenbank | **nein** |
 | `VITE_API_URL` | Build-Umgebung | unkritisch, steht ohnehin im Bundle |

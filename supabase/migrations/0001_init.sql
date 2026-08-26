@@ -183,7 +183,13 @@ $$ language plpgsql;
 
 -- Bericht über die Zeiträume, in denen ohne Abgleich eingelöst wurde. Macht
 -- aus einem blinden Fleck einen geprüften Zeitraum, siehe Konzept Abschnitt 05.
-create or replace view offline_windows as
+--
+-- security_invoker ist hier nicht optional: Eine Sicht läuft in Postgres
+-- standardmäßig mit den Rechten ihres Eigentümers und umgeht damit die
+-- Zeilensicherheit der Tabellen darunter. Ohne diese Angabe wäre das
+-- Scan-Protokoll über die Data API lesbar, obwohl scan_log selbst gesperrt
+-- ist.
+create or replace view offline_windows with (security_invoker = true) as
 select device_id,
        min(server_ts) as von,
        max(server_ts) as bis,
@@ -196,8 +202,18 @@ select device_id,
 -- Die Tabellen werden ausschließlich über die Edge Functions angesprochen,
 -- die mit dem Service-Role-Schlüssel arbeiten. Kein direkter Zugriff für
 -- anonyme Clients.
+--
+-- Zeilensicherheit ohne eine einzige Richtlinie heißt: anon und authenticated
+-- sehen nichts. Der Service-Role-Schlüssel umgeht sie, wie vorgesehen.
 alter table tickets          enable row level security;
 alter table scan_log         enable row level security;
 alter table devices          enable row level security;
 alter table session_log      enable row level security;
 alter table wristband_counts enable row level security;
+
+-- Zweite Verteidigungslinie, unabhängig davon, ob neue Tabellen im Projekt
+-- automatisch freigegeben werden: Die öffentlichen Rollen bekommen die Rechte
+-- ausdrücklich wieder entzogen.
+revoke all on tickets, scan_log, devices, session_log, wristband_counts,
+              offline_windows
+  from anon, authenticated;

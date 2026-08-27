@@ -82,14 +82,31 @@ await step("Falsches Passwort wird abgelehnt", async () => {
   throw new Error(`unerwartet ${res.status}: ${(await res.text()).slice(0, 120)}`);
 });
 
-// 2 — Anmeldung mit dem echten Passwort.
-const session = await step("Anmeldung mit dem echten Passwort", async () => {
+/**
+ * Anmelden — immer mit derselben Gerätekennung.
+ *
+ * Jeder Lauf meldet sich viermal an. Ohne die mitgeschickte Kennung legte
+ * das vier neue Zeilen in `devices` an, und nach ein paar Läufen standen
+ * dreißig Geräte namens „Smoke-Test" in der Übersicht — ganz oben, sortiert
+ * nach letzter Meldung. Genau in der Liste, in der ein unerwartetes elftes
+ * Gerät auffallen soll. Der Testlauf machte damit die Anzeige unbrauchbar,
+ * die er absichern soll.
+ */
+let deviceId = null;
+async function anmelden(label = "Smoke-Test") {
   const res = await fetch(`${API}/session`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ password: PASSWORD, label: "Smoke-Test" }),
+    body: JSON.stringify({ password: PASSWORD, label, deviceId }),
   });
   const data = await res.json().catch(() => ({}));
+  if (res.ok && data.deviceId) deviceId = data.deviceId;
+  return { res, data };
+}
+
+// 2 — Anmeldung mit dem echten Passwort.
+const session = await step("Anmeldung mit dem echten Passwort", async () => {
+  const { res, data } = await anmelden();
   if (!res.ok) throw new Error(data.error ?? `${res.status}`);
   if (!data.token) throw new Error("kein Token in der Antwort");
   return `Gerätekennung ${String(data.deviceId).slice(0, 8)}…`;
@@ -98,12 +115,7 @@ const session = await step("Anmeldung mit dem echten Passwort", async () => {
 // 3 — Läuft die Tagesgrenze in Ortszeit ab, nicht in UTC?
 if (session) {
   await step("Tagesgrenze liegt in deutscher Ortszeit", async () => {
-    const res = await fetch(`${API}/session`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: PASSWORD, label: "Smoke-Test" }),
-    });
-    const { expiresAt } = await res.json();
+    const { data: { expiresAt } } = await anmelden();
     const at = new Date(expiresAt * 1000);
     const hour = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Europe/Berlin", hour: "2-digit", hour12: false,
@@ -117,14 +129,7 @@ if (session) {
 
 // 4 — Schema und Daten.
 if (session) {
-  const token = await (async () => {
-    const res = await fetch(`${API}/session`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: PASSWORD, label: "Smoke-Test" }),
-    });
-    return (await res.json()).token;
-  })();
+  const token = (await anmelden()).data.token;
 
   // Bewusst über alle Seiten: Die Data API gibt höchstens 1000 Zeilen je
   // Anfrage heraus. Eine Prüfung, die nur die erste Seite ansieht, meldet bei
@@ -285,14 +290,7 @@ if (ANON) {
 // Gearbeitet wird auf der letzten Nummer des Bereichs und am Ende
 // zurückgenommen, damit der Bestand unverändert bleibt.
 if (session) {
-  const token = await (async () => {
-    const res = await fetch(`${API}/session`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: PASSWORD, label: "Smoke-Test" }),
-    });
-    return (await res.json()).token;
-  })();
+  const token = (await anmelden()).data.token;
 
   const send = async (scans) => {
     const res = await fetch(`${API}/scans`, {

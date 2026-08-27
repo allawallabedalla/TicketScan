@@ -273,6 +273,24 @@ wieder hin. Die ausgelieferte Fassung steht unten auf dem Einrichtungs-
 bildschirm und in jeder Rückmeldung — daran lässt sich ablesen, ob ein Gerät
 den neuen Stand hat. Zieht eines nicht nach: App schließen und neu öffnen.
 
+## Testgeräte aufräumen
+
+Ältere Testläufe haben je Lauf vier Geräte namens „Smoke-Test" angelegt (seit
+dieser Fassung nur noch eines, wiederverwendet). In der Übersicht stehen sie
+ganz oben — genau dort, wo ein unerwartetes elftes Gerät auffallen soll. Vor
+dem Festival einmal aufräumen, im SQL-Editor:
+
+```sql
+delete from session_log
+ where device_id in (select device_id from devices where label = 'Smoke-Test');
+delete from wristband_counts
+ where device_id in (select device_id from devices where label = 'Smoke-Test');
+delete from devices where label = 'Smoke-Test';
+```
+
+Das Scan-Protokoll bleibt unangetastet — es hat keinen Fremdschlüssel auf
+`devices`, die Vorgänge der Testläufe bleiben also nachvollziehbar.
+
 ## Ein Gerät sperren
 
 Telefon verloren oder liegengeblieben. Im SQL-Editor:
@@ -429,7 +447,8 @@ Der Reihe nach. Jeder Punkt hat oben einen Abschnitt.
       `TICKETSCAN_ERWARTE=<anzahl>` grün (Abschnitte 6 und 7).
 - [ ] **Alle Geräte zurückgesetzt und neu eingerichtet**, wenn vorher mit der
       Testliste gearbeitet wurde (Abschnitt „Nach der Generalprobe").
-- [ ] **Durchlauf `scripts/e2e` grün**, 21 von 21.
+- [ ] **Durchlauf `scripts/e2e` grün**, 24 von 24.
+- [ ] **Testgeräte aufgeräumt** (Abschnitt „Testgeräte aufräumen").
 - [ ] **Generalprobe** mit echten Tickets an echten Geräten, im Dunkeln.
 - [ ] **Bändchenstand einmal eingetragen**, damit die Gegenrechnung von Beginn
       an eine Grundlage hat.

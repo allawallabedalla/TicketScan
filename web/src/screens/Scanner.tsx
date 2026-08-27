@@ -197,7 +197,10 @@ export function Scanner({ session }: { session: store.Session }) {
           narrow.current = !narrow.current;
 
           const frame = prepareFrame(video.current, ROI, canvas.current, narrow.current);
-          setBox(frame.box);
+          // Nur die eingegrenzten Durchgänge liefern eine Fundstelle. Würde die
+          // Anzeige auch den ganzflächigen übernehmen, verschwände der Kasten
+          // jedes zweite Bild und flackerte mit knapp zwei Hertz.
+          if (narrow.current) setBox(frame.box);
           setSource(frame.source);
 
           const codes = await readFrame(frame.canvas, width, known.current);

@@ -96,9 +96,9 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:v
     <p class="stand">Ein vollständiger Durchgang durch App, Endpunkte, Datenbank und Veröffentlichung. Gefunden wurde mehr als erwartet — darunter zwei Fehler, die den Einlass gekostet hätten, und einer, den ich selbst eingebaut hatte, während ich einen anderen behob.</p>
     <dl class="tally">
       <div><dt>Befunde</dt><dd>20</dd></div>
-      <div><dt>Behoben</dt><dd class="ok">19</dd></div>
-      <div><dt>Blockiert</dt><dd class="warn">1</dd></div>
-      <div><dt>Durchgänge</dt><dd>4</dd></div>
+      <div><dt>Behoben</dt><dd class="ok">20</dd></div>
+      <div><dt>Offen</dt><dd class="ok">0</dd></div>
+      <div><dt>Durchgänge</dt><dd>5</dd></div>
     </dl>
   </div>
 </header>
@@ -225,10 +225,10 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:v
     <p class="fix">Der Testlauf löst jetzt ein freies Ticket wirklich ein, prüft die Doppelerkennung, sendet denselben Scan erneut, reicht die Offline-Markierung durch und nimmt am Ende zurück. Der Bestand bleibt unverändert, jede beteiligte Funktion ist danach tatsächlich gelaufen. Alle dreizehn Prüfungen bestanden.</p>
   </div>
 
-  <div class="item hoch">
-    <div class="item-top"><span class="tag">Blockiert</span><h3>Die Texterkennung ist nicht vermessen</h3></div>
-    <p>Alles daran ist gebaut und die Auswertelogik geprüft. Wie zuverlässig sie eure gedruckten Etiketten tatsächlich liest, bei eurem Licht und aus eurem Abstand, ist bislang geschätzt. Das ist der einzige Punkt, der sich nicht am Schreibtisch klären lässt.</p>
-    <p class="fix">Braucht ein echtes Ticket in die Hand.</p>
+  <div class="item mittel">
+    <div class="item-top"><span class="tag">Am Gerät bestätigt</span><h3>Die Texterkennung arbeitet</h3></div>
+    <p>Der einzige Punkt, der sich nicht am Schreibtisch klären ließ. Am iPhone geprüft: Die Kamera liefert 1440&times;2560, die Erkennung greift, und der Abstand stimmt. Auf dem Weg dorthin waren drei Fehler zu beheben — ein Suchrahmen, der auf eine andere Stelle zeigte als die angezeigte; ein Zuschnitt, der verkleinerte statt zu vergrößern; und ein Ziffernzwang, der den Festivalschriftzug in gültige Ticketnummern verwandelte.</p>
+    <p class="fix">Was noch aussteht, ist keine Frage der Technik mehr, sondern der Menge: Wie oft in tausend Scans eine falsche Nummer durchgeht, zeigt erst die Generalprobe. Dafür ist der Bestätigungsschritt da.</p>
   </div>
 
   <div class="item mittel">
@@ -253,7 +253,8 @@ node scripts/smoke-test.mjs</pre>
 </div>
 
 <footer>
-  <p>Vier Durchgänge. Der dritte fand zwei Befunde, der vierte zwei weitere — beide keine Fehler, sondern Lücken, die erst nach der Generalprobe und nach dem Festival aufgefallen wären. Der fünfte fand nichts mehr. Das heißt nicht, dass nichts mehr da ist, sondern dass ich am Schreibtisch nichts mehr finde. Was jetzt noch fehlt, findet nur ein echtes Ticket vor einer echten Kamera.</p>
+  <p>Fünf Durchgänge. Der dritte fand zwei Befunde, der vierte zwei weitere — beide keine Fehler, sondern Lücken, die erst nach der Generalprobe und nach dem Festival aufgefallen wären. Der fünfte fand am Schreibtisch nichts mehr; gefunden hat danach nur noch das Gerät selbst, und zwar drei Fehler an der Texterkennung, die keine Prüfung ohne Kamera je gezeigt hätte.</p>
+  <p style="margin-top:10px">Das ist die eigentliche Lehre dieses Audits: Von zwanzig Befunden stammen die vier folgenschwersten nicht aus dem Nachdenken über den Code, sondern daraus, dass etwas tatsächlich ausgeführt wurde — ein Testlauf gegen die echte Datenbank, ein Ticket vor einer echten Kamera. Was übrig bleibt, klärt kein weiterer Durchgang, sondern die Generalprobe.</p>
 </footer>
 
 </div>

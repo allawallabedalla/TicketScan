@@ -1,5 +1,9 @@
 # Migrationen
 
+Diese Datei lag zunächst in `supabase/migrations/`, wo die Supabase-CLI bei
+jedem Durchlauf darüber stolperte: Dort gehören nur `.sql`-Dateien hin, deren
+Name dem erwarteten Muster folgt.
+
 **Eine eingespielte Migration wird nie wieder verändert.**
 
 Supabase merkt sich, welche Dateien bereits gelaufen sind, und überspringt sie

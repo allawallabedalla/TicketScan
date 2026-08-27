@@ -9,7 +9,7 @@
 --
 -- Auf einer Datenbank mit aktuellem Stand ändert diese Migration nichts. Auf
 -- einer älteren holt sie beides nach. Ab hier gilt die Regel aus
--- migrations/README.md ausnahmslos: neue Datei statt Änderung.
+-- docs/migrationen.md ausnahmslos: neue Datei statt Änderung.
 
 alter table scan_log add column if not exists offline boolean not null default false;
 

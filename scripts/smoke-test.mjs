@@ -206,6 +206,104 @@ if (ANON) {
   );
 }
 
+// 6 — Der vollständige Weg: einlösen, doppelt erkennen, zurücknehmen.
+//
+// Die wichtigste Prüfung überhaupt, weil sie die Datenbankfunktionen
+// tatsächlich ausführt statt ihre Existenz anzunehmen. undo_redemption war
+// einmal nicht lauffähig — row_count in einer als boolean deklarierten
+// Variablen — und das wäre nur hier aufgefallen.
+//
+// Gearbeitet wird auf der letzten Nummer des Bereichs und am Ende
+// zurückgenommen, damit der Bestand unverändert bleibt.
+if (session) {
+  const token = await (async () => {
+    const res = await fetch(`${API}/session`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: PASSWORD, label: "Smoke-Test" }),
+    });
+    return (await res.json()).token;
+  })();
+
+  const send = async (scans) => {
+    const res = await fetch(`${API}/scans`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ scans }),
+    });
+    if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 120)}`);
+    return (await res.json()).results;
+  };
+
+  // Eine Nummer wählen, die gerade frei ist, damit ein laufender Test nichts
+  // durcheinanderbringt.
+  const probe = await (async () => {
+    const res = await fetch(`${API}/changes?offset=2000`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const { tickets } = await res.json();
+    return tickets.filter((t) => !t.redeemed_at).at(-1)?.code;
+  })();
+
+  const first = crypto.randomUUID();
+
+  await step("Einlösen wird gebucht", async () => {
+    if (!probe) throw new Error("kein freies Ticket zum Prüfen gefunden");
+    const [r] = await send([{
+      scanId: first, code: probe, clientTs: new Date().toISOString(),
+      action: "redeem", offline: false,
+    }]);
+    if (r.result !== "ok") throw new Error(`erwartet ok, bekam ${r.result}`);
+    return `${probe} eingelöst`;
+  });
+
+  await step("Zweites Einlösen wird als doppelt erkannt", async () => {
+    const [r] = await send([{
+      scanId: crypto.randomUUID(), code: probe, clientTs: new Date().toISOString(),
+      action: "redeem", offline: false,
+    }]);
+    if (r.result !== "duplicate") throw new Error(`erwartet duplicate, bekam ${r.result}`);
+    return "duplicate wie erwartet";
+  });
+
+  await step("Derselbe Scan zweimal bucht nicht doppelt", async () => {
+    const [r] = await send([{
+      scanId: first, code: probe, clientTs: new Date().toISOString(),
+      action: "redeem", offline: false,
+    }]);
+    // Wiederholt wird die damalige Antwort, nicht neu gebucht.
+    if (r.result !== "ok") throw new Error(`erwartet ok als Wiederholung, bekam ${r.result}`);
+    return "Antwort wiederholt statt neu gebucht";
+  });
+
+  await step("Markierung ohne Abgleich wird angenommen", async () => {
+    const [r] = await send([{
+      scanId: crypto.randomUUID(), code: probe, clientTs: new Date().toISOString(),
+      action: "redeem", offline: true,
+    }]);
+    if (r.result === "error") throw new Error("Spalte offline fehlt — Migration 0003 eingespielt?");
+    return "Parameter p_offline vorhanden";
+  });
+
+  await step("Rücknahme gibt das Ticket wieder frei", async () => {
+    const [r] = await send([{
+      scanId: crypto.randomUUID(), code: probe, clientTs: new Date().toISOString(),
+      action: "undo", reason: "Testlauf",
+    }]);
+    if (r.result !== "ok") {
+      throw new Error(`Rücknahme scheiterte (${r.result}) — Migration 0003 eingespielt?`);
+    }
+
+    const res = await fetch(`${API}/changes?offset=2000`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const { tickets } = await res.json();
+    const after = tickets.find((t) => t.code === probe);
+    if (after?.redeemed_at) throw new Error("Ticket gilt weiterhin als eingelöst");
+    return `${probe} wieder frei — Bestand unverändert`;
+  });
+}
+
 // ------------------------------------------------------------------ Bericht --
 
 stderr.write("\n");

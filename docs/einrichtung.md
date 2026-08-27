@@ -45,7 +45,7 @@ select version, name from supabase_migrations.schema_migrations order by version
 
 Es müssen **beide** Migrationen dastehen, `0001_init` und `0002_harden`.
 Fehlt die zweite, ist die Sicht `offline_windows` über die Data API lesbar —
-siehe `supabase/migrations/README.md`.
+siehe `docs/migrationen.md`.
 
 ## 3 · Geheimnisse setzen
 
@@ -126,12 +126,21 @@ Erwartete Ausgabe:
   ok    Abgelaufenes Token wird abgewiesen          401 wie erwartet
   ok    tickets ist öffentlich nicht lesbar          leer, kein Zugriff
   ok    scan_log ist öffentlich nicht lesbar         401, kein Zugriff
-  ok    offline_windows ist öffentlich nicht lesbar  401, kein Zugriff
+  ok    offline_windows ist öffentlich nicht lesbar  Rechte entzogen (42501)
+  ok    Einlösen wird gebucht                        02305 eingelöst
+  ok    Zweites Einlösen wird als doppelt erkannt    duplicate wie erwartet
+  ok    Derselbe Scan zweimal bucht nicht doppelt    Antwort wiederholt statt neu gebucht
+  ok    Markierung ohne Abgleich wird angenommen     Parameter p_offline vorhanden
+  ok    Rücknahme gibt das Ticket wieder frei        02305 wieder frei — Bestand unverändert
 
 Alles steht. Die App kann gegen dieses Backend arbeiten.
 ```
 
-Der Testlauf bucht nichts und ändert nichts. Führ ihn ruhig noch einmal am
+Der Testlauf löst ein einzelnes freies Ticket ein und nimmt es am Ende wieder
+zurück — der Bestand bleibt damit unverändert. Diese Runde ist der eigentliche
+Zweck: Sie führt die Datenbankfunktionen tatsächlich aus, statt ihre Existenz
+anzunehmen. Die Rücknahme war einmal nicht lauffähig, und das wäre nur hier
+aufgefallen. Führ ihn ruhig noch einmal am
 Vorabend des Festivals aus.
 
 ## 7 · App veröffentlichen

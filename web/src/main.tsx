@@ -7,7 +7,7 @@ import "./styles.css";
 // CSS-Datei zeigen sonst ins Leere.
 document.documentElement.style.setProperty(
   "--logo",
-  `url("${import.meta.env.BASE_URL}logo.png") center / contain no-repeat`,
+  `url("${import.meta.env.BASE_URL}logo.png")`,
 );
 
 createRoot(document.getElementById("root")!).render(

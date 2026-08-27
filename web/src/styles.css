@@ -6,9 +6,12 @@
  */
 
 :root {
-  /* Der Schriftzug. Der Pfad wird beim Start gesetzt, weil die App je nach
-     Veröffentlichung unter einem Unterpfad liegt. */
-  --logo: url("/logo.png") center / contain no-repeat;
+  /* Der Schriftzug. Nur die Adresse, keine Kurzschreibweise: Safari wertet
+     eine zusammengesetzte Maskenangabe aus einer Variablen nicht zuverlässig
+     aus — die Maske greift dann gar nicht, und übrig bleibt ein schwarzer
+     Kasten in der Größe des Elements. Der Pfad wird beim Start gesetzt, weil
+     die App je nach Veröffentlichung unter einem Unterpfad liegt. */
+  --logo: url("/logo.png");
 
   /* Farben vom Ticket selbst.
    *
@@ -47,9 +50,6 @@
   --ok-soft: #DCEEDF;
   --warn-soft: #F7E7C2;
   --bad-soft: #F8DDD6;
-  --ok-flood: #CFE7D3;
-  --warn-flood: #F6E3B6;
-  --bad-flood: #F8D9D1;
 
   --tap: 52px;
   --pad: 20px;
@@ -83,9 +83,6 @@
     --ok-soft: #123020;
     --warn-soft: #33260C;
     --bad-soft: #351613;
-    --ok-flood: #10301F;
-    --warn-flood: #302408;
-    --bad-flood: #331410;
   }
 }
 
@@ -360,9 +357,43 @@ b { font-weight: 650; }
   padding: max(28px, env(safe-area-inset-top)) var(--pad) max(20px, env(safe-area-inset-bottom));
   background: var(--surface);
 }
-.sheet.full.ok   { background: var(--ok-flood); }
-.sheet.full.warn { background: var(--warn-flood); }
-.sheet.full.bad  { background: var(--bad-flood); }
+/* Vollflächige Rückmeldung.
+ *
+ * Bewusst in beiden Darstellungen dieselben, kräftigen Farben: Das hier ist
+ * ein Signal, keine Gestaltung. Die Einlasskraft schaut auf das Ticket, nicht
+ * auf das Display — erkennbar sein muss die Entscheidung aus dem Augenwinkel,
+ * quer über den ganzen Bildschirm. Blasse Tönungen leisten das nicht.
+ */
+.sheet.full { color: #fff; }
+.sheet.full.ok   { background: #0F8A4F; }
+.sheet.full.warn { background: #F0A81E; color: #2E2A1E; }
+.sheet.full.bad  { background: #C0271A; }
+
+.sheet.full .sheet-label,
+.sheet.full .sheet-code,
+.sheet.full .sheet-meta,
+.sheet.full .sheet-ask,
+.sheet.full .sheet-big { color: inherit; }
+.sheet.full .sheet-meta,
+.sheet.full .sheet-ask { opacity: .88; }
+
+/* Knöpfe und Hinweise brauchen auf der Farbfläche eine eigene Grundlage. */
+.sheet.full .btn {
+  background: rgba(255, 255, 255, .16);
+  border-color: rgba(255, 255, 255, .45);
+  color: #fff;
+}
+.sheet.full .btn.primary { background: #fff; border-color: #fff; color: #1A1A14; }
+.sheet.full.warn .btn { background: rgba(46, 42, 30, .12); border-color: rgba(46, 42, 30, .35); color: #2E2A1E; }
+.sheet.full.warn .btn.primary { background: #2E2A1E; border-color: #2E2A1E; color: #F0A81E; }
+
+.sheet.full .trace {
+  background: rgba(255, 255, 255, .15);
+  border-color: rgba(255, 255, 255, .5);
+  color: inherit;
+}
+.sheet.full .trace-label { color: inherit; opacity: .85; }
+.sheet.full.warn .trace { background: rgba(46, 42, 30, .1); border-color: rgba(46, 42, 30, .4); }
 
 .sheet-label { font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; }
 .sheet.ok   .sheet-label { color: var(--ok); }
@@ -503,8 +534,20 @@ b { font-weight: 650; }
   display: block;
   aspect-ratio: 700 / 657;
   background-color: currentColor;
-  -webkit-mask: var(--logo) center / contain no-repeat;
-  mask: var(--logo) center / contain no-repeat;
+  /* Einzelangaben statt Kurzschreibweise, siehe --logo oben. */
+  -webkit-mask-image: var(--logo);
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-image: var(--logo);
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+}
+/* Kann der Browser gar nicht maskieren, bliebe ein schwarzer Block stehen.
+   Dann lieber nichts zeigen als etwas Falsches. */
+@supports not ((-webkit-mask-image: url("")) or (mask-image: url(""))) {
+  .logo { display: none; }
 }
 .logo-lead { width: 92px; color: var(--ink); margin-bottom: 2px; }
 

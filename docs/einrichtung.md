@@ -394,6 +394,23 @@ Die Ausgaben oben sind auch die Abrechnungsgrundlage. `protokoll.csv`
 aufbewahren: Es ist die einzige Aufzeichnung, aus der sich hinterher noch
 rekonstruieren lässt, wann welches Gerät was entschieden hat.
 
+## Die App selbst prüfen
+
+`scripts/smoke-test.mjs` prüft das Backend. Für die App gibt es einen zweiten
+Durchlauf, der sie im Browser tatsächlich bedient — Anmeldung, Einlösen,
+Doppelscan, Liste, Rücknahme, Betrieb ohne Netz:
+
+```bash
+cd scripts/e2e && npm install
+( cd ../../web && VITE_API_URL=http://127.0.0.1:8123/api VITE_BASE=/ \
+    npx vite build --outDir ../scripts/e2e/dist --emptyOutDir )
+node server.mjs dist 8123 &
+node run.mjs
+```
+
+Erwartet werden 21 Zeilen `ok`. Das Verzeichnis hat ein eigenes README mit den
+Einzelheiten und den Grenzen (die Kamera lässt sich damit nicht prüfen).
+
 ## Checkliste vor dem Livegang
 
 Der Reihe nach. Jeder Punkt hat oben einen Abschnitt.
@@ -412,6 +429,7 @@ Der Reihe nach. Jeder Punkt hat oben einen Abschnitt.
       `TICKETSCAN_ERWARTE=<anzahl>` grün (Abschnitte 6 und 7).
 - [ ] **Alle Geräte zurückgesetzt und neu eingerichtet**, wenn vorher mit der
       Testliste gearbeitet wurde (Abschnitt „Nach der Generalprobe").
+- [ ] **Durchlauf `scripts/e2e` grün**, 21 von 21.
 - [ ] **Generalprobe** mit echten Tickets an echten Geräten, im Dunkeln.
 - [ ] **Bändchenstand einmal eingetragen**, damit die Gegenrechnung von Beginn
       an eine Grundlage hat.

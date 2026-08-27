@@ -1,0 +1,51 @@
+# Durchlauf gegen einen nachgestellten Server
+
+Der Grund für dieses Verzeichnis steht in `docs/audit.html`: Von allen Befunden
+kamen die folgenschwersten daher, dass etwas **tatsächlich ausgeführt** wurde —
+nicht daher, dass jemand Code gelesen hat. Ein Durchlauf, der die gebaute App
+im Browser fernsteuert, findet in zwei Minuten, was drei Leseläufe übersehen.
+
+Gefunden hat dieser Aufbau unter anderem: dass ein Fehler in einem Bildschirm
+die ganze App mitriss, dass „freigeben und einlassen" niemanden einließ, und
+dass die Rückmeldung auf einem 320 Pixel breiten Gerät ihren Abweisen-Knopf
+außerhalb des Bildschirms hatte.
+
+## Was es tut
+
+`server.mjs` ist ein nachgestelltes Backend: dieselben vier Endpunkte, 2305
+Tickets im Speicher, echte Idempotenz über die `scanId`. Es liefert zugleich
+die gebaute App aus. `run.mjs` steuert Chromium durch den ganzen Ablauf —
+Anmeldung, Einrichtung, Einlösen, Doppelscan, unbekannte Nummer, Ticketliste,
+Suche über Nummer und Name, Nachladen beim Blättern, Verlauf, Rücknahme,
+Übersicht, Betrieb ohne Netz und das Leeren der Warteschlange danach.
+
+Es ist **kein** Ersatz für `scripts/smoke-test.mjs`: Der prüft das echte
+Backend, dieser hier die App.
+
+## Aufrufen
+
+```bash
+cd scripts/e2e
+npm install
+
+# Prüf-Fassung der App bauen — gegen den nachgestellten Server statt Supabase
+( cd ../../web && VITE_API_URL=http://127.0.0.1:8123/api VITE_BASE=/ \
+    npx vite build --outDir ../scripts/e2e/dist --emptyOutDir )
+
+node server.mjs dist 8123 &      # in einem zweiten Fenster
+node run.mjs
+```
+
+Erwartet werden 21 Zeilen `ok` und `SEITENFEHLER: keine` — bis auf die eine
+Meldung `ERR_INTERNET_DISCONNECTED`, die der Flugmodus-Test selbst auslöst.
+
+Die Bildschirmfotos jedes Schritts liegen danach als `NN-*.png` daneben. Sie
+sind der schnellste Weg zu sehen, ob eine Darstellung auf einem schmalen Gerät
+noch passt.
+
+## Grenzen
+
+Die Kamera liefert in Chromium ein künstliches Bild, die Texterkennung wird
+also nicht mitgeprüft — dafür gibt es keinen Ersatz für ein echtes Ticket vor
+einer echten Handykamera. Alles, was über die Zifferntastatur erreichbar ist,
+deckt der Durchlauf ab.

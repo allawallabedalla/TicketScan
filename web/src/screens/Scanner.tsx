@@ -202,6 +202,7 @@ export function Scanner({ session }: { session: store.Session }) {
           // jedes zweite Bild und flackerte mit knapp zwei Hertz.
           if (narrow.current) setBox(frame.box);
           setSource(frame.source);
+          if (frame.source.w) void store.set("cameraSize", `${frame.source.w}×${frame.source.h}`);
 
           const codes = await readFrame(frame.canvas, width, known.current);
           setSighted(codes[0] ?? null);

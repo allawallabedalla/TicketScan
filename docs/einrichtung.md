@@ -239,3 +239,16 @@ node scripts/export-log.mjs --protokoll > protokoll.csv
 `einlass.csv` enthält jedes Ticket mit Einlösezeitpunkt und Gerät,
 `protokoll.csv` jeden einzelnen Vorgang — auch die abgewiesenen, die
 zurückgenommenen und die ohne Abgleich entstandenen.
+
+## Rückmeldung geben
+
+In der App: Gerätenamen unten rechts antippen, dann *Rückmeldung geben*. Die
+Angaben vom Gerät — Fassung, Kameraauflösung, Zahl der Tickets, Warteschlange,
+letzter Serverkontakt — sammelt die App selbst ein.
+
+Zwei Wege, weil zwei verschiedene Leute das benutzen:
+
+- **Als Eintrag im Repo.** Öffnet einen fertig ausgefüllten Entwurf auf GitHub,
+  abgeschickt wird erst dort. Braucht ein GitHub-Konto.
+- **Alles kopieren.** Geht immer, auch ohne Konto — am Eingang der einzig
+  realistische Weg.

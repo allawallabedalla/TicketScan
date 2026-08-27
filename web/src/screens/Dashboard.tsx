@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as api from "../lib/api";
 import type { Session } from "../lib/store";
+import { Feedback } from "./Feedback";
 
 interface Stats {
   eingeloest: number;
@@ -22,6 +23,7 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bands, setBands] = useState("");
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +59,7 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
       </header>
 
       {error && <p className="error" role="alert">{error}</p>}
+      {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
 
       {stats && (
         <>
@@ -144,6 +147,17 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
               </p>
             </section>
           )}
+
+          <section className="block">
+            <h2>Etwas stimmt nicht?</h2>
+            <p className="aside">
+              Sammelt Fassung, Kameraauflösung und Stand des Geräts von selbst
+              ein — die Angaben, nach denen sonst jede Fehlersuche zuerst fragt.
+            </p>
+            <button type="button" className="btn wide" onClick={() => setShowFeedback(true)}>
+              Rückmeldung geben
+            </button>
+          </section>
 
           {stats.konflikte.length > 0 && (
             <section className="block">

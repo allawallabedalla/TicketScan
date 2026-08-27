@@ -10,6 +10,7 @@ import { decide, normalize, type Decision } from "../lib/decide";
 import { feedback } from "../lib/feedback";
 import * as store from "../lib/store";
 import * as Icon from "../onboarding/Icons";
+import { Fallback } from "../onboarding/Fallback";
 import { Recent } from "./Recent";
 import { Tickets } from "./Tickets";
 import { Dashboard } from "./Dashboard";
@@ -32,7 +33,17 @@ type View =
 export function Scanner({ session }: { session: store.Session }) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(document.createElement("canvas"));
+  // Zwei Konsens-Puffer, einer je Durchgang.
+  //
+  // Die Durchgänge wechseln sich Bild für Bild ab — eng zugeschnitten und
+  // ganzflächig. „Zwei aufeinanderfolgende gleiche Lesungen" hieße mit einem
+  // gemeinsamen Puffer: der enge UND der ganzflächige Durchgang müssen
+  // dasselbe lesen. Der ganzflächige rechnet aber das ganze Band auf 1000
+  // Bildpunkte herunter und liefert die Nummer selten — in der Simulation kam
+  // damit gar nichts mehr durch. Getrennt verlangt jeder Durchgang zwei
+  // eigene übereinstimmende Lesungen, und der enge trägt allein.
   const consensus = useRef(new Consensus());
+  const wide = useRef(new Consensus());
   const busy = useRef(false);
   // Getrennt vom Arbeitszustand: Endet ein laufendes Einzelbild, während der
   // Bestätigungsschritt offen ist, setzte `busy` die Erkennung sonst wieder in
@@ -73,11 +84,15 @@ export function Scanner({ session }: { session: store.Session }) {
   const lastSize = useRef<string | null>(null);
   const lastStamp = useRef(-1);
   const hidden = useRef(false);
+  // Der Grund, aus dem die Oberfläche gerade nicht scannen soll — getrennt
+  // vom Hintergrund-Zustand. Beides zusammen ergibt `paused`.
+  const uiPaused = useRef(false);
   // Sperre gegen Doppeltippen: `redeem` ist asynchron, der Knopf hatte kein
   // disabled. Ein Doppeltipp im Gedränge buchte zweimal — zwei Einträge im
   // Verlauf, zwei in der Warteschlange, „2 warten" für eine Person.
   const booking = useRef(false);
   const [busyAction, setBusyAction] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const refreshKnown = useCallback(async () => {
     // Einmal in den Arbeitsspeicher: Ein Nachschlagen je Einzelbild gegen die
@@ -275,9 +290,11 @@ export function Scanner({ session }: { session: store.Session }) {
 
           // Mehrere Treffer in einem Bild heißt: Es ist nicht eindeutig, welche
           // Nummer gemeint war. Dann lieber weiterlesen als raten.
-          const hit = consensus.current.offer(codes.length === 1 ? codes[0] : null);
+          const puffer = narrow.current ? consensus.current : wide.current;
+          const hit = puffer.offer(codes.length === 1 ? codes[0] : null);
           if (hit) {
             consensus.current.reset();
+            wide.current.reset();
             setSighted(null);
             await evaluate(hit);
           }
@@ -301,8 +318,18 @@ export function Scanner({ session }: { session: store.Session }) {
     // lag. Ein Reflex-Tipp auf „Einlassen" hätte es gebucht.
     const wake = () => {
       hidden.current = document.hidden;
+      // Beide Richtungen sofort wirksam machen.
+      //
+      // Vorher hing `paused` allein an einem Effekt, der `hidden` nicht in
+      // seinen Abhängigkeiten hatte. Lief im Hintergrund eine
+      // Zustandsänderung durch — etwa die grüne Anzeige, die sich nach 1,4
+      // Sekunden von selbst schließt —, fror `paused` auf true ein und kam
+      // nie zurück: Kamerabild live, Suchrahmen da, und nie wieder eine
+      // Erkennung. Ohne Meldung, und der Wechsel zur Tastatur half nicht.
+      paused.current = uiPaused.current || hidden.current;
       if (document.hidden) return;
       consensus.current.reset();
+      wide.current.reset();
       setSighted(null);
       setBox(null);
       void video.current?.play();
@@ -319,22 +346,40 @@ export function Scanner({ session }: { session: store.Session }) {
       // erreichte sofort die geforderten zwei — die Mehrfachbestätigung wäre
       // für genau diesen Fall ausgehebelt.
       consensus.current.reset();
-      // Der Worker samt WebAssembly-Speicher blieb sonst für die gesamte
-      // Lebensdauer der Seite bestehen — auch während der Tastatureingabe, in
-      // der Liste, in der Übersicht. Auf iOS ist genau das der Grund, warum
-      // eine Web-App im Hintergrund verworfen wird und beim Zurückholen neu
-      // lädt.
-      if (keypad) void stopOcr();
+      wide.current.reset();
     };
   }, [keypad, width, evaluate]);
+
+  /**
+   * Den Texterkennungs-Worker abbauen, wenn er nicht gebraucht wird.
+   *
+   * Stand vorher in der Aufräumfunktion des Kameraeffekts als
+   * `if (keypad) void stopOcr()` — und war damit strukturell unerreichbar:
+   * Der Effekt läuft nur, wenn `keypad` false ist, seine Aufräumfunktion sieht
+   * also immer false. Der Worker samt WebAssembly-Speicher blieb für die
+   * gesamte Lebensdauer der Seite bestehen, auch während der Tastatureingabe
+   * und in jeder Liste. Auf iOS ist genau das der Grund, warum eine Web-App im
+   * Hintergrund verworfen wird und beim Zurückholen neu lädt.
+   */
+  useEffect(() => {
+    if (keypad) void stopOcr();
+  }, [keypad]);
+
+  useEffect(() => () => { void stopOcr(); }, []);
 
   // Während Bestätigung und Ergebnis pausiert die Erkennung, damit nicht das
   // nächste Ticket dazwischenfunkt.
   useEffect(() => {
     // Auch offene Listen halten die Erkennung an: Sonst läuft im Hintergrund
     // ein Ticket durch, während jemand den Verlauf durchsieht.
-    paused.current = view.at !== "scan" || showRecent || showList || showStats || hidden.current;
-    if (view.at === "scan") { consensus.current.reset(); setSighted(null); setBox(null); }
+    uiPaused.current = view.at !== "scan" || showRecent || showList || showStats;
+    paused.current = uiPaused.current || hidden.current;
+    if (view.at === "scan") {
+      consensus.current.reset();
+      wide.current.reset();
+      setSighted(null);
+      setBox(null);
+    }
   }, [view, showRecent, showList, showStats]);
 
   // ------------------------------------------------------------------ Buchen --
@@ -346,6 +391,9 @@ export function Scanner({ session }: { session: store.Session }) {
     setBusyAction(true);
     try {
       await buche(decision);
+    } catch (err) {
+      console.error("Buchen fehlgeschlagen:", err);
+      setActionError("Das hat nicht geklappt. Bitte noch einmal versuchen.");
     } finally {
       booking.current = false;
       setBusyAction(false);
@@ -409,10 +457,26 @@ export function Scanner({ session }: { session: store.Session }) {
     booking.current = true;
     setBusyAction(true);
     try {
+      // Erst buchen, dann freigeben.
+      //
+      // Andersherum stünde nach einem Fehler dazwischen die Rücknahme in der
+      // Warteschlange und die Einlösung nicht — das Ticket wäre auf allen
+      // Geräten wieder offen, während die Person mit Bändchen drin ist. Genau
+      // der Schaden, gegen den dieser Knopf gebaut wurde. Die Reihenfolge in
+      // der Warteschlange regelt `seq`, nicht die Reihenfolge hier: Beim
+      // Senden wird ohnehin nach Einreihung sortiert, und die Rücknahme trägt
+      // die kleinere Nummer.
       await sync.undo(decision.code, "Ticket unversehrt, Einlösung freigegeben");
-      await markiereZurueckgenommen(decision.code);
       const ticket = await store.getTicket(decision.code);
       await buche({ ...decision, verdict: "ok", ticket });
+      await markiereZurueckgenommen(decision.code);
+    } catch (err) {
+      // Ohne diesen Zweig verschwände der Fehler still: Der Aufruf ist ein
+      // `void override(...)`, und eine Fehlergrenze fängt nichts, was aus
+      // einem Ereignisbehandler kommt. Der Knopf sprang zurück, und niemand
+      // wusste, ob gebucht wurde.
+      console.error("Freigabe fehlgeschlagen:", err);
+      setActionError("Das hat nicht geklappt. Bitte noch einmal versuchen.");
     } finally {
       booking.current = false;
       setBusyAction(false);
@@ -433,6 +497,7 @@ export function Scanner({ session }: { session: store.Session }) {
   // jedem Neuzeichnen der Leiste von vorn beginnt.
   const backToScan = useCallback(() => {
     setTyped("");
+    setActionError(null);
     setView({ at: "scan" });
   }, []);
 
@@ -537,6 +602,11 @@ export function Scanner({ session }: { session: store.Session }) {
           </div>
         </div>
       )}
+      {actionError && (
+        <p className="cam-error" role="alert" onClick={() => setActionError(null)}>
+          {actionError}
+        </p>
+      )}
       {view.at === "confirm" && (
         <Confirm
           decision={view.decision} busy={busyAction}
@@ -551,13 +621,26 @@ export function Scanner({ session }: { session: store.Session }) {
           onOverride={(decision) => void override(decision)}
         />
       )}
-      {showRecent && <Recent onClose={() => setShowRecent(false)} />}
-      {showStats && <Dashboard session={session} onClose={() => setShowStats(false)} />}
+      {/* Jede Fläche mit eigener Grenze: Wirft eine davon, bleibt der Scanner
+          stehen und der Einlass läuft weiter. Genau dafür war die Grenze
+          gedacht — die äußere allein hätte den Scanner mitgenommen. */}
+      {showRecent && (
+        <Fallback label="Verlauf" onClose={() => setShowRecent(false)}>
+          <Recent onClose={() => setShowRecent(false)} />
+        </Fallback>
+      )}
+      {showStats && (
+        <Fallback label="Übersicht" onClose={() => setShowStats(false)}>
+          <Dashboard session={session} onClose={() => setShowStats(false)} />
+        </Fallback>
+      )}
       {showList && (
-        <Tickets
-          onClose={() => setShowList(false)}
-          onPick={(code) => { setShowList(false); void evaluate(code); }}
-        />
+        <Fallback label="Ticketliste" onClose={() => setShowList(false)}>
+          <Tickets
+            onClose={() => setShowList(false)}
+            onPick={(code) => { setShowList(false); void evaluate(code); }}
+          />
+        </Fallback>
       )}
     </div>
   );
@@ -593,7 +676,7 @@ function Confirm({ decision, busy, onYes, onNo }: {
           : "Stimmt die Nummer mit dem Ticket überein? Ein Name ist zu diesem Ticket nicht hinterlegt — das ist kein Grund, jemanden abzuweisen."}
       </p>
       <div className="sheet-actions">
-        <button type="button" className="btn" onClick={onNo}>Abbrechen</button>
+        <button type="button" className="btn" disabled={busy} onClick={onNo}>Abbrechen</button>
         <button type="button" className="btn primary grow" disabled={busy} onClick={onYes}>
           {busy ? "…" : "Einlassen"}
         </button>

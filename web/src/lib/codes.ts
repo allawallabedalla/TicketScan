@@ -22,36 +22,51 @@ const CONFUSED: Record<string, string> = {
   g: "9", q: "9",
 };
 
-/** Höchstens so viele Buchstaben je Folge dürfen zu Ziffern gedreht werden.
- *  Wer mehr dreht, liest keine Nummer mehr, sondern erfindet eine. */
-const MAX_ERSETZUNGEN = 1;
+/**
+ * Wie viele Zeichen eine Folge länger sein darf als die Nummer.
+ *
+ * Null wäre falsch, und das ist gemessen: Das Suchmuster oben enthält
+ * absichtlich die Zeichen, die für Ziffern gehalten werden können — ein
+ * senkrechter Strich neben der Nummer (Perforation, Etikettkante, Zierlinie)
+ * landet damit im SELBEN Wort und wird zur Ziffer 1. Echter Tesseract-Rohtext
+ * von einem gedruckten Ticket: „| 100425 §". Mit einer starren Längenprüfung
+ * fiel das durch, und zwar nicht zufällig, sondern bei jedem Ticket derselben
+ * Auflage — die Kameraerkennung wäre für alle 2305 Tickets auf null gefallen.
+ *
+ * Zwei Zeichen Spielraum holen das zurück und halten das Schädliche draußen:
+ * Ein Datum ohne Trenner („20082027", acht Stellen) und eine Strichcodezahl
+ * (dreizehn) liegen darüber und werden weiterhin verworfen.
+ *
+ * Was durchkommt: eine sechsstellige Telefongruppe wie „700900" ergibt 00900.
+ * Das ist bewusst in Kauf genommen — sie müsste im Suchrahmen liegen, zweimal
+ * hintereinander gleich gelesen werden, und am Ende steht der
+ * Bestätigungsschritt mit Nummer und Namen vor Augen.
+ */
+const MAX_UEBERHANG = 2;
+
+/**
+ * Höchstens so viele Buchstaben je Folge dürfen zu Ziffern gedreht werden.
+ *
+ * Zwei, nicht einer: Alle 2305 Nummern beginnen mit einer Null, 999 davon mit
+ * zwei — und O statt 0 ist die häufigste Verwechslung der Erkennung
+ * überhaupt. „OO425" mit nur einer erlaubten Ersetzung zu verwerfen hieße,
+ * genau den häufigsten Lesefehler auf genau der häufigsten Stelle nicht mehr
+ * zurückdrehen zu können.
+ */
+const MAX_ERSETZUNGEN = 2;
 
 /**
  * Zieht mögliche Ticketnummern aus dem erkannten Text.
  *
- * Angenommen wird nur, was genau die erwartete Stellenzahl hat und in der
- * lokalen Liste steht. Das hält Preis, Datum und Hotline zuverlässig fern.
+ * Angenommen wird nur, was in der lokalen Liste steht. Das hält Preis, Datum
+ * und Hotline weitgehend fern — aber nicht alles, und dieser Satz stand hier
+ * früher zu selbstbewusst: Bei 2305 fortlaufenden Nummern trifft ein Verleser
+ * an einer der letzten drei Stellen zu 90 bis 99 Prozent wieder eine gültige
+ * Nummer. Der Listenabgleich schützt praktisch nur die ersten beiden Stellen.
+ * Die eigentliche Sicherung ist und bleibt der Bestätigungsschritt.
  *
- * Es hält aber nicht alles fern, und dieser Satz stand hier früher zu
- * selbstbewusst: Bei 2305 fortlaufenden Nummern trifft ein Verleser an einer
- * der letzten drei Stellen zu 90 bis 99 Prozent wieder eine gültige Nummer.
- * Der Listenabgleich schützt praktisch nur die ersten beiden Stellen. Die
- * eigentliche Sicherung ist und bleibt der Bestätigungsschritt mit Nummer
- * und Namen vor Augen.
- *
- * Zwei Regeln halten den Rest klein:
- *
- * 1. Kein Fenster über längere Folgen mehr. Es machte aus dem Datum
- *    „20082027" die gültige Nummer 00820 und aus einer Strichcodezahl 00638 —
- *    jeweils genau ein Treffer, also für die Mehrfachbestätigung ununter-
- *    scheidbar von einer echten Lesung.
- * 2. Höchstens eine Buchstabenersetzung je Folge. „O2O27" wird damit nicht
- *    mehr zu 02027.
- *
- * Ein einzelnes O unmittelbar vor der Jahreszahl im Schriftzug ergibt
- * weiterhin 02027 — lexikalisch ist das von der echten Nummer nicht zu
- * unterscheiden. Dagegen hilft nur, den Ausschnitt gar nicht erst auf die
- * Schriftzugzeile zu legen; siehe findTextRegion in ocr.ts.
+ * Mehrere Treffer in einem Bild sind kein Problem, sondern der Schutz: Der
+ * Aufrufer nimmt nur an, was eindeutig ist, und liest sonst weiter.
  */
 export function extractCodes(text: string, width: number, known: (code: string) => boolean): string[] {
   const found = new Set<string>();
@@ -59,20 +74,21 @@ export function extractCodes(text: string, width: number, known: (code: string) 
   // Zusammenhängende Folgen aus Ziffern und den Zeichen, die dafür gehalten
   // werden können.
   for (const token of text.match(/[0-9OoDQIlLi|!ZzSsGbTBgq]+/g) ?? []) {
-    if (token.length !== width) continue;
+    if (token.length < width || token.length > width + MAX_UEBERHANG) continue;
 
-    let ersetzt = 0;
-    const digits = [...token].map((c) => {
-      if (c >= "0" && c <= "9") return c;
-      ersetzt++;
-      return CONFUSED[c] ?? c;
-    }).join("");
+    for (let i = 0; i + width <= token.length; i++) {
+      let ersetzt = 0;
+      const digits = [...token.slice(i, i + width)].map((c) => {
+        if (c >= "0" && c <= "9") return c;
+        ersetzt++;
+        return CONFUSED[c] ?? c;
+      }).join("");
 
-    if (ersetzt > MAX_ERSETZUNGEN) continue;
-    if (!/^\d+$/.test(digits)) continue;
-    if (known(digits)) found.add(digits);
+      if (ersetzt > MAX_ERSETZUNGEN) continue;
+      if (!/^\d+$/.test(digits)) continue;
+      if (known(digits)) found.add(digits);
+    }
   }
 
   return [...found];
 }
-

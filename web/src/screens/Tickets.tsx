@@ -38,13 +38,20 @@ export function Tickets({ onPick, onClose }: {
     // alle fünf Sekunden zu lesen, zu sortieren und alle sichtbaren Zeilen neu
     // zu zeichnen war auf einem älteren Telefon ein Ruckler beim Blättern —
     // ausgerechnet dann, wenn jemand unter Zeitdruck eine Nummer sucht.
-    let stand = "";
+    let stand = 0;
     const load = () => void store.allTickets().then((rows) => {
-      let n = 0, letzte = "";
-      for (const t of rows) if (t.redeemedAt) { n++; if (t.redeemedAt > letzte) letzte = t.redeemedAt; }
-      const jetzt = `${rows.length}:${n}:${letzte}`;
-      if (jetzt === stand) return;
-      stand = jetzt;
+      // Eine billige Prüfsumme über alles, was die Liste tatsächlich anzeigt.
+      //
+      // Vorher standen hier nur Anzahl und jüngste Einlösung. Damit blieb ein
+      // vom Server nachgetragener Name unsichtbar, und der Vermerk „noch nicht
+      // gesendet" stand weiter da, obwohl längst gesendet war.
+      let h = rows.length;
+      for (const t of rows) {
+        const zeile = `${t.code}|${t.holderName ?? ""}|${t.redeemedAt ?? ""}|${t.pending ? 1 : 0}`;
+        for (let i = 0; i < zeile.length; i++) h = (Math.imul(h, 31) + zeile.charCodeAt(i)) | 0;
+      }
+      if (h === stand) return;
+      stand = h;
       setAll(rows);
     });
     load();

@@ -211,9 +211,17 @@ function findTextRegion(
   // Nummer, und ein einzelnes O davor ergab die gültige Nummer 02027. Die
   // Person hält die Nummer aber in die Mitte des Rahmens, nicht den
   // Schriftzug.
+  // Die Mindesthöhe ist DREI Zeilen, nicht vier.
+  //
+  // Gemessen: Bei größerer Entfernung ist das Ziffernband im Analysebild nur
+  // drei Zeilen hoch, der Schriftzug darüber vier bis sieben. Der Filter warf
+  // damit ausgerechnet das Band weg, das genau auf der Mitte lag — und die
+  // Regel „nimm das Band nächst der Mitte", die einen Absatz weiter unten
+  // steht, konnte gar nicht mehr greifen. Der Ausschnitt landete auf
+  // „HERZBERG FESTIVAL 2027“.
   const peakRow = Math.max(...perRow);
-  const baender = runs(perRow, Math.max(3, peakRow * 0.35))
-    .filter((b) => b.to - b.from >= 4);
+  const baender = runs(perRow, Math.max(3, peakRow * 0.3))
+    .filter((b) => b.to - b.from >= 3);
   if (!baender.length) return null;
 
   const mitte = H / 2;
@@ -231,7 +239,7 @@ function findTextRegion(
   if (!cols) return null;
 
   const width = cols.to - cols.from;
-  if (width < W * 0.05 || bandHeight < 4) return null;
+  if (width < W * 0.05 || bandHeight < 3) return null;
   // Eine Ziffernfolge ist breiter als hoch. Alles andere ist kein Text.
   if (width / bandHeight < 1.1) return null;
 

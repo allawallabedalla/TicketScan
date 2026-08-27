@@ -425,14 +425,6 @@ b { font-weight: 650; }
 .sheet.full.warn .btn { background: rgba(46, 42, 30, .12); border-color: rgba(46, 42, 30, .35); color: #2E2A1E; }
 .sheet.full.warn .btn.primary { background: #2E2A1E; border-color: #2E2A1E; color: #F0A81E; }
 
-.sheet.full .trace {
-  background: rgba(255, 255, 255, .15);
-  border-color: rgba(255, 255, 255, .5);
-  color: inherit;
-}
-.sheet.full .trace-label { color: inherit; opacity: .85; }
-.sheet.full.warn .trace { background: rgba(46, 42, 30, .1); border-color: rgba(46, 42, 30, .4); }
-
 .sheet > * { flex: 0 0 auto; }
 /* Passt der Inhalt nicht mehr, oben anfangen statt mittig abschneiden. */
 @media (max-height: 700px) {
@@ -477,17 +469,6 @@ b { font-weight: 650; }
 .sheet.ok  .sheet-big { color: var(--ok); }
 .sheet.bad .sheet-big { color: var(--bad); }
 .sheet-big svg { width: 68px; height: 68px; }
-
-.trace {
-  margin-top: 12px; padding: 14px 16px; border-radius: 11px;
-  background: var(--surface); border: 1px dashed var(--accent);
-  display: flex; flex-direction: column; gap: 5px;
-}
-.trace-label {
-  font-size: .68rem; font-weight: 700; letter-spacing: .13em;
-  text-transform: uppercase; color: var(--accent);
-}
-.trace p { font-size: .93rem; line-height: 1.45; }
 
 /* -------------------------------------------------------------- Tastatur -- */
 

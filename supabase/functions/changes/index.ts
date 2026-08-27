@@ -32,7 +32,8 @@ Deno.serve(async (req) => {
   const sinceCode = params.get("sinceCode");
   const offset = Math.max(0, Number(params.get("offset") ?? "0") || 0);
 
-  const columns = "code, category, note, redeemed_at, redeemed_by_device, updated_at";
+  const columns =
+    "code, holder_name, category, note, redeemed_at, redeemed_by_device, updated_at";
   let query = db.from("tickets").select(columns);
 
   if (since) {

@@ -117,6 +117,14 @@ Erzeugt 2305 Zeilen im Importformat (`code,holder_name,category,note`) und
 meldet die feste Vorsilbe der Nummern — hier `0`, weshalb die Tastatureingabe
 mit vier statt fünf Stellen auskommt.
 
+Die Namen darin sind erfunden und dienen der Vorführung; `--ohne-namen` lässt
+sie weg. Etwa jedes neunte Ticket bleibt bewusst namenlos, damit der Fall in
+der App auch tatsächlich vorkommt: Ein fehlender Name ist kein Verdachtsfall
+und darf niemanden den Einlass kosten. Die Namen hängen allein an der Nummer,
+zweimal erzeugt ergibt also dieselbe Datei — sonst würde jeder Import alle
+2305 Zeilen als geändert markieren und jedes Gerät den ganzen Bestand neu
+ziehen.
+
 ## Einlösemodell
 
 Das Ticket wird genau einmal gegen ein Bändchen getauscht, danach regelt das

@@ -229,16 +229,52 @@ Ausgeführt wird erst nach einer Rückfrage, die man nicht versehentlich
 wegtippt — das Skript löscht die Arbeit eines ganzen Abends, wenn man sich im
 Zeitpunkt irrt. Die Geräte ziehen den Stand beim nächsten Abgleich nach.
 
-## Nach dem Festival
+## Listen am Laptop ansehen
+
+Drei Wege, je nachdem, was gebraucht wird.
+
+**Währenddessen, ohne Werkzeug:** Die App im Laptop-Browser öffnen
+(<https://allawallabedalla.github.io/TicketScan/>), mit demselben Passwort
+anmelden, unten rechts *Übersicht* antippen. Das ist derselbe Stand, den die
+Telefone sehen — Anzahl eingelöst, Geräte, Konflikte. Ein Laptop zählt dabei
+als weiteres Gerät; scannen muss er nicht.
+
+**Als Tabelle, zum Weiterverarbeiten:**
 
 ```bash
-node scripts/export-log.mjs             > einlass.csv
+export SUPABASE_URL=https://<projekt>.supabase.co
+npx supabase login                                    # einmalig
+
+node scripts/export-log.mjs --eingeloest > drin.csv   # nur die Eingelösten,
+                                                      # in Einlassreihenfolge
+node scripts/export-log.mjs             > einlass.csv # alle 2305 mit Stand
 node scripts/export-log.mjs --protokoll > protokoll.csv
 ```
 
-`einlass.csv` enthält jedes Ticket mit Einlösezeitpunkt und Gerät,
-`protokoll.csv` jeden einzelnen Vorgang — auch die abgewiesenen, die
-zurückgenommenen und die ohne Abgleich entstandenen.
+`drin.csv` und `einlass.csv` führen Nummer, Name, Kategorie, Vermerk,
+Einlösezeitpunkt und Gerät. `protokoll.csv` enthält jeden einzelnen Vorgang —
+auch die abgewiesenen, die zurückgenommenen und die ohne Abgleich
+entstandenen. Alle drei blättern über die 1000-Zeilen-Grenze der Data API
+hinweg, es fehlt also nichts.
+
+**Ohne Terminal:** Im Supabase-Dashboard *SQL Editor* öffnen und abfragen,
+etwa:
+
+```sql
+select code, holder_name, redeemed_at, redeemed_by_device
+from tickets
+where redeemed_at is not null
+order by redeemed_at;
+```
+
+Über *Download CSV* rechts über dem Ergebnis lässt sich das Ergebnis
+mitnehmen. Wer nur nachsehen will, kommt hiermit am schnellsten ans Ziel.
+
+## Nach dem Festival
+
+Die Ausgaben oben sind auch die Abrechnungsgrundlage. `protokoll.csv`
+aufbewahren: Es ist die einzige Aufzeichnung, aus der sich hinterher noch
+rekonstruieren lässt, wann welches Gerät was entschieden hat.
 
 ## Rückmeldung geben
 

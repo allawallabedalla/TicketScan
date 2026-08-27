@@ -57,6 +57,9 @@ export const remove = (key: string) =>
 
 export interface Ticket {
   code: string;
+  /** Name auf der Ticketliste, sofern hinterlegt. Nicht jedes Ticket hat
+   *  einen — Abendkasse, Gästeliste, weitergegebene Tickets. */
+  holderName: string | null;
   category: string;
   note: string | null;
   redeemedAt: string | null;

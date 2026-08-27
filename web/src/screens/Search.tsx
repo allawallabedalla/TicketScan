@@ -2,7 +2,8 @@
 //
 // Für Tickets, deren Nummer sich nicht mehr lesen lässt: zerrissen, verregnet,
 // überklebt. Gesucht wird über einen Teil der Nummer, damit auch drei erhaltene
-// Ziffern noch weiterhelfen.
+// Ziffern noch weiterhelfen — oder über den Namen, falls einer hinterlegt ist.
+// Viele Tickets haben keinen; die Suche über die Nummer bleibt der Normalfall.
 
 import { useEffect, useMemo, useState } from "react";
 import * as store from "../lib/store";
@@ -19,10 +20,19 @@ export function Search({ onPick, onClose }: {
   useEffect(() => { void store.allTickets().then(setAll); }, []);
 
   const hits = useMemo(() => {
-    const needle = query.replace(/\D/g, "");
-    if (needle.length < 2) return [];
-    return all.filter((t) => t.code.includes(needle)).slice(0, MAX_HITS);
+    const digits = query.replace(/\D/g, "");
+    const text = query.trim().toLowerCase();
+    // Ziffern schlagen Buchstaben: Wer eine Nummer eintippt, sucht eine Nummer.
+    if (digits.length >= 2) return all.filter((t) => t.code.includes(digits)).slice(0, MAX_HITS);
+    if (text.length >= 3) {
+      return all
+        .filter((t) => t.holderName?.toLowerCase().includes(text))
+        .slice(0, MAX_HITS);
+    }
+    return [];
   }, [all, query]);
+
+  const searching = query.replace(/\D/g, "").length >= 2 || query.trim().length >= 3;
 
   return (
     <div className="sheet overlay list">
@@ -32,27 +42,37 @@ export function Search({ onPick, onClose }: {
       </header>
 
       <label className="field">
-        <span>Teil der Nummer</span>
+        <span>Nummer oder Name</span>
         <input
-          type="text" inputMode="numeric" value={query} autoFocus
+          type="text" value={query} autoFocus
+          autoCapitalize="off" autoCorrect="off" spellCheck={false}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="z. B. 245"
+          placeholder="z. B. 245 oder Schneider"
         />
-        <small>Mindestens zwei Ziffern. Die Reihenfolge muss stimmen.</small>
+        <small>
+          Zwei Ziffern in der richtigen Reihenfolge — oder drei Buchstaben des
+          Namens, sofern das Ticket einen trägt.
+        </small>
       </label>
 
-      {query.replace(/\D/g, "").length >= 2 && hits.length === 0 && (
-        <p className="lead">Keine Nummer enthält diese Ziffernfolge.</p>
+      {searching && hits.length === 0 && (
+        <p className="lead">
+          Kein Treffer. Bei einer Suche über den Namen heißt das wenig — nicht
+          jedes Ticket trägt einen. Dann über die Nummer suchen.
+        </p>
       )}
 
       <ul className="entries">
         {hits.map((ticket) => (
           <li key={ticket.code} className={ticket.redeemedAt ? "duplicate" : "ok"}>
             <span className="entry-code">{group(ticket.code)}</span>
-            <span className="entry-meta">
-              {ticket.redeemedAt
-                ? `eingelöst um ${time(ticket.redeemedAt)}`
-                : "noch nicht eingelöst"}
+            <span className="entry-lines">
+              {ticket.holderName && <span className="entry-name">{ticket.holderName}</span>}
+              <span className="entry-meta">
+                {ticket.redeemedAt
+                  ? `eingelöst um ${time(ticket.redeemedAt)}`
+                  : "noch nicht eingelöst"}
+              </span>
             </span>
             {!ticket.redeemedAt && (
               <button type="button" className="btn small" onClick={() => onPick(ticket.code)}>

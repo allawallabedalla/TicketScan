@@ -399,6 +399,18 @@ export function Scanner({ session }: { session: store.Session }) {
 
 // ------------------------------------------------------------- Bestätigung --
 
+// Der Name ist die zweite Probe neben der Nummer: Bei 2305 fortlaufenden
+// Nummern trifft eine falsch gelesene Ziffer mit hoher Wahrscheinlichkeit ein
+// anderes gültiges Ticket — der Name fällt dann auf, die Nummer nicht.
+//
+// Er ist aber nur eine Probe, kein Ausweis: Tickets ohne Namen sind normal
+// (Abendkasse, Gästeliste, weitergegeben). Fehlt er, wird das ruhig gesagt,
+// nicht als Warnung — sonst weist jemand aus Unsicherheit Gäste ab.
+function Holder({ ticket }: { ticket?: store.Ticket }) {
+  if (!ticket?.holderName) return <p className="sheet-name none">Kein Name hinterlegt</p>;
+  return <p className="sheet-name">{ticket.holderName}</p>;
+}
+
 function Confirm({ decision, onYes, onNo }: {
   decision: Decision; onYes: () => void; onNo: () => void;
 }) {
@@ -406,9 +418,14 @@ function Confirm({ decision, onYes, onNo }: {
     <div className="sheet ok overlay">
       <p className="sheet-label">Gültig</p>
       <p className="sheet-code">{group(decision.code)}</p>
+      <Holder ticket={decision.ticket} />
       <p className="sheet-meta">{decision.ticket?.category}</p>
       {decision.ticket?.note && <p className="sheet-note">{decision.ticket.note}</p>}
-      <p className="sheet-ask">Stimmt die Nummer mit dem Ticket überein?</p>
+      <p className="sheet-ask">
+        {decision.ticket?.holderName
+          ? "Stimmt die Nummer mit dem Ticket überein?"
+          : "Stimmt die Nummer mit dem Ticket überein? Ein Name ist zu diesem Ticket nicht hinterlegt — das ist kein Grund, jemanden abzuweisen."}
+      </p>
       <div className="sheet-actions">
         <button type="button" className="btn" onClick={onNo}>Abbrechen</button>
         <button type="button" className="btn primary grow" onClick={onYes}>Einlassen</button>
@@ -438,6 +455,9 @@ function Result({ decision, onDone, onRelease }: {
         <span className="sheet-big"><Icon.Check /></span>
         <p className="sheet-label">Einlass frei</p>
         <p className="sheet-code">{group(decision.code)}</p>
+        {decision.ticket?.holderName && (
+          <p className="sheet-name">{decision.ticket.holderName}</p>
+        )}
         <p className="sheet-meta">Abschnitt abreißen, Bändchen anlegen</p>
       </div>
     );
@@ -467,6 +487,9 @@ function Result({ decision, onDone, onRelease }: {
     <div className="sheet warn full overlay">
       <p className="sheet-label">Bereits eingelöst</p>
       <p className="sheet-code">{group(decision.code)}</p>
+      {decision.ticket?.holderName && (
+        <p className="sheet-name">{decision.ticket.holderName}</p>
+      )}
       <p className="sheet-meta">
         {at ? `Eingelöst um ${time(at)} Uhr` : "Zeitpunkt unbekannt"}
       </p>

@@ -4,14 +4,16 @@
 // Für Abrechnung und Nachbereitung — und für den Fall, dass später jemand
 // wissen will, wann welches Ticket eingelöst wurde.
 //
-//   node scripts/export-log.mjs > einlass.csv
-//   node scripts/export-log.mjs --protokoll > protokoll.csv
+//   node scripts/export-log.mjs > einlass.csv        alle Tickets, mit Stand
+//   node scripts/export-log.mjs --eingeloest > drin.csv   nur die eingelösten
+//   node scripts/export-log.mjs --protokoll > protokoll.csv  jeder Scanvorgang
 
 import { argv, env, exit, stderr, stdout } from "node:process";
 import { keyFromCli, looksMangled, refFromUrl } from "./supabase-key.mjs";
 
 const url = env.SUPABASE_URL;
 const wantLog = argv.includes("--protokoll");
+const nurEingeloest = argv.includes("--eingeloest");
 
 if (!url) {
   stderr.write("SUPABASE_URL muss gesetzt sein.\n");
@@ -33,9 +35,9 @@ if (!key || looksMangled(key)) {
 // unterschlagen hat. Hier wird deshalb ausdrücklich geblättert.
 const PAGE = 1000;
 
-async function* rows(table, select, order) {
+async function* rows(table, select, order, filter = "") {
   for (let from = 0; ; from += PAGE) {
-    const res = await fetch(`${url}/rest/v1/${table}?select=${select}&order=${order}`, {
+    const res = await fetch(`${url}/rest/v1/${table}?select=${select}&order=${order}${filter}`, {
       headers: {
         apikey: key, authorization: `Bearer ${key}`,
         range: `${from}-${from + PAGE - 1}`,
@@ -57,18 +59,25 @@ function cell(value) {
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-const [table, select, order, header] = wantLog
+const TICKET_SPALTEN = ["code", "holder_name", "category", "note",
+                        "redeemed_at", "redeemed_by_device"];
+
+const [table, select, order, header, filter] = wantLog
   ? ["scan_log", "server_ts,client_ts,code,device_id,action,result,offline,reason",
      "server_ts.asc",
-     ["server_ts", "client_ts", "code", "device_id", "action", "result", "offline", "reason"]]
-  : ["tickets", "code,category,note,redeemed_at,redeemed_by_device",
-     "code.asc",
-     ["code", "category", "note", "redeemed_at", "redeemed_by_device"]];
+     ["server_ts", "client_ts", "code", "device_id", "action", "result", "offline", "reason"],
+     ""]
+  : nurEingeloest
+  // Nur die eingelösten, in der Reihenfolge des Einlasses: die Liste, die
+  // während des Festivals jemand sehen will.
+  ? ["tickets", TICKET_SPALTEN.join(","), "redeemed_at.asc",
+     TICKET_SPALTEN, "&redeemed_at=not.is.null"]
+  : ["tickets", TICKET_SPALTEN.join(","), "code.asc", TICKET_SPALTEN, ""];
 
 stdout.write(header.join(",") + "\n");
 
 let n = 0;
-for await (const row of rows(table, select, order)) {
+for await (const row of rows(table, select, order, filter)) {
   stdout.write(header.map((k) => cell(row[k])).join(",") + "\n");
   n++;
 }

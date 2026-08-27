@@ -27,6 +27,7 @@ async function call<T>(path: string, session: Session, init: RequestInit = {}): 
 interface ChangesResponse {
   tickets: Array<{
     code: string;
+    holder_name: string | null;
     category: string;
     note: string | null;
     redeemed_at: string | null;
@@ -69,6 +70,9 @@ export async function fetchChanges(session: Session, page: PageRequest = {}) {
 
   const tickets: Ticket[] = data.tickets.map((t) => ({
     code: t.code,
+    // Nicht jedes Ticket trägt einen Namen — fehlt er, bleibt das Feld leer,
+    // und die Nummer allein entscheidet.
+    holderName: t.holder_name || null,
     category: t.category,
     note: t.note,
     redeemedAt: t.redeemed_at,

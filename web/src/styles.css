@@ -406,6 +406,18 @@ b { font-weight: 650; }
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
+/* Der Name steht direkt unter der Nummer und ist die zweite Probe: eine
+ * falsch gelesene Ziffer trifft bei 2305 fortlaufenden Nummern meist ein
+ * anderes gültiges Ticket — auffallen kann das nur am Namen. Fehlt er, wird
+ * das leise gesagt: kein Name ist kein Verdacht. */
+.sheet-name {
+  font-size: clamp(1.35rem, 6vw, 1.8rem); font-weight: 700;
+  line-height: 1.15; letter-spacing: -.01em;
+}
+.sheet-name.none { font-size: 1rem; font-weight: 500; color: var(--muted); }
+.sheet.full .sheet-name { color: inherit; }
+.sheet.full .sheet-name.none { opacity: .8; }
+
 .sheet-meta { font-size: 1.02rem; color: var(--muted); }
 .sheet-note {
   align-self: flex-start; padding: 7px 12px; border-radius: 8px;
@@ -566,6 +578,11 @@ b { font-weight: 650; }
 .entry-code {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.entry-lines { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.entry-name {
+  font-size: .95rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .entry-meta { font-size: .84rem; color: var(--muted); }
 .entries li.duplicate .entry-code { color: var(--warn); }

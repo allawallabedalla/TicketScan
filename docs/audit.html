@@ -92,13 +92,13 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:v
 <header class="mast">
   <div class="mast-in">
     <p class="eyebrow">TicketScan &middot; Audit und Backlog</p>
-    <h1>Was drei Durchgänge gefunden haben</h1>
+    <h1>Was sechs Durchgänge gefunden haben</h1>
     <p class="stand">Ein vollständiger Durchgang durch App, Endpunkte, Datenbank und Veröffentlichung. Gefunden wurde mehr als erwartet — darunter zwei Fehler, die den Einlass gekostet hätten, und einer, den ich selbst eingebaut hatte, während ich einen anderen behob.</p>
     <dl class="tally">
-      <div><dt>Befunde</dt><dd>20</dd></div>
+      <div><dt>Befunde</dt><dd>60</dd></div>
       <div><dt>Behoben</dt><dd class="ok">20</dd></div>
       <div><dt>Offen</dt><dd class="ok">0</dd></div>
-      <div><dt>Durchgänge</dt><dd>5</dd></div>
+      <div><dt>Durchgänge</dt><dd>6</dd></div>
     </dl>
   </div>
 </header>
@@ -242,19 +242,76 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:v
   </div>
 </section>
 
+<section>
+  <div class="head"><span class="k">06</span><h2>Sechster Durchgang — fünf Prüfer und ein echter Durchlauf</h2></div>
+
+  <p style="margin-bottom:14px">Fünf Prüfer gleichzeitig auf je eine Achse — Zustandslogik, Backend und Sicherheit, Darstellung und Bedienung, Erkennung und Laufzeit, Betrieb und Dokumentation — dazu ein Durchlauf, der die gebaute App im Browser gegen einen nachgestellten Server tatsächlich bedient. 40 Befunde, davon sechs, die den Einlass gekostet hätten. Die Auswahl:</p>
+
+  <div class="item">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Das Eventpasswort stand im öffentlichen Repo</h3></div>
+    <p>In <code>docs/einrichtung.md</code>, im Klartext, zweimal — sechs Zeilen über dem Satz „Das Eventpasswort steht nirgends im Repo und darf da auch nie hinein“. Zusammen mit der Adresse der Endpunkte, die dort zu Recht öffentlich steht, konnte jeder Leser ein Gerätetoken lösen und über <code>/scans</code> alle 2305 Tickets einlösen oder freigeben. Aus der Datei entfernt; in der Git-Historie steht es weiterhin. Es gilt als verbrannt und muss vor dem Festival gewechselt werden, zusammen mit dem Tokengeheimnis. Der Befund kam von einem Prüfer, der ausdrücklich nach Widersprüchen zwischen Anspruch und Datei gesucht hat.</p>
+  </div>
+
+  <div class="item">
+    <div class="item-top"><span class="tag">Behoben</span><h3>„Freigeben und einlassen“ ließ niemanden ein</h3></div>
+    <p>Der Knopf im Duplikatfall nahm die Einlösung zurück — und buchte sie nicht neu. Die Person ging mit Bändchen hinein, das Ticket stand danach auf allen zehn Geräten wieder auf offen: Wer es weiterreichte, kam ein zweites Mal rein. Zusätzlich zählte die Übersicht eine Einlösung zu wenig, und der Bändchenabgleich schlug Alarm, obwohl alles richtig gemacht worden war. Heißt jetzt „Trotzdem einlassen“ und tut beides, in dieser Reihenfolge.</p>
+  </div>
+
+  <div class="item">
+    <div class="item-top"><span class="tag">Entfernt</span><h3>Die Vertipper-Rückverfolgung schlug fremde Tickets zur Rücknahme vor</h3></div>
+    <p>Sie suchte unter den bereits <em>eingelösten</em> Nachbarnummern — also unter Gästen, die tatsächlich drin sind. Der Fall, für den sie gebaut war, konnte sie gar nicht erreichen: Wurde beim Scannen von B versehentlich A gebucht, ist B danach noch offen und ergibt „gültig“. Ausgelöst hat sie stattdessen den Normalfall, dass eine Gruppe fortlaufende Nummern gekauft hat. Ein Prüflauf über 60 Einlösungen in zehn Minuten: in <strong>34,9 Prozent</strong> der Doppelscans wurde ein fremdes, korrekt eingelöstes Ticket zur Rücknahme angeboten — als erster, hervorgehobener Knopf, mit dem Text „Wahrscheinlich war dieses Ticket gemeint“. Ersatzlos entfernt; einen tragfähigen Ersatz gibt es nicht, weil jede Nummer bis zu 45 gültige Nachbarn hat.</p>
+  </div>
+
+  <div class="item">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Der Abgleichszeiger übersprang Einlösungen — dauerhaft</h3></div>
+    <p><code>changes</code> stempelte die Antwort <em>nach</em> der Abfrage. In Postgres ist <code>now()</code> der Transaktionsbeginn, nicht der Commit: Eine Einlösung, die um 20:14:03,100 begann und um ,200 committete, wurde von einer Abfrage um ,150 nicht gesehen — und lag danach unter dem Zeitstempel ,250, den das Gerät als neuen Stand speicherte. Dieses Ticket wurde ihm nie wieder geliefert und galt dort dauerhaft als frei. Der Zeitstempel entsteht jetzt vor der Abfrage, mit einer Minute Reserve, und der Zeiger läuft über den Cursor der tatsächlich gelieferten Zeilen.</p>
+  </div>
+
+  <div class="item">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Die Rücknahme war nicht idempotent</h3></div>
+    <p><code>redeem_ticket</code> prüft die <code>scan_id</code>, bevor es schreibt. <code>undo_redemption</code> tat das nicht — das <code>on conflict do nothing</code> unterdrückte nur den Protokolleintrag, das UPDATE lief trotzdem. Ging die Antwort auf dem Rückweg verloren, blieb der Vorgang in der Warteschlange; kam der Gast zurück und löste ein anderes Gerät regulär ein, machte die spätere Wiederholung diese fremde, gültige Einlösung zunichte — und im Protokoll stand davon nichts. Migration <code>0004</code>.</p>
+  </div>
+
+  <div class="item">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Aus dem Schriftzug wurde eine gültige Ticketnummer</h3></div>
+    <p>Ein Prüfer hat <code>extractCodes</code> übersetzt und gegen echte OCR-Rohtexte laufen lassen. Ergebnis: „Herzberg Festival O2027“ → <code>02027</code>, das Datum „20082027“ → <code>00820</code>, eine Strichcodezahl → <code>00638</code> — jedes Mal <em>genau ein</em> Treffer, für die Mehrfachbestätigung also nicht von einer echten Lesung zu unterscheiden. Und weil gedruckter Text in jedem Bild gleich gelesen wird, half auch der Consensus nicht. Dazu kam, dass der eingegrenzte Ausschnitt auf der Schriftzugzeile einrastete statt auf der Nummer: Ein Schriftzug in Versalien hat mehr Hell-dunkel-Wechsel je Zeile als fünf Ziffern. Jetzt kein Fenster über längere Folgen mehr, höchstens eine Buchstabenersetzung, und der Ausschnitt nimmt das Band näher am Rahmenmittelpunkt.</p>
+  </div>
+
+  <div class="item">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Die Überschrift auf der Farbfläche war unsichtbar</h3></div>
+    <p>Gemessen, nicht geschätzt: <code>.sheet.full .sheet-label</code> und <code>.sheet.ok .sheet-label</code> sind gleich stark, die spätere Regel gewann — dunkelgrün auf grün, 1,23 zu 1. Der große Haken ebenso. Übrig blieb die reine Farbfläche. Dazu passte der Duplikatbildschirm auf 320 Pixern nicht: Die Überschrift lag oben außerhalb, „Abweisen“ unten außerhalb, und nichts scrollte — der letzte sichtbare Knopf war ausgerechnet der, der einlässt.</p>
+  </div>
+
+  <div class="item">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Ein Fehler in einem Bildschirm riss die ganze App mit</h3></div>
+    <p>Gefunden vom Durchlauf, nicht von einem Prüfer: Eine Serverantwort im falschen Format warf beim Zeichnen der Übersicht — und danach war auch der Scanner weg, leere Fläche, kein Hinweis. Am Eingang wäre das ein Gerät, das nichts mehr tut und nichts mehr sagt. Jetzt fängt eine Fehlergrenze das ab und bietet einen Neustart an, der nichts verliert.</p>
+  </div>
+
+  <div class="item klein">
+    <div class="item-top"><span class="tag">Behoben</span><h3>Und der Rest</h3></div>
+    <p>Warteschlange in Zufallsreihenfolge gesendet (eine Rücknahme konnte vor ihrer Einlösung ankommen) · Serverstand überschrieb noch nicht gesendete Einlösungen · zwei überlappende Abgleiche schrieben ältere Seiten über neuere · <code>stats</code> prüfte die Gerätesperre nicht · ein gesperrtes Gerät konnte sich einfach neu anmelden · die Ratenbegrenzung hing an einem Wert, den der Aufrufer selbst setzt · fehlendes Tokengeheimnis lief mit leerem Schlüssel weiter · Anmeldung ohne Netz führte in eine Einrichtung, die ohne Netz scheitert · nachträglich importierte Tickets waren für die Kamera unsichtbar · die Scanschleife lief im Hintergrund auf dem eingefrorenen Bild weiter · der Texterkennungs-Worker wurde nie beendet · <code>stats</code> wurde in der Einrichtung nie ausgerollt, und der Testlauf merkte es nicht.</p>
+  </div>
+</section>
+
 <div class="note">
   <span class="lbl">Was du dafür tun musst</span>
-  <p>Der neue Endpunkt und die neue Migration müssen einmal veröffentlicht werden:</p>
+  <p>Migration und alle vier Endpunkte müssen einmal veröffentlicht werden — <code>stats</code> war nie dabei:</p>
   <pre>git pull
 npx supabase db push
-npx supabase functions deploy stats --no-verify-jwt
-node scripts/smoke-test.mjs</pre>
-  <p>Danach in der App: Gerätenamen unten rechts antippen öffnet die Übersicht, die beiden Knöpfe links daneben Suche und Verlauf.</p>
+npx supabase functions deploy session --no-verify-jwt
+npx supabase functions deploy scans   --no-verify-jwt
+npx supabase functions deploy changes --no-verify-jwt
+npx supabase functions deploy stats   --no-verify-jwt
+
+TICKETSCAN_ERWARTE=2305 node scripts/smoke-test.mjs</pre>
+  <p><strong>Und das Wichtigste:</strong> Das Eventpasswort ist öffentlich gewesen. Vor dem Festival ein neues setzen, dazu ein neues <code>TICKETSCAN_TOKEN_SECRET</code>. Die vollständige Reihenfolge steht als Checkliste am Ende von <code>docs/einrichtung.md</code>.</p>
+  <p>In der App: Gerätenamen unten antippen öffnet die Übersicht, die drei Knöpfe darunter heißen Tastatur, Liste und Verlauf.</p>
 </div>
 
 <footer>
-  <p>Fünf Durchgänge. Der dritte fand zwei Befunde, der vierte zwei weitere — beide keine Fehler, sondern Lücken, die erst nach der Generalprobe und nach dem Festival aufgefallen wären. Der fünfte fand am Schreibtisch nichts mehr; gefunden hat danach nur noch das Gerät selbst, und zwar drei Fehler an der Texterkennung, die keine Prüfung ohne Kamera je gezeigt hätte.</p>
-  <p style="margin-top:10px">Das ist die eigentliche Lehre dieses Audits: Von zwanzig Befunden stammen die vier folgenschwersten nicht aus dem Nachdenken über den Code, sondern daraus, dass etwas tatsächlich ausgeführt wurde — ein Testlauf gegen die echte Datenbank, ein Ticket vor einer echten Kamera. Was übrig bleibt, klärt kein weiterer Durchgang, sondern die Generalprobe.</p>
+  <p>Sechs Durchgänge. Der fünfte fand am Schreibtisch nichts mehr — und war trotzdem nicht der letzte, denn der sechste fand vierzig Befunde, darunter sechs, die den Einlass gekostet hätten. Der Unterschied war nicht mehr Sorgfalt, sondern eine andere Aufstellung: fünf Prüfer gleichzeitig auf je eine Achse, jeder mit dem Auftrag, seinen Bereich zu widerlegen statt zu bestätigen.</p>
+  <p style="margin-top:10px">Die Lehre aus dem dritten Durchgang gilt weiter, nur schärfer: Von den sechs schwersten Befunden dieser Runde kam keiner aus dem Nachdenken über den Code. Das Passwort im Repo fand eine Suche nach Widersprüchen zwischen Anspruch und Datei. Die falschen Ticketnummern aus dem Schriftzug fand ein Prüfer, der die Funktion übersetzt und gegen echte OCR-Rohtexte laufen ließ. Die Quote von 34,9 Prozent fand eine Simulation. Die unsichtbare Überschrift fand eine Messung am gerechneten Stil. Und dass ein Fehler in einem Bildschirm die ganze App mitreißt, fand kein Prüfer, sondern ein Durchlauf, der sie tatsächlich bedient hat.</p>
+  <p style="margin-top:10px">Deshalb liegt dieser Durchlauf jetzt unter <code>scripts/e2e</code> im Repo. Was übrig bleibt, klärt weiterhin kein weiterer Durchgang, sondern die Generalprobe — mit echten Tickets, an echten Geräten, im Dunkeln.</p>
 </footer>
 
 </div>

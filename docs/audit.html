@@ -95,10 +95,10 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:v
     <h1>Was drei Durchgänge gefunden haben</h1>
     <p class="stand">Ein vollständiger Durchgang durch App, Endpunkte, Datenbank und Veröffentlichung. Gefunden wurde mehr als erwartet — darunter zwei Fehler, die den Einlass gekostet hätten, und einer, den ich selbst eingebaut hatte, während ich einen anderen behob.</p>
     <dl class="tally">
-      <div><dt>Befunde</dt><dd>18</dd></div>
-      <div><dt>Behoben</dt><dd class="ok">17</dd></div>
-      <div><dt>Offen</dt><dd class="warn">1</dd></div>
+      <div><dt>Befunde</dt><dd>20</dd></div>
+      <div><dt>Behoben</dt><dd class="ok">19</dd></div>
       <div><dt>Blockiert</dt><dd class="warn">1</dd></div>
+      <div><dt>Durchgänge</dt><dd>4</dd></div>
     </dl>
   </div>
 </header>
@@ -219,15 +219,21 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:v
 <section>
   <div class="head"><span class="k">05</span><h2>Offen</h2></div>
 
+  <div class="item mittel">
+    <div class="item-top"><span class="tag">Nachgewiesen</span><h3>Datenbankfunktionen werden jetzt ausgeführt, nicht angenommen</h3></div>
+    <p>Beim Einspielen meldete die CLI <code>Remote database is up to date</code> — was nahelegt, dass <code>0003</code> angekommen ist, aber nichts beweist. Und <code>undo_redemption</code>, die einmal überhaupt nicht lauffähig war, hatte bis dahin nie jemand aufgerufen.</p>
+    <p class="fix">Der Testlauf löst jetzt ein freies Ticket wirklich ein, prüft die Doppelerkennung, sendet denselben Scan erneut, reicht die Offline-Markierung durch und nimmt am Ende zurück. Der Bestand bleibt unverändert, jede beteiligte Funktion ist danach tatsächlich gelaufen. Alle dreizehn Prüfungen bestanden.</p>
+  </div>
+
   <div class="item hoch">
     <div class="item-top"><span class="tag">Blockiert</span><h3>Die Texterkennung ist nicht vermessen</h3></div>
     <p>Alles daran ist gebaut und die Auswertelogik geprüft. Wie zuverlässig sie eure gedruckten Etiketten tatsächlich liest, bei eurem Licht und aus eurem Abstand, ist bislang geschätzt. Das ist der einzige Punkt, der sich nicht am Schreibtisch klären lässt.</p>
     <p class="fix">Braucht ein echtes Ticket in die Hand.</p>
   </div>
 
-  <div class="item klein">
-    <div class="item-top"><span class="tag">Offen</span><h3>Ausfuhr des Protokolls nach dem Festival</h3></div>
-    <p>Für Abrechnung und Nachbereitung. Kein Betriebsrisiko, deshalb nach hinten gestellt — die Daten liegen vollständig in der Datenbank und lassen zur Not über den SQL-Editor ausleiten.</p>
+  <div class="item mittel">
+    <div class="item-top"><span class="tag">Gebaut</span><h3>Ausfuhr und Zurücksetzen</h3></div>
+    <p>Zwei Lücken, die erst nach der Generalprobe und nach dem Festival aufgefallen wären. Nach der Probe steht der Bestand voller Testeinlösungen — ohne eigenen Weg bliebe nur der SQL-Editor, und dort wird unter Zeitdruck schnell mehr gelöscht als gemeint. Das Zurücksetzen rührt die Ticketliste nicht an und verlangt eine Rückfrage, die man nicht versehentlich wegtippt. Dazu die Ausfuhr von Ticketstand und Protokoll als CSV.</p>
   </div>
 
   <div class="item klein">
@@ -247,7 +253,7 @@ node scripts/smoke-test.mjs</pre>
 </div>
 
 <footer>
-  <p>Drei Durchgänge. Der dritte fand noch zwei Befunde, der vierte keinen mehr — was nicht heißt, dass keiner mehr da ist, sondern dass ich am Schreibtisch nichts mehr finde. Was jetzt noch fehlt, findet nur ein echtes Ticket vor einer echten Kamera.</p>
+  <p>Vier Durchgänge. Der dritte fand zwei Befunde, der vierte zwei weitere — beide keine Fehler, sondern Lücken, die erst nach der Generalprobe und nach dem Festival aufgefallen wären. Der fünfte fand nichts mehr. Das heißt nicht, dass nichts mehr da ist, sondern dass ich am Schreibtisch nichts mehr finde. Was jetzt noch fehlt, findet nur ein echtes Ticket vor einer echten Kamera.</p>
 </footer>
 
 </div>

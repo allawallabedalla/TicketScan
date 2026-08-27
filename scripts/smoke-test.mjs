@@ -212,6 +212,27 @@ if (session) {
     return `${stats.eingeloest} von ${stats.gesamt} eingelöst, ${stats.geraete.length} Geräte`;
   });
 
+  // Die Verwaltung ist der einzige Weg, auf dem sich die Ticketliste von
+  // außen ändern lässt. Ein Gerät, das sich mit dem gewöhnlichen
+  // Eventpasswort angemeldet hat, darf das nicht — und das gehört gegen das
+  // echte Backend geprüft, nicht nur gegen einen Prüfstand.
+  await step("Eventpasswort darf die Liste nicht ändern", async () => {
+    const res = await fetch(`${API}/verwaltung`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ zeilen: [{ code: "00001", holderName: "Testlauf" }] }),
+    });
+    if (res.status === 404) return "Endpunkt nicht ausgerollt — Verwaltung ist abgeschaltet";
+    if (res.status === 403) return "403 wie erwartet";
+    if (res.ok) {
+      throw new Error(
+        "DIE LISTE WURDE GEÄNDERT — jedes Gerät am Eingang kann die Ticketliste " +
+        "umschreiben. TICKETSCAN_ADMIN_PASSWORD prüfen und `verwaltung` neu ausrollen.",
+      );
+    }
+    throw new Error(`unerwartet ${res.status}: ${(await res.text()).slice(0, 120)}`);
+  });
+
   await step("Abgelaufenes Token wird abgewiesen", async () => {
     const res = await fetch(`${API}/changes`, { headers: { authorization: "Bearer kaputt.kaputt" } });
     if (res.status !== 401) throw new Error(`erwartet 401, bekam ${res.status}`);

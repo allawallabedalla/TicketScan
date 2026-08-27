@@ -36,8 +36,24 @@ node server.mjs dist 8123 &      # in einem zweiten Fenster
 node run.mjs
 ```
 
-Erwartet werden 21 Zeilen `ok` und `SEITENFEHLER: keine` — bis auf die eine
+Erwartet werden 24 Zeilen `ok` und `SEITENFEHLER: keine` — bis auf die eine
 Meldung `ERR_INTERNET_DISCONNECTED`, die der Flugmodus-Test selbst auslöst.
+
+## Den Fehler absichtlich einbauen
+
+Ein Test, der nur auf der heilen Fassung läuft, prüft nichts. `KAPUTT=1`
+stellt einen behobenen Fehler nach: Der Endpunkt schnitt den Zeitstempel des
+Abgleichszeigers auf Millisekunden zurück, Postgres arbeitet aber in
+Mikrosekunden — der Zeiger lief damit bei jeder Antwort ein Stück rückwärts,
+und die App blätterte endlos im Kreis.
+
+```bash
+KAPUTT=1 node server.mjs dist 8123
+```
+
+Erwartet wird, dass der Durchlauf **trotzdem** grün bleibt: Die App muss den
+stehenden Zeiger bemerken und abbrechen, statt hängenzubleiben. Bleibt sie
+hängen, ist der Schutz in `web/src/lib/sync.ts` weg.
 
 Die Bildschirmfotos jedes Schritts liegen danach als `NN-*.png` daneben. Sie
 sind der schnellste Weg zu sehen, ob eine Darstellung auf einem schmalen Gerät

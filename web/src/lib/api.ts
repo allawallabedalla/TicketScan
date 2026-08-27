@@ -112,6 +112,27 @@ export async function fetchStats<T>(session: Session): Promise<T> {
   return await call<T>("/stats", session);
 }
 
+export interface Stammdaten {
+  code: string;
+  holderName?: string | null;
+  category?: string | null;
+  note?: string | null;
+}
+
+/**
+ * Stammdaten schreiben — Nummer, Name, Kategorie, Vermerk.
+ *
+ * Der Einlassstand ist nicht dabei und kann es auch nicht sein: Der Endpunkt
+ * nimmt `redeemed_at` gar nicht entgegen.
+ */
+export async function saveTickets(session: Session, zeilen: Stammdaten[]): Promise<number> {
+  const { geschrieben } = await call<{ geschrieben: number }>("/verwaltung", session, {
+    method: "POST",
+    body: JSON.stringify({ zeilen }),
+  });
+  return geschrieben;
+}
+
 /** Stand der ausgegebenen Bändchen melden. */
 export async function reportWristbands(session: Session, counted: number): Promise<void> {
   await call("/stats", session, { method: "POST", body: JSON.stringify({ counted }) });

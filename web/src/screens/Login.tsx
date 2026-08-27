@@ -133,6 +133,11 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
         <small>Damit später erkennbar ist, an welcher Tür gescannt wurde.</small>
       </label>
 
+      {/* Kein zweites Feld für die Verwaltung.
+          Wer das Verwaltungspasswort statt des Eventpassworts eingibt,
+          bekommt zusätzlich das Recht, die Liste zu pflegen. Auf diesem
+          Bildschirm steht davon nichts — am Eingang soll niemand danach
+          suchen, und wer es braucht, weiß es. */}
       {error && <p className="error" role="alert">{error}</p>}
 
       <button type="submit" className="btn primary wide" disabled={busy}>

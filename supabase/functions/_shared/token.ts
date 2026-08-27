@@ -9,6 +9,16 @@ export interface DeviceClaims {
   deviceId: string;
   label: string;
   expiresAt: number; // Unix-Sekunden
+  /**
+   * Darf die Stammdaten der Ticketliste ändern.
+   *
+   * Bewusst ein eigenes Recht mit eigenem Passwort: Das Eventpasswort kennen
+   * am Festivalwochenende zehn Ehrenamtliche. Wer Namen nachträgt oder
+   * Tickets ergänzt, ist eine andere Person mit einer anderen Aufgabe — und
+   * das Recht, die Liste zu verändern, gehört nicht auf jedes Telefon am
+   * Eingang.
+   */
+  admin?: boolean;
 }
 
 function b64url(bytes: Uint8Array): string {
@@ -110,6 +120,13 @@ export async function verify(token: string, secret: string): Promise<DeviceClaim
  * mit einem leeren Schlüssel weiter: dann könnte jeder sich selbst ein Token
  * signieren. Fehlt sie, wird deshalb nichts mehr angenommen.
  */
+/** Das Verwaltungspasswort, oder null wenn keines gesetzt ist. Ohne Wert ist
+ *  die Verwaltung abgeschaltet — nicht offen. */
+export function adminPassword(): string | null {
+  const value = Deno.env.get("TICKETSCAN_ADMIN_PASSWORD");
+  return value || null;
+}
+
 export function tokenSecret(): string | null {
   const secret = Deno.env.get("TICKETSCAN_TOKEN_SECRET");
   return secret && secret.length >= 16 ? secret : null;

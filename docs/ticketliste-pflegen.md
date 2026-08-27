@@ -1,147 +1,110 @@
-# Ticketliste pflegen — ohne Terminal
+# Ticketliste pflegen — ohne Terminal, ohne Supabase-Zugang
 
 Für alle, die Namen nachtragen, Tickets ergänzen oder einen Vermerk setzen
-wollen, ohne sich mit Kommandozeile und Schlüsseln zu beschäftigen. Alles
-passiert im Browser, im Supabase-Dashboard.
+sollen. Es braucht nichts weiter als die App im Browser und ein Passwort.
 
-> **Vorher lesen:** Der Abschnitt „Was man nicht anfassen darf" weiter unten
-> ist kein Kleingedrucktes. Eine falsch geleerte Spalte macht ein bereits
-> benutztes Ticket wieder gültig.
+## Der Zugang
 
-## 1 · Zugang bekommen
+Es gibt **zwei Passwörter**, beide gehen durch dasselbe Feld auf dem
+Anmeldebildschirm:
 
-Der Projektinhaber lädt ein:
+| Passwort | Was es öffnet |
+|---|---|
+| das Eventpasswort | den Scanner — das kennen am Wochenende alle am Eingang |
+| das **Verwaltungspasswort** | zusätzlich das Pflegen der Ticketliste |
 
-**supabase.com/dashboard → oben links die Organisation → Team → Invite member**
+Auf dem Anmeldebildschirm steht von der zweiten Möglichkeit nichts. Wer sie
+braucht, weiß davon; am Eingang soll niemand danach suchen.
 
-E-Mail eintragen, Einladung verschicken. Der Eingeladene braucht ein
-kostenloses Supabase-Konto und nimmt die Einladung per Mail an.
+Gesetzt wird es einmalig vom Projektinhaber:
 
-**Wichtig zu wissen:** Wer Zugang zum Dashboard hat, sieht dort auch die
-geheimen Schlüssel und kann die Datenbank leeren. Eine Rolle „darf nur die
-Ticketliste bearbeiten" gibt es in den kleinen Tarifen nicht. Also nur an
-jemanden geben, dem man das Projekt insgesamt anvertraut.
-
-## 2 · Die Tabelle öffnen
-
-**Projekt → Table Editor (linke Leiste) → Tabelle `tickets`**
-
-Das sieht aus wie eine Tabellenkalkulation und bedient sich auch so.
-
-| Spalte | Was drinsteht | Bearbeiten? |
-|---|---|---|
-| `code` | die fünfstellige Nummer, z. B. `00425` | nur bei neuen Zeilen |
-| `holder_name` | Name auf der Liste, darf leer sein | **ja** |
-| `category` | „Festival-Ticket", „Crew", „Presse" … | **ja** |
-| `note` | Vermerk, erscheint am Eingang gelb hinterlegt | **ja** |
-| `redeemed_at` | wann eingelöst — leer heißt: noch nicht | **nein**, siehe unten |
-| `redeemed_by_device` | welches Gerät | **nein** |
-| `redeemed_scan_id` | welcher Vorgang | **nein** |
-| `updated_at` | setzt die Datenbank selbst | **nein** |
-
-**Eine Zelle ändern:** doppelklicken, tippen, Enter.
-
-**Eine Zeile suchen:** oben auf *Filter* → `code` → `equals` → `00425`. Für
-Namen `holder_name` → `ilike` → `%meier%`.
-
-**Eine Zeile hinzufügen:** oben rechts *Insert* → *Insert row*. `code` und
-`category` ausfüllen, der Rest darf leer bleiben. Die Nummer muss genau so
-viele Stellen haben wie die anderen — `425` ist falsch, `00425` ist richtig.
-
-**Eine Zeile löschen:** Zeile anhaken, *Delete row*. Nur bei Tickets, die noch
-nicht eingelöst sind.
-
-## 3 · Was am Eingang davon ankommt
-
-Die Telefone gleichen alle acht Sekunden ab. Eine Änderung ist also nach
-wenigen Sekunden auf allen Geräten — vorausgesetzt, sie haben Netz. Ohne Netz
-sehen sie den Stand ihres letzten Abgleichs; das steht in der App auch so
-unter der Liste.
-
-Konkret:
-
-- **Name geändert** → steht beim nächsten Scan unter der Nummer.
-- **Ticket hinzugefügt** → wird von der Kamera erkannt, sobald die Geräte es
-  gezogen haben (bis zu zehn Sekunden länger als der Abgleich).
-- **Vermerk gesetzt** → erscheint im Bestätigungsschritt.
-
-## 4 · Viele Zeilen auf einmal
-
-Der Tabelleneditor ist für einzelne Änderungen gedacht. Für hundert Namen auf
-einmal führt der Weg über den **SQL Editor** (linke Leiste). Dort einfügen,
-anpassen, *Run*:
-
-```sql
--- Einen Namen setzen
-update tickets set holder_name = 'Anna Weber' where code = '00425';
-
--- Mehrere auf einmal
-update tickets set holder_name = v.name
-  from (values
-    ('00425', 'Anna Weber'),
-    ('00426', 'Ben Weber'),
-    ('00427', 'Clara Meier')
-  ) as v(code, name)
- where tickets.code = v.code;
-
--- Eine ganze Gruppe zur Crew erklären
-update tickets set category = 'Crew' where code between '02200' and '02305';
-
--- Nachsehen, was drinsteht
-select code, holder_name, category, note, redeemed_at
-  from tickets where holder_name is not null order by code limit 50;
+```bash
+npx supabase secrets set TICKETSCAN_ADMIN_PASSWORD='<das-verwaltungspasswort>'
+npx supabase functions deploy session     --no-verify-jwt
+npx supabase functions deploy verwaltung  --no-verify-jwt
 ```
 
-Vor jedem `update` lohnt sich derselbe Befehl als `select` — dann sieht man,
-welche Zeilen betroffen wären, bevor man sie ändert.
+Ist die Variable nicht gesetzt, gibt es die Verwaltung nicht — sie ist dann
+nicht etwa offen, sondern abgeschaltet.
 
-**Nicht während des Einlasses.** Eine Änderung an allen 2305 Zeilen markiert
-alle als geändert, und jedes Telefon zieht daraufhin den kompletten Bestand
-neu. Das dauert und braucht Netz. Vormittags ja, Freitag um 19 Uhr nein.
+## So kommt man hin
 
-## 5 · Was man nicht anfassen darf
+1. App öffnen: <https://allawallabedalla.github.io/TicketScan/>
+   — geht am Telefon wie am Laptop.
+2. Anmelden, aber mit dem **Verwaltungspasswort** statt des Eventpassworts.
+   Der Gerätename kann alles sein, etwa „Laptop Büro“.
+3. Unten die Statuszeile antippen → **Übersicht**.
+4. Dort steht der Abschnitt **Ticketliste pflegen** → *Liste bearbeiten*.
 
-**`redeemed_at` ist der Einlassstand, keine Notiz.**
+Wer sich mit dem gewöhnlichen Eventpasswort anmeldet, sieht diesen Abschnitt
+nicht, und der Server weist ihn auch ab, wenn er es doch versucht.
 
-- Wer den Wert einer Zeile **löscht**, macht ein Ticket wieder gültig. Die
-  Person ist mit Bändchen drin, und das Ticket lässt jemand anderen erneut
-  hinein.
-- Wer einen Wert **einträgt**, sperrt einen Gast aus, der noch gar nicht da
-  war. Er läuft am Eingang als „bereits eingelöst" auf.
+## Einzeln ändern
 
-Das Zurücknehmen einer Einlösung gehört in die App (*Verlauf → Zurücknehmen*)
-oder in `scripts/reset-redemptions.mjs`. Beide hinterlassen eine Spur im
-Protokoll; ein Klick im Tabelleneditor tut das nicht.
+Der Reiter **Einzeln**. Nummer oder Name ins Suchfeld, beim Treffer auf
+*Ändern*. Zu ändern sind:
 
-**Nicht in `scan_log` schreiben.** Das ist die Aufzeichnung, aus der sich
-hinterher rekonstruieren lässt, wann welches Gerät was entschieden hat. Lesen
-gern, ändern nie.
+- **Name** — steht nach dem Scan groß unter der Nummer. Darf leer bleiben.
+- **Kategorie** — „Festival-Ticket“, „Crew“, „Presse“ …
+- **Vermerk** — erscheint am Eingang gelb hinterlegt.
 
-**Die Nummernstellen nicht ändern.** Die App leitet aus der Liste ab, wie
-viele Stellen einzutippen sind und welche Vorsilbe feststeht. Kommt eine
-vierstellige Nummer dazu, stimmt das für alle nicht mehr.
+*Speichern*, fertig. Die Telefone am Eingang haben die Änderung nach wenigen
+Sekunden.
 
-## 6 · Nachsehen, was passiert ist
+## Eine ganze Liste einfügen
 
-Im SQL Editor:
+Der Reiter **Liste einfügen**. Dafür ist der Bildschirm eigentlich da: Der
+Organisator schickt eine Tabelle, und die kommt hier per Zwischenablage rein —
+2305 Zeilen einzeln zu tippen macht niemand.
 
-```sql
--- Wer ist schon drin?
-select code, holder_name, redeemed_at, redeemed_by_device
-  from tickets where redeemed_at is not null order by redeemed_at desc;
+Eine Zeile je Ticket, Nummer zuerst, getrennt durch **Komma, Semikolon oder
+Tabulator**:
 
--- Wie viele noch offen?
-select count(*) filter (where redeemed_at is null) as offen,
-       count(*) as gesamt
-  from tickets;
-
--- Die letzten Vorgänge, auch die abgewiesenen
-select server_ts, code, action, result, reason
-  from scan_log order by server_ts desc limit 50;
+```
+00425, Anna Weber
+00426; Ben Weber
+00427	Clara Meier
+00428, , Crew
+00429
 ```
 
-Über *Download CSV* rechts über dem Ergebnis lässt sich alles mitnehmen.
+Dritte Spalte ist die Kategorie, vierte ein Vermerk — beide dürfen fehlen.
+Eine Zeile nur mit Nummer legt ein Ticket ohne Namen an. Eine Kopfzeile
+(`code,name`) wird übersprungen.
 
-Dasselbe sieht man auch in der App selbst — im Laptop-Browser öffnen, anmelden,
-unten *Liste* und *Übersicht*. Dafür braucht es keinen Dashboard-Zugang,
-sondern nur das Eventpasswort.
+Aus Excel oder Numbers: die beiden Spalten markieren, kopieren, hier einfügen.
+Die Spalten kommen als Tabulator an, das passt.
+
+**Vor dem Übernehmen zeigt die App, was sie gelesen hat** — Anzahl der Zeilen,
+wie viele davon einen Namen haben, und wie viele Stellen die Nummern haben.
+Stehen dort zwei verschiedene Stellenzahlen, sind beim Export die führenden
+Nullen verlorengegangen (`425` statt `00425`); dann ist der Knopf gesperrt.
+Das ist der häufigste Fehler auf dem Weg über eine Tabellenkalkulation.
+
+**Nicht während des Einlasses.** Eine Änderung an vielen Zeilen lässt jedes
+Telefon den Bestand neu ziehen. Vormittags ja, Freitagabend nicht.
+
+## Was hier absichtlich nicht geht
+
+**Den Einlassstand ändern.** Weder setzen noch löschen — der Server nimmt das
+Feld gar nicht entgegen.
+
+- Wer eine Einlösung **löschen** könnte, würde ein benutztes Ticket wieder
+  gültig machen. Die Person ist mit Bändchen drin, und das Ticket ließe
+  jemand anderen erneut hinein.
+- Wer eine **eintragen** könnte, würde einen Gast aussperren, der noch gar
+  nicht da war.
+
+Eine Einlösung nimmt man in der App unter **Verlauf → Zurücknehmen** zurück.
+Das hinterlässt eine Spur im Protokoll; ein überschriebenes Feld nicht.
+
+**Tickets löschen.** Eine Nummer, die auf einem Papierticket steht, aus der
+Liste zu nehmen heißt, jemanden an der Tür abzuweisen. Das gehört nicht hinter
+einen Knopf, den man versehentlich trifft — dafür bleibt der Weg über das
+Supabase-Dashboard oder `scripts/import-tickets.mjs`.
+
+## Nachsehen, was drin ist
+
+Dieselbe App, unten **Liste**: alle Tickets, umschaltbar zwischen *Alle*,
+*Offen* und *Eingelöst*, durchsuchbar nach Nummer und Name. Am Laptop
+genauso wie am Telefon.

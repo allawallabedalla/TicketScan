@@ -39,6 +39,18 @@ node run.mjs
 Erwartet werden 24 Zeilen `ok` und `SEITENFEHLER: keine` — bis auf die eine
 Meldung `ERR_INTERNET_DISCONNECTED`, die der Flugmodus-Test selbst auslöst.
 
+## Verwaltungsansicht
+
+`verwaltung.mjs` prüft den zweiten Weg in die App — das Pflegen der
+Ticketliste. Neun Prüfungen, darunter die wichtigste: dass ein Gerät mit dem
+gewöhnlichen Eventpasswort die Verwaltung weder sieht noch benutzen kann.
+
+```bash
+node verwaltung.mjs
+```
+
+Der nachgestellte Server kennt dafür `nimda-test` als Verwaltungspasswort.
+
 ## Den Fehler absichtlich einbauen
 
 Ein Test, der nur auf der heilen Fassung läuft, prüft nichts. `KAPUTT=1`

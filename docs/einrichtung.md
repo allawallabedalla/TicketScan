@@ -98,7 +98,8 @@ npx supabase secrets set \
 
 ## 5 · Endpunkte veröffentlichen
 
-Es sind **vier**. `stats` fehlte hier lange, und das fällt nicht auf: Die
+Es sind **vier** — plus `verwaltung`, wenn jemand die Ticketliste pflegen
+soll, ohne Zugang zum Dashboard zu bekommen (siehe „Ticketliste pflegen“). `stats` fehlte hier lange, und das fällt nicht auf: Die
 Übersicht meldet dann „Kennzahlen brauchen Netz", obwohl der Endpunkt nur nie
 veröffentlicht wurde — samt Bändchenabgleich, also dem zweiten, körperlichen
 Zähler. Der Testlauf prüft es inzwischen mit.
@@ -108,6 +109,9 @@ npx supabase functions deploy session --no-verify-jwt
 npx supabase functions deploy scans   --no-verify-jwt
 npx supabase functions deploy changes --no-verify-jwt
 npx supabase functions deploy stats   --no-verify-jwt
+
+# Nur wenn jemand ohne Dashboard-Zugang die Liste pflegen soll:
+npx supabase functions deploy verwaltung --no-verify-jwt
 ```
 
 `--no-verify-jwt` ist hier richtig und kein Sicherheitsloch: Die Endpunkte
@@ -360,20 +364,31 @@ Stammdaten und rührt `redeemed_at` nicht an. Er markiert aber alle Zeilen als
 geändert und löst damit auf allen Geräten einen vollständigen Neuabgleich aus
 — also nicht während des Einlasses.
 
-## Ticketliste pflegen, ohne Terminal
+## Ticketliste pflegen — in der App
 
-Namen nachtragen, ein Ticket ergänzen, einen Vermerk setzen — das geht
-vollständig im Browser über den Tabelleneditor im Supabase-Dashboard, ohne
-CLI und ohne Schlüssel. Eigene Anleitung, auch zum Weitergeben:
-[`docs/ticketliste-pflegen.md`](ticketliste-pflegen.md).
+Namen nachtragen, Tickets ergänzen, Vermerke setzen: Das geht in der App
+selbst, ohne Terminal und **ohne Zugang zum Supabase-Dashboard**. Wer das
+übernehmen soll, bekommt nur ein Passwort.
 
-Kurz: **Table Editor → Tabelle `tickets`**, Zelle doppelklicken, tippen. Die
-Telefone haben die Änderung nach wenigen Sekunden. `redeemed_at` bleibt
-unangetastet — das ist der Einlassstand, kein Textfeld.
+```bash
+npx supabase secrets set TICKETSCAN_ADMIN_PASSWORD='<das-verwaltungspasswort>'
+npx supabase functions deploy session     --no-verify-jwt
+npx supabase functions deploy verwaltung  --no-verify-jwt
+```
 
-Wer dafür Zugang bekommt, sieht im Dashboard auch die Schlüssel und kann die
-Datenbank leeren; eine Rolle „nur Ticketliste" gibt es in den kleinen Tarifen
-nicht.
+Dieses Passwort geht durch dasselbe Feld wie das Eventpasswort. Wer es
+eingibt, findet unter *Übersicht* zusätzlich den Abschnitt **Ticketliste
+pflegen** — einzelne Änderungen und ein Feld, in das sich eine ganze Liste
+einfügen lässt. Wer sich mit dem Eventpasswort anmeldet, sieht davon nichts,
+und der Server weist ihn ab, falls er es doch versucht.
+
+Der Einlassstand lässt sich dort nicht ändern und Tickets nicht löschen — der
+Endpunkt nimmt beides gar nicht entgegen.
+
+Anleitung zum Weitergeben: [`docs/ticketliste-pflegen.md`](ticketliste-pflegen.md).
+
+Ist `TICKETSCAN_ADMIN_PASSWORD` nicht gesetzt, ist die Verwaltung
+abgeschaltet — nicht offen.
 
 ## Listen am Laptop ansehen
 

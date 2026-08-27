@@ -9,6 +9,7 @@ import * as api from "../lib/api";
 import { Unauthorized } from "../lib/api";
 import type { Session } from "../lib/store";
 import { Feedback } from "./Feedback";
+import { Verwaltung } from "./Verwaltung";
 
 interface Stats {
   eingeloest: number;
@@ -27,6 +28,7 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
   const [error, setError] = useState<string | null>(null);
   const [bands, setBands] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showVerwaltung, setShowVerwaltung] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +76,9 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
       </header>
 
       {error && <p className="error" role="alert">{error}</p>}
+      {showVerwaltung && (
+        <Verwaltung session={session} onClose={() => setShowVerwaltung(false)} />
+      )}
       {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
 
       {stats && (
@@ -165,6 +170,24 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
                   ? "Doppelte Einlösungen gab es dabei keine."
                   : `${stats.konflikteGesamt ?? stats.konflikte.length} doppelte Einlösungen aufgetreten.`}
               </p>
+            </section>
+          )}
+
+          {/* Nur mit dem Verwaltungspasswort. Wer sich am Eingang mit dem
+              Eventpasswort anmeldet, sieht diesen Abschnitt nicht. */}
+          {session.admin && (
+            <section className="block">
+              <h2>Ticketliste pflegen</h2>
+              <p className="aside">
+                Namen nachtragen, Tickets ergänzen, Vermerke setzen — einzeln
+                oder eine ganze Liste auf einmal einfügen.
+              </p>
+              <button
+                type="button" className="btn wide"
+                onClick={() => setShowVerwaltung(true)}
+              >
+                Liste bearbeiten
+              </button>
             </section>
           )}
 

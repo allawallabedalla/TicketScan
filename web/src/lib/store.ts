@@ -200,6 +200,8 @@ export interface Session {
   deviceId: string;
   label: string;
   expiresAt: number; // Unix-Sekunden, Tagesgrenze
+  /** Darf die Ticketliste ändern. Nur mit dem Verwaltungspasswort. */
+  admin?: boolean;
 }
 
 export async function loadSession(): Promise<Session | null> {

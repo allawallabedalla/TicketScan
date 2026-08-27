@@ -5,7 +5,7 @@
 // Abgefragt wird einmal je Gerät und Festivaltag, nie beim Scannen.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { CORS, issue, json, nextRollover, timingSafeEqual, tokenSecret } from "../_shared/token.ts";
+import { CORS, adminPassword, issue, json, nextRollover, timingSafeEqual, tokenSecret } from "../_shared/token.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -86,8 +86,21 @@ Deno.serve(async (req) => {
     return json({ error: "Server nicht eingerichtet" }, 500);
   }
 
+  // Zwei mögliche Passwörter an einem Feld.
+  //
+  // Das Eventpasswort kennen am Wochenende zehn Ehrenamtliche; es öffnet den
+  // Scanner. Das Verwaltungspasswort kennt eine Person; es öffnet zusätzlich
+  // das Pflegen der Ticketliste. Beide gehen durch dasselbe Feld, und auf dem
+  // Anmeldebildschirm steht von der zweiten Möglichkeit nichts — wer sie
+  // braucht, weiß davon, und am Eingang soll niemand danach suchen.
+  //
+  // Beide Vergleiche laufen immer, ohne vorzeitigen Ausstieg: Sonst verriete
+  // die Antwortdauer, welches der beiden gemeint war.
+  const erwartetAdmin = adminPassword();
+  const admin = erwartetAdmin !== null && timingSafeEqual(password, erwartetAdmin);
+
   const expected = Deno.env.get("TICKETSCAN_EVENT_PASSWORD") ?? "";
-  if (!expected || !timingSafeEqual(password, expected)) {
+  if (!admin && (!expected || !timingSafeEqual(password, expected))) {
     const { error } = await db.from("session_log")
       .insert({ label, succeeded: false, remote_ip: ip });
     // Der Fehlversuch ist die Grundlage der Ratenbegrenzung. Wird er nicht
@@ -140,7 +153,10 @@ Deno.serve(async (req) => {
     .insert({ device_id: device.device_id, label, succeeded: true, remote_ip: ip });
   if (logError) console.error("Anmeldung nicht protokolliert:", logError.message);
 
-  const token = await issue({ deviceId: device.device_id, label, expiresAt }, secret);
+  const token = await issue(
+    { deviceId: device.device_id, label, expiresAt, ...(admin ? { admin: true } : {}) },
+    secret,
+  );
 
-  return json({ token, deviceId: device.device_id, label, expiresAt });
+  return json({ token, deviceId: device.device_id, label, expiresAt, admin });
 });

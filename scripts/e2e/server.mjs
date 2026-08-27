@@ -85,18 +85,40 @@ createServer(async (req, res) => {
 
   if (p === "/api/session" && req.method === "POST") {
     const b = await body(req);
-    if (b.password !== "herzberg2027") return send(res, 401, { error: "Passwort stimmt nicht" });
+    const admin = b.password === "nimda-test";
+    if (b.password !== "herzberg2027" && !admin) {
+      return send(res, 401, { error: "Passwort stimmt nicht" });
+    }
     return send(res, 200, {
-      token: "test-token", deviceId: b.deviceId ?? "geraet-1",
+      token: admin ? "admin-token" : "test-token", deviceId: b.deviceId ?? "geraet-1",
       label: b.label ?? "Test", expiresAt: Math.floor(Date.now()/1000) + 20*3600,
+      admin,
     });
+  }
+
+  if (p === "/api/verwaltung" && req.method === "POST") {
+    if (req.headers.authorization !== "Bearer admin-token") {
+      return send(res, 403, { error: "Dieses Gerät darf die Liste nicht ändern" });
+    }
+    const { zeilen } = await body(req);
+    for (const z of zeilen) {
+      const t = tickets.get(z.code);
+      if (!t) { tickets.set(z.code, { code: z.code, holder_name: z.holderName ?? null,
+        category: z.category ?? "Festival-Ticket", note: z.note ?? null,
+        redeemed_at: null, redeemed_by_device: null, updated_at: stempel() }); continue; }
+      t.holder_name = z.holderName ?? null;
+      t.category = z.category ?? t.category;
+      t.note = z.note ?? null;
+      t.updated_at = stempel();
+    }
+    return send(res, 200, { ok: true, geschrieben: zeilen.length });
   }
 
   if (p === "/api/zaehler") return send(res, 200, { changes: changesAufrufe });
 
   if (p === "/api/changes") {
     changesAufrufe++;
-    if (req.headers.authorization !== "Bearer test-token") return send(res, 401, { error: "weg" });
+    if (!["Bearer test-token","Bearer admin-token"].includes(req.headers.authorization)) return send(res, 401, { error: "weg" });
     let since = url.searchParams.get("since");
     // KAPUTT=1 stellt den behobenen Fehler nach: Der Endpunkt schnitt den
     // Zeitstempel auf Millisekunden zurück, der Zeiger lief damit rückwärts.
@@ -126,7 +148,7 @@ createServer(async (req, res) => {
   }
 
   if (p === "/api/scans" && req.method === "POST") {
-    if (req.headers.authorization !== "Bearer test-token") return send(res, 401, { error: "weg" });
+    if (!["Bearer test-token","Bearer admin-token"].includes(req.headers.authorization)) return send(res, 401, { error: "weg" });
     const { scans } = await body(req);
     const results = scans.map((s) => {
       if (scanLog.has(s.scanId)) return scanLog.get(s.scanId);
@@ -153,7 +175,7 @@ createServer(async (req, res) => {
   }
 
   if (p === "/api/stats") {
-    if (req.headers.authorization !== "Bearer test-token") return send(res, 401, { error: "weg" });
+    if (!["Bearer test-token","Bearer admin-token"].includes(req.headers.authorization)) return send(res, 401, { error: "weg" });
     if (req.method === "POST") { await body(req); return send(res, 200, { ok: true }); }
     const eingeloest = [...tickets.values()].filter((t) => t.redeemed_at).length;
     return send(res, 200, {

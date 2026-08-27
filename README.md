@@ -25,7 +25,8 @@ importieren, Geräte zurücksetzen, Veröffentlichung sperren.
 - [`docs/einrichtung.md`](docs/einrichtung.md) — Backend aufsetzen, in acht
   Schritten, mit Testlauf und Checkliste vor dem Livegang.
 - [`docs/ticketliste-pflegen.md`](docs/ticketliste-pflegen.md) — Namen
-  nachtragen und Tickets ergänzen, im Browser, ohne Terminal.
+  nachtragen und Tickets ergänzen, in der App selbst: ohne Terminal und ohne
+  Zugang zum Supabase-Dashboard.
 - [`docs/kurzanleitung-vorschau.html`](docs/kurzanleitung-vorschau.html) — die
   fünf Bildschirme der Kurzanleitung als Vorschau, umschaltbar zwischen iPhone
   und Android.
@@ -85,7 +86,7 @@ nur die Variablennamen.
 
 ```
 supabase/migrations/  Schema, atomare Einlösung, Rücknahme
-supabase/functions/   session · scans · changes · stats
+supabase/functions/   session · scans · changes · stats · verwaltung
 scripts/              Import der Ticketliste mit Vorabprüfung
 web/                  Progressive Web App (Vite, React, TypeScript)
 data/                 Testliste und ihr Generator

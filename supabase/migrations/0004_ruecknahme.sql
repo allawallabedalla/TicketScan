@@ -22,7 +22,11 @@
 -- 'error', damit der Eintrag in der Warteschlange bleibt.
 drop function if exists undo_redemption(text, uuid, uuid, text);
 
-create function undo_redemption(
+-- `create or replace`, nicht `create`: Sonst scheitert ein zweiter Durchlauf
+-- dieser Datei an „already exists" — und damit auch alles darunter. Die Regel
+-- aus docs/migrationen.md gilt ausnahmslos, und dieses Projekt ist an genau
+-- dieser Stelle schon zweimal aufgelaufen.
+create or replace function undo_redemption(
   p_code      text,
   p_device_id uuid,
   p_scan_id   uuid,

@@ -18,7 +18,11 @@ export function Recent({ onClose }: { onClose: () => void }) {
   async function takeBack(entry: store.HistoryEntry) {
     setBusy(entry.scanId);
     try {
-      await sync.undo(entry.code, "Rücknahme am Gerät");
+      // Die scanId der eigenen Einlösung mitgeben: Diese Rücknahme meint
+      // genau diesen Vorgang. Kommt sie verspätet an, weil das Gerät im
+      // Funkloch stand, darf sie keine fremde Einlösung treffen, die
+      // inzwischen an einer anderen Tür entstanden ist.
+      await sync.undo(entry.code, "Rücknahme am Gerät", entry.scanId);
       await store.amend(entry.scanId, { undoneAt: new Date().toISOString() });
       load();
     } finally {

@@ -16,12 +16,20 @@ const ROLLOVER_HOUR = Number(Deno.env.get("TICKETSCAN_SESSION_ROLLOVER_HOUR") ??
 
 // Eine gemeinsame Losung wird nicht erraten, sie wird weitergegeben — die
 // Protokollierung unten wiegt schwerer als diese Bremse.
-const MAX_ATTEMPTS = 10;
+//
+// Die Zahlen sind bewusst großzügig. Am Eingang hängen alle zehn Telefone am
+// selben Uplink, haben also EINE öffentliche Adresse, und um 06:00 melden
+// sich planmäßig alle gleichzeitig neu an — im Dunkeln, mit einem gemeinsamen
+// Passwort. Bei zehn Versuchen je Adresse hätte ein Vertipper pro Person
+// gereicht, um den ganzen Einlass auszusperren. Gegen das Erraten eines
+// Passworts schützt ohnehin dessen Länge, nicht eine niedrige Zahl hier.
+const MAX_ATTEMPTS = 40;
 const WINDOW_MINUTES = 15;
-// Zusätzlich eine Bremse über alle Adressen hinweg. Die Zählung je Adresse
-// lässt sich durch Streuen des Headers umgehen; diese hier nicht. Sie liegt
-// so hoch, dass zehn Geräte am Morgen nie in ihre Nähe kommen.
-const MAX_ATTEMPTS_TOTAL = 60;
+// Zusätzlich eine Bremse über alle Adressen hinweg, gegen das Streuen des
+// Headers. Auch sie großzügig: Die Adresse der Endpunkte steht öffentlich im
+// Repo, eine zu niedrige Zahl wäre eine Fernbedienung zum Abschalten der
+// Einlasskontrolle.
+const MAX_ATTEMPTS_TOTAL = 400;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -47,15 +55,27 @@ Deno.serve(async (req) => {
       .eq("succeeded", false).gte("created_at", since),
   ]);
 
-  if ((count ?? 0) >= MAX_ATTEMPTS || (total ?? 0) >= MAX_ATTEMPTS_TOTAL) {
-    return json({ error: "Zu viele Versuche. Bitte in einer Viertelstunde erneut." }, 429);
-  }
+  const gebremst = (count ?? 0) >= MAX_ATTEMPTS || (total ?? 0) >= MAX_ATTEMPTS_TOTAL;
 
   let password = "", label = "", deviceId: string | null = null;
   try {
     ({ password = "", label = "", deviceId = null } = await req.json());
   } catch {
     return json({ error: "Ungültige Anfrage" }, 400);
+  }
+
+  // Ein bereits eingerichtetes, nicht gesperrtes Gerät kommt an der Bremse
+  // vorbei. Es hat sich schon einmal mit dem richtigen Passwort angemeldet;
+  // es jetzt auszusperren schützt niemanden und kostet einen Eingang.
+  let bekannt = false;
+  if (deviceId && /^[0-9a-f-]{36}$/i.test(deviceId)) {
+    const { data } = await db.from("devices")
+      .select("device_id, revoked_at").eq("device_id", deviceId).maybeSingle();
+    bekannt = Boolean(data && !data.revoked_at);
+  }
+
+  if (gebremst && !bekannt) {
+    return json({ error: "Zu viele Versuche. Bitte in einer Viertelstunde erneut." }, 429);
   }
 
   const secret = tokenSecret();
@@ -95,7 +115,10 @@ Deno.serve(async (req) => {
       .select("device_id, revoked_at").eq("device_id", deviceId).maybeSingle();
 
     if (known?.revoked_at) {
-      await db.from("session_log").insert({ label, succeeded: false, remote_ip: ip });
+      // Kein Eintrag als Fehlversuch: Ein gesperrtes Telefon, das im Rucksack
+      // liegt und alle acht Sekunden anklopft, würde sonst das Kontingent
+      // seiner Adresse und das globale verbrennen — und damit die Geräte
+      // aussperren, die noch arbeiten sollen.
       return json({ error: "Dieses Gerät ist gesperrt. Bitte an die Einlassleitung." }, 403);
     }
 

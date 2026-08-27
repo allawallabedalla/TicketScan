@@ -14,6 +14,20 @@ const DIST = process.argv[2];
 const PORT = Number(process.argv[3] ?? 8123);
 
 const N = 2305;
+
+// Zeitstempel mit MIKROSEKUNDEN, wie PostgREST sie liefert.
+//
+// Das ist kein Detail: Der Endpunkt hat den Wert einmal durch `new Date()`
+// geschickt und damit auf Millisekunden gekürzt — der Abgleichszeiger lief
+// dadurch bei jeder Antwort ein Stück zurück, und bei tausend Zeilen mit
+// demselben Zeitstempel blätterte die App endlos im Kreis. Ein Prüfstand mit
+// Millisekunden kann diesen Fehler gar nicht zeigen, deshalb steht er hier.
+let changesAufrufe = 0;
+let folge = 0;
+const stempel = () => {
+  const ms = new Date().toISOString().slice(0, -1);
+  return `${ms}${String(folge++ % 1000).padStart(3, "0")}+00:00`;
+};
 const tickets = new Map();
 for (let i = 1; i <= N; i++) {
   const code = String(i).padStart(5, "0");
@@ -24,7 +38,7 @@ for (let i = 1; i <= N; i++) {
     note: null,
     redeemed_at: null,
     redeemed_by_device: null,
-    updated_at: "2026-08-01T00:00:00.000Z",
+    updated_at: "2026-08-01T00:00:00.000000+00:00",
   });
 }
 const scanLog = new Map();          // scanId -> ergebnis (Idempotenz)
@@ -53,9 +67,18 @@ createServer(async (req, res) => {
 
   if (req.method === "OPTIONS") { send(res, 204, {}); return; }
 
+  // Alle Tickets auf einen Schlag anfassen, wie es reset-redemptions und der
+  // Import tun: Danach tragen 2305 Zeilen DENSELBEN Zeitstempel — der Fall,
+  // in dem der Abgleich vorher hängen blieb.
+  if (p === "/api/beruehre-alle") {
+    const jetzt = stempel();
+    for (const t of tickets.values()) t.updated_at = jetzt;
+    return send(res, 200, { ok: true, stempel: jetzt });
+  }
+
   if (p === "/api/reset") {
     for (const t of tickets.values()) { t.redeemed_at = null; t.redeemed_by_device = null;
-      t.updated_at = "2026-08-01T00:00:00.000Z"; }
+      t.updated_at = "2026-08-01T00:00:00.000000+00:00"; }
     scanLog.clear();
     return send(res, 200, { ok: true });
   }
@@ -69,9 +92,17 @@ createServer(async (req, res) => {
     });
   }
 
+  if (p === "/api/zaehler") return send(res, 200, { changes: changesAufrufe });
+
   if (p === "/api/changes") {
+    changesAufrufe++;
     if (req.headers.authorization !== "Bearer test-token") return send(res, 401, { error: "weg" });
-    const since = url.searchParams.get("since");
+    let since = url.searchParams.get("since");
+    // KAPUTT=1 stellt den behobenen Fehler nach: Der Endpunkt schnitt den
+    // Zeitstempel auf Millisekunden zurück, der Zeiger lief damit rückwärts.
+    // Damit lässt sich prüfen, dass der Schutz in sync.ts wirklich greift —
+    // ein Test, der nur auf der heilen Fassung läuft, prüft nichts.
+    if (since && process.env.KAPUTT) since = new Date(since).toISOString();
     const sinceCode = url.searchParams.get("sinceCode");
     const offset = Number(url.searchParams.get("offset") ?? 0);
     const PAGE = 1000;
@@ -104,13 +135,13 @@ createServer(async (req, res) => {
       if (!t) r = { scanId: s.scanId, code: s.code, result: "unknown" };
       else if (s.action === "undo") {
         t.redeemed_at = null; t.redeemed_by_device = null;
-        t.updated_at = new Date().toISOString();
+        t.updated_at = stempel();
         r = { scanId: s.scanId, code: s.code, result: "ok", redeemed_at: null, redeemed_by_device: null };
       } else if (t.redeemed_at) {
         r = { scanId: s.scanId, code: s.code, result: "duplicate",
               redeemed_at: t.redeemed_at, redeemed_by_device: t.redeemed_by_device };
       } else {
-        t.redeemed_at = new Date().toISOString(); t.redeemed_by_device = "geraet-1";
+        t.redeemed_at = stempel(); t.redeemed_by_device = "geraet-1";
         t.updated_at = t.redeemed_at;
         r = { scanId: s.scanId, code: s.code, result: "ok",
               redeemed_at: t.redeemed_at, redeemed_by_device: t.redeemed_by_device };

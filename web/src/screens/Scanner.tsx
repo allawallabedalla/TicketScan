@@ -62,6 +62,10 @@ export function Scanner({ session }: { session: store.Session }) {
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [source, setSource] = useState<{ w: number; h: number } | null>(null);
   const [reachable, setReachable] = useState(false);
+  // Vorgänge, die mehrfach nicht durchkamen. Sie bleiben in der Warteschlange
+  // — geworfen wird nichts —, aber „5 warten" und „5 kommen nicht durch" sind
+  // zwei verschiedene Nachrichten an die Einlassleitung.
+  const [stuck, setStuck] = useState(0);
   const [showRecent, setShowRecent] = useState(false);
   const [showList, setShowList] = useState(false);
   const [showStats, setShowStats] = useState(false);
@@ -121,11 +125,13 @@ export function Scanner({ session }: { session: store.Session }) {
   // angekommen sind.
   useEffect(() => {
     const check = async () => {
-      const [queued, last] = await Promise.all([
+      const [queued, stuck, last] = await Promise.all([
         store.queueSize(),
+        store.stuckCount(),
         store.get<string>("lastSyncAt"),
       ]);
       setPending(queued);
+      setStuck(stuck);
       // Abgeglichen wird alle acht Sekunden. Nach etwa drei ausgefallenen
       // Durchläufen ist der Kontakt weg und nicht bloß eine Runde ausgefallen.
       // Vorher standen hier 75 Sekunden — über eine Minute lang behauptete die
@@ -484,11 +490,13 @@ export function Scanner({ session }: { session: store.Session }) {
           <span className="state-name">
             <Icon.Chart /><span className="state-label">{session.label}</span>
           </span>
-          {pending > 0
-            ? <em className="warn">{pending} {pending === 1 ? "wartet" : "warten"}</em>
-            : reachable
-              ? <em className="ok">alles gesendet</em>
-              : <em className="warn">kein Kontakt</em>}
+          {stuck > 0
+            ? <em className="bad">{stuck} {stuck === 1 ? "kommt" : "kommen"} nicht durch</em>
+            : pending > 0
+              ? <em className="warn">{pending} {pending === 1 ? "wartet" : "warten"}</em>
+              : reachable
+                ? <em className="ok">alles gesendet</em>
+                : <em className="warn">kein Kontakt</em>}
           <span className="state-more">Übersicht</span>
         </button>
 

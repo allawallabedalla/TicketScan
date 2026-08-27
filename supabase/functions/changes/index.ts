@@ -27,9 +27,17 @@ Deno.serve(async (req) => {
   const params = new URL(req.url).searchParams;
   // Beide gehen ungeprüft in einen PostgREST-Filterausdruck. Ein sinceCode mit
   // Klammer oder Komma schlösse die and(...)-Gruppe vorzeitig.
+  // Prüfen, aber NICHT umformen.
+  //
+  // Hier stand `new Date(rawSince).toISOString()`. Das hat Millisekunden-
+  // auflösung, Postgres hat Mikrosekunden — der Zeiger wanderte damit bei
+  // jeder Antwort ein Stück zurück. Bei tausend Zeilen mit demselben
+  // Zeitstempel (nach jedem Import, nach jedem Zurücksetzen) lieferte der
+  // Endpunkt danach ewig dieselbe Seite, und der Abgleich des Geräts kam nie
+  // wieder zurück. Ein Zurückschneiden ist hier nie harmlos.
   const rawSince = params.get("since");
-  const since = rawSince && !Number.isNaN(Date.parse(rawSince))
-    ? new Date(rawSince).toISOString()
+  const since = rawSince && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:?\d{2})?$/.test(rawSince)
+    ? rawSince
     : null;
   const rawSinceCode = params.get("sinceCode");
   const sinceCode = rawSinceCode && /^\d{1,10}$/.test(rawSinceCode) ? rawSinceCode : null;
@@ -78,8 +86,12 @@ Deno.serve(async (req) => {
   const { data, error } = await query;
   if (error) return json({ error: "Abgleich fehlgeschlagen", detail: error.message }, 500);
 
+  // last_seen_at bekommt die echte Zeit, nicht den zurückdatierten Zeiger:
+  // Sonst erschiene in der Übersicht jedes Gerät eine Minute älter, als es
+  // ist — bei der Frage „welches Gerät ist stumm?" eine Minute falsche
+  // Auskunft. Der Sicherheitsabstand gehört allein zu synced_upto.
   await db.from("devices")
-    .update({ last_seen_at: serverTime, synced_upto: serverTime })
+    .update({ last_seen_at: new Date().toISOString(), synced_upto: serverTime })
     .eq("device_id", device.deviceId);
 
   const last = data.at(-1);

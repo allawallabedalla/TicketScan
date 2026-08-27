@@ -217,6 +217,29 @@ text = await p.locator("body").innerText();
 if (/alles gesendet/.test(text)) ok("Warteschlange nach Netzrückkehr geleert");
 else bad("Warteschlange bleibt stehen: " + text.replace(/\n/g," ").slice(-200));
 
+// ------------------------------- Alle Zeilen mit demselben Zeitstempel --
+//
+// Der Fall nach jedem Import und jedem Zurücksetzen. Ein zurückgeschnittener
+// Zeitstempel ließ den Abgleich hier endlos im Kreis blättern; das Gerät
+// schickte danach nichts mehr, während die Statuszeile weiter zählte.
+const vorher = (await (await fetch("http://127.0.0.1:8123/api/zaehler")).json()).changes;
+await fetch("http://127.0.0.1:8123/api/beruehre-alle");
+await p.waitForTimeout(25000);
+const nachher = (await (await fetch("http://127.0.0.1:8123/api/zaehler")).json()).changes;
+const proTakt = (nachher - vorher) / 3;   // rund drei Abgleichtakte in 25 s
+if (nachher - vorher < 40) ok(`Abgleich blättert nicht im Kreis (${nachher - vorher} Aufrufe in 25 s)`);
+else bad(`Abgleich dreht durch: ${nachher - vorher} Aufrufe in 25 s (${proTakt.toFixed(0)} je Takt)`);
+
+await tippe(p, "0200");
+text = await p.locator("body").innerText();
+if (/Gültig/.test(text)) ok("Scannen geht danach weiter");
+else bad("nach dem Massenabgleich keine Entscheidung mehr: " + text.slice(0,200));
+await p.getByRole("button", { name: /^Einlassen$/i }).click();
+await p.waitForTimeout(9000);
+text = await p.locator("body").innerText();
+if (/alles gesendet/.test(text)) ok("Warteschlange läuft danach weiter leer");
+else bad("Warteschlange bleibt stehen: " + text.replace(/\n/g," ").slice(-160));
+
 console.log("SICHTBAR:", (await p.locator("body").innerText()).slice(0, 400).replace(/\n+/g, " | "));
 console.log(log.join("\n"));
 console.log("SEITENFEHLER:", fehler.length ? fehler.join("\n") : "keine");

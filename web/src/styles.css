@@ -570,6 +570,7 @@ b { font-weight: 650; }
 
 .scanner-state em.ok { color: var(--ok); }
 .scanner-state em.warn { color: var(--warn); }
+.scanner-state em.bad { color: var(--bad); }
 
 /* Die erkannte Fundstelle des Etiketts. Man sieht daran sofort, ob die
    Erkennung greift — und muss nicht raten, warum nichts passiert. */

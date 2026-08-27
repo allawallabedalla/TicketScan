@@ -15,6 +15,8 @@ const db = createClient(
 const MAX_BATCH = 50;
 
 interface Scan {
+  /** Bei einer Rücknahme: die scan_id der Einlösung, die gemeint ist. */
+  undoOf?: string;
   scanId: string;
   code: string;
   clientTs: string;
@@ -53,6 +55,10 @@ Deno.serve(async (req) => {
         p_code: scan.code, p_device_id: device.deviceId,
         p_scan_id: scan.scanId, p_reason: scan.reason ?? null,
         p_client_ts: scan.clientTs, p_offline: scan.offline ?? false,
+        // Welche Einlösung gemeint ist. Fehlt der Wert, nimmt die Funktion
+        // zurück, was gerade eingelöst ist — das ist der Fall „Trotzdem
+        // einlassen", bei dem jemand bewusst eine fremde Einlösung freigibt.
+        p_undo_of: scan.undoOf ?? null,
       });
       if (error || typeof data !== "string") {
         results.push({ scanId: scan.scanId, code: scan.code, result: "error" });

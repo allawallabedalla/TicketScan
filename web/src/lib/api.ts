@@ -98,6 +98,7 @@ export async function submitScans(session: Session, scans: QueuedScan[]) {
         code: s.code,
         clientTs: s.clientTs,
         action: s.action,
+        undoOf: s.undoOf,
         reason: s.reason,
         offline: s.offline,
       })),

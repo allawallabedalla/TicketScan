@@ -63,7 +63,11 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
         // Bei einem Serverfehler denselben Weg wie ohne Netz gehen: Ein
         // pausiertes Projekt, eine überlastete Datenbank oder ein fehlendes
         // Geheimnis sind für die Person am Eingang dasselbe wie Funkstille.
-        if (res.status >= 500 && await offlineWeiter(password, label, onDone)) return;
+        // 429 gehört dazu: Ist die Anmeldebremse zugeschnappt, hilft es
+        // niemandem, ein Gerät auszusperren, das eine gültige gespeicherte
+        // Sitzung und den passenden Passworthash hat.
+        if ((res.status >= 500 || res.status === 429)
+            && await offlineWeiter(password, label, onDone)) return;
         setError(data.error ?? "Anmeldung fehlgeschlagen");
         return;
       }

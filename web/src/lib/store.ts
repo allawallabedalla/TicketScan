@@ -50,11 +50,15 @@ function run<T>(
       // ist. Bricht sie danach ab — voller Speicher auf einem Telefon mit 300
       // Fotos vom Abend —, hätte `enqueue` Erfolg gemeldet und die Einlösung
       // wäre trotzdem nicht in der Warteschlange. Ohne jede Meldung.
-      if (mode === "readonly") tx.oncomplete = () => resolve(result);
-      else {
-        tx.oncomplete = () => resolve(result);
-        tx.onabort = () => reject(tx.error ?? new Error("Transaktion abgebrochen"));
-      }
+      //
+      // `onabort` gilt für BEIDE Betriebsarten. Bricht eine lesende
+      // Transaktion ab, ohne dass vorher onerror gefeuert hat — die Datenbank
+      // wird durch ein versionchange geschlossen, iOS räumt im laufenden
+      // Betrieb —, käme sonst weder oncomplete noch onerror, und die Zusage
+      // bliebe für immer offen. Mitten im Abgleich hieße das: kein Abgleich
+      // mehr bis zum Neustart, ohne dass jemand ahnt, dass Neuladen hilft.
+      tx.oncomplete = () => resolve(result);
+      tx.onabort = () => reject(tx.error ?? new Error("Transaktion abgebrochen"));
     })
   );
 }
@@ -99,6 +103,7 @@ export async function putTickets(tickets: Ticket[]): Promise<void> {
     for (const ticket of tickets) store.put(ticket);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("Transaktion abgebrochen"));
   });
 }
 
@@ -114,6 +119,11 @@ export interface QueuedScan {
   seq?: number;
   clientTs: string;
   action: "redeem" | "undo";
+  /** Bei einer Rücknahme: die scanId der Einlösung, die gemeint ist. Ohne
+   *  sie nimmt der Server zurück, was gerade eingelöst ist — richtig beim
+   *  bewussten Freigeben, falsch bei einer verspätet zugestellten eigenen
+   *  Rücknahme, die sonst eine fremde Einlösung träfe. */
+  undoOf?: string;
   reason?: string;
   /** Entstand ohne Verbindung, war also im Moment der Entscheidung nicht
    *  gegen die anderen Geräte prüfbar. */
@@ -139,6 +149,13 @@ export const queued = () =>
   run<QueuedScan[]>("outbox", "readonly", (s) => s.getAll() as IDBRequest<QueuedScan[]>);
 
 export const queueSize = () => run<number>("outbox", "readonly", (s) => s.count());
+
+/** Wie viele Vorgänge sich festgefahren haben. Sie bleiben in der
+ *  Warteschlange — weggeworfen wird nichts —, aber die Statuszeile soll den
+ *  Unterschied zwischen „noch unterwegs" und „kommt nicht durch" zeigen. */
+export async function stuckCount(after = 5): Promise<number> {
+  return (await queued()).filter((s) => (s.attempts ?? 0) >= after).length;
+}
 
 export const dequeue = (scanId: string) =>
   run("outbox", "readwrite", (s) => s.delete(scanId) as unknown as IDBRequest<undefined>);

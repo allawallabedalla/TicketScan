@@ -26,6 +26,10 @@ ein echtes Ticket vermessen. Dafür braucht es ein Exemplar in die Hand.
 - [`docs/kurzanleitung-vorschau.html`](docs/kurzanleitung-vorschau.html) — die
   fünf Bildschirme der Kurzanleitung als Vorschau, umschaltbar zwischen iPhone
   und Android.
+- [`scripts/reset-redemptions.mjs`](scripts/reset-redemptions.mjs) — setzt
+  Einlösungen nach der Generalprobe zurück, mit Rückfrage.
+- [`scripts/export-log.mjs`](scripts/export-log.mjs) — führt Ticketstand und
+  Protokoll als CSV aus.
 - [`data/generate-tickets.mjs`](data/generate-tickets.mjs) — erzeugt eine
   Ticketliste im Importformat. Platzhalter, bis die echte Liste vorliegt.
 

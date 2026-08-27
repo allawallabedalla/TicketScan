@@ -213,3 +213,29 @@ git add DEPLOY-GESPERRT && git commit -m "Veröffentlichung sperren" && git push
 Der Ablauf bricht dann mit einer klaren Meldung ab. Aufheben: Datei löschen und
 pushen. Dieselbe Regel gilt für die GitHub-Verknüpfung von Supabase, die sonst
 Schemaänderungen einspielt.
+
+## Nach der Generalprobe
+
+Der Bestand steht danach voller Testeinlösungen. Zurücksetzen, ohne die
+Ticketliste anzurühren:
+
+```bash
+node scripts/reset-redemptions.mjs                       # nur zeigen
+node scripts/reset-redemptions.mjs --commit              # ausführen
+node scripts/reset-redemptions.mjs --commit --auch-protokoll
+```
+
+Ausgeführt wird erst nach einer Rückfrage, die man nicht versehentlich
+wegtippt — das Skript löscht die Arbeit eines ganzen Abends, wenn man sich im
+Zeitpunkt irrt. Die Geräte ziehen den Stand beim nächsten Abgleich nach.
+
+## Nach dem Festival
+
+```bash
+node scripts/export-log.mjs             > einlass.csv
+node scripts/export-log.mjs --protokoll > protokoll.csv
+```
+
+`einlass.csv` enthält jedes Ticket mit Einlösezeitpunkt und Gerät,
+`protokoll.csv` jeden einzelnen Vorgang — auch die abgewiesenen, die
+zurückgenommenen und die ohne Abgleich entstandenen.

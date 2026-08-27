@@ -9,20 +9,21 @@ autoritativen Datenquelle im Hintergrund.
 
 Die App ist vollständig: Kurzanleitung, Anmeldung mit Offline-Rückfall,
 Einrichtung, Kameraerfassung, Zifferntastatur, Bestätigungsschritt,
-Ausgangswarteschlange, Abgleich, Verlauf mit Rücknahme, Klärung mit
-Vertipper-Rückverfolgung, Suche und eine Übersicht mit Bändchenabgleich.
-Backend: vier Endpunkte, drei Migrationen.
+Ausgangswarteschlange, Abgleich, Verlauf mit Rücknahme, die vollständige
+Ticketliste mit Suche über Nummer und Name, und eine Übersicht mit
+Bändchenabgleich. Backend: vier Endpunkte, vier Migrationen.
 
-Offen ist genau eine Sache: Die Texterkennung ist gebaut, aber noch nicht gegen
-ein echtes Ticket vermessen. Dafür braucht es ein Exemplar in die Hand.
+Vor dem Livegang steht die Checkliste in
+[`docs/einrichtung.md`](docs/einrichtung.md) — Passwort ersetzen, echte Liste
+importieren, Geräte zurücksetzen, Veröffentlichung sperren.
 
 - [`docs/konzept.html`](docs/konzept.html) — vollständiges Konzept: Risikoanalyse
   zu Erfassungsfehlern, Kamerapipeline, Architektur, Datenmodell, Sync-Protokoll,
   Oberfläche, Betriebskonzept und Umsetzungsplan.
-- [`docs/audit.html`](docs/audit.html) — Audit und Backlog: 18 Befunde aus drei
-  Durchgängen, davon 17 behoben.
-- [`docs/einrichtung.md`](docs/einrichtung.md) — Backend aufsetzen, in
-  sieben Schritten, mit Testlauf am Ende.
+- [`docs/audit.html`](docs/audit.html) — Audit und Backlog über sechs
+  Durchgänge.
+- [`docs/einrichtung.md`](docs/einrichtung.md) — Backend aufsetzen, in acht
+  Schritten, mit Testlauf und Checkliste vor dem Livegang.
 - [`docs/kurzanleitung-vorschau.html`](docs/kurzanleitung-vorschau.html) — die
   fünf Bildschirme der Kurzanleitung als Vorschau, umschaltbar zwischen iPhone
   und Android.
@@ -82,11 +83,11 @@ nur die Variablennamen.
 
 ```
 supabase/migrations/  Schema, atomare Einlösung, Rücknahme
-supabase/functions/   session · scans · changes
+supabase/functions/   session · scans · changes · stats
 scripts/              Import der Ticketliste mit Vorabprüfung
 web/                  Progressive Web App (Vite, React, TypeScript)
 data/                 Testliste und ihr Generator
-docs/                 Konzept und Vorschau der Kurzanleitung
+docs/                 Konzept, Einrichtung, Migrationsregeln, Audit, Kurzanleitung
 ```
 
 ### App bauen
@@ -121,9 +122,11 @@ Die Namen darin sind erfunden und dienen der Vorführung; `--ohne-namen` lässt
 sie weg. Etwa jedes neunte Ticket bleibt bewusst namenlos, damit der Fall in
 der App auch tatsächlich vorkommt: Ein fehlender Name ist kein Verdachtsfall
 und darf niemanden den Einlass kosten. Die Namen hängen allein an der Nummer,
-zweimal erzeugt ergibt also dieselbe Datei — sonst würde jeder Import alle
-2305 Zeilen als geändert markieren und jedes Gerät den ganzen Bestand neu
-ziehen.
+zweimal erzeugt ergibt also dieselbe Datei. Folgenlos macht das einen zweiten
+Import allerdings nicht: Der Trigger `tickets_touch` setzt `updated_at` bei
+jedem UPDATE neu, auch wenn sich kein Wert ändert. Ein erneuter Import löst
+deshalb trotzdem auf allen Geräten einen vollständigen Neuabgleich aus —
+ungefährlich für die Einlösungen, aber nichts für die Einlasszeit.
 
 ## Einlösemodell
 

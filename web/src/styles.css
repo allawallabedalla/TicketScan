@@ -31,7 +31,10 @@
   --line: #D5C69B;
   --ink: #2E2A1E;         /* das Braunschwarz der gezeichneten Linien */
   --muted: #6B6250;
-  --faint: #99907A;
+  /* Angehoben von #99907A (2,93 zu 1). Trägt Platzhalter, den Hinweis unter
+     dem Balken, den Gerätenamen und die Fassungsnummer — alles Text, den
+     jemand nachts wirklich lesen können muss. */
+  --faint: #7C7462;
 
   --accent: #C0327B;      /* Magenta aus dem Schriftzug */
   --accent-soft: #F7DCE9;
@@ -333,7 +336,11 @@ b { font-weight: 650; }
 }
 .cam-hint { top: 22%; }
 .cam-error {
-  bottom: 12%; background: var(--bad); border-radius: 11px;
+  /* Feste Signalfarbe statt var(--bad): Im Dunkelmodus kippt die Variable auf
+     ein helles Lachsrosa, auf dem Weiß bei 2,48 zu 1 liegt — und das ist der
+     einzige Satz, den jemand bekommt, dessen Kamera nicht will. Nachts läuft
+     jedes iPhone im Dunkelmodus. */
+  bottom: 12%; background: #C0271A; border-radius: 11px;
   padding: 12px 14px; text-shadow: none; color: #fff;
 }
 
@@ -361,6 +368,13 @@ b { font-weight: 650; }
 
 .sheet {
   height: 100%;
+  /* Scrollen erlauben.
+   *
+   * Ohne das wurde die Rückmeldung „Bereits eingelöst" auf einem 320 Pixel
+   * breiten Gerät oben aus dem Bild geschoben — und der Knopf „Abweisen" lag
+   * unten außerhalb, ohne jede Möglichkeit, ihn zu erreichen. Der letzte
+   * sichtbare Knopf war dann ausgerechnet der, der einlässt. */
+  overflow-y: auto;
   display: flex; flex-direction: column; justify-content: center; gap: 10px;
   padding: max(28px, env(safe-area-inset-top)) var(--pad) max(20px, env(safe-area-inset-bottom));
   background: var(--surface);
@@ -373,15 +387,29 @@ b { font-weight: 650; }
  * quer über den ganzen Bildschirm. Blasse Tönungen leisten das nicht.
  */
 .sheet.full { color: #fff; }
-.sheet.full.ok   { background: #0F8A4F; }
+/* Etwas dunkler als vorher (#0F8A4F): Weiß darauf kommt damit über 4,5 zu 1,
+   die Schwelle für Fließtext. */
+.sheet.full.ok   { background: #0B7343; }
 .sheet.full.warn { background: #F0A81E; color: #2E2A1E; }
 .sheet.full.bad  { background: #C0271A; }
 
-.sheet.full .sheet-label,
+/* Spezifität, nicht Reihenfolge.
+ *
+ * `.sheet.full .sheet-label` und `.sheet.ok .sheet-label` sind gleich stark
+ * (0,3,0) — die spätere Regel gewann, und das war die farbige. Auf der grünen
+ * Fläche stand die Überschrift damit in Dunkelgrün auf Grün: 1,23 zu 1. Der
+ * große Haken ebenso. Übrig blieb die reine Farbfläche — und Grün gegen Gelb
+ * ist bei Regen und Streiflicht genau die Unterscheidung, die dann schwerfällt.
+ */
+.sheet.full.ok .sheet-label,
+.sheet.full.warn .sheet-label,
+.sheet.full.bad .sheet-label,
+.sheet.full.ok .sheet-big,
+.sheet.full.warn .sheet-big,
+.sheet.full.bad .sheet-big,
 .sheet.full .sheet-code,
 .sheet.full .sheet-meta,
-.sheet.full .sheet-ask,
-.sheet.full .sheet-big { color: inherit; }
+.sheet.full .sheet-ask { color: inherit; }
 .sheet.full .sheet-meta,
 .sheet.full .sheet-ask { opacity: .88; }
 
@@ -392,6 +420,8 @@ b { font-weight: 650; }
   color: #fff;
 }
 .sheet.full .btn.primary { background: #fff; border-color: #fff; color: #1A1A14; }
+.sheet.full :focus-visible { outline-color: #fff; }
+.sheet.full.warn :focus-visible { outline-color: #2E2A1E; }
 .sheet.full.warn .btn { background: rgba(46, 42, 30, .12); border-color: rgba(46, 42, 30, .35); color: #2E2A1E; }
 .sheet.full.warn .btn.primary { background: #2E2A1E; border-color: #2E2A1E; color: #F0A81E; }
 
@@ -402,6 +432,12 @@ b { font-weight: 650; }
 }
 .sheet.full .trace-label { color: inherit; opacity: .85; }
 .sheet.full.warn .trace { background: rgba(46, 42, 30, .1); border-color: rgba(46, 42, 30, .4); }
+
+.sheet > * { flex: 0 0 auto; }
+/* Passt der Inhalt nicht mehr, oben anfangen statt mittig abschneiden. */
+@media (max-height: 700px) {
+  .sheet { justify-content: flex-start; }
+}
 
 .sheet-label { font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; }
 .sheet.ok   .sheet-label { color: var(--ok); }
@@ -433,6 +469,10 @@ b { font-weight: 650; }
 }
 .sheet-ask { margin-top: 10px; font-size: .96rem; color: var(--muted); }
 .sheet-actions { display: flex; gap: 10px; margin-top: 18px; }
+/* Sonst schiebt „Abbrechen" mit festem Innenabstand den zweiten Knopf bei
+   320 Pixern über den Rand. */
+.sheet-actions .btn { min-width: 0; }
+@media (max-width: 360px) { .sheet-actions .btn { padding: 0 12px; } }
 .sheet-big { color: currentColor; }
 .sheet.ok  .sheet-big { color: var(--ok); }
 .sheet.bad .sheet-big { color: var(--bad); }
@@ -465,7 +505,10 @@ b { font-weight: 650; }
   letter-spacing: .12em; font-variant-numeric: tabular-nums;
 }
 .keypad-echo .fixed { color: var(--faint); }
-.keypad-echo .slot { color: var(--line); }
+/* Die Punkte sagen, wie viele Stellen noch fehlen. In var(--line) lagen sie
+   bei 1,57 zu 1 — praktisch unsichtbar. Wer die Tastatur benutzt, tut das,
+   weil der Scan gescheitert ist; dann steht die Schlange schon. */
+.keypad-echo .slot { color: var(--muted); opacity: .75; }
 .keypad-hint { text-align: center; font-size: .84rem; color: var(--faint); margin-bottom: 14px; }
 
 .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
@@ -590,7 +633,10 @@ b { font-weight: 650; }
 .entry-lines { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .entry-name {
   font-size: .95rem; font-weight: 600;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* Zwei Zeilen statt hartem Abschneiden: Bei zwei ähnlichen Namen ist der
+     abgeschnittene Teil genau der, auf den es ankommt. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 .entry-name.none { font-weight: 500; color: var(--faint); }
 .entry-meta { font-size: .84rem; color: var(--muted); }
@@ -601,7 +647,7 @@ b { font-weight: 650; }
 .searchbox { position: relative; display: flex; align-items: center; }
 .searchbox input {
   flex: 1; min-width: 0;
-  padding: 12px 40px 12px 42px; font: inherit; font-size: 17px;
+  padding: 12px 52px 12px 42px; font: inherit; font-size: 17px;
   color: var(--ink); background: var(--surface);
   border: 1px solid var(--line); border-radius: 12px;
 }
@@ -610,8 +656,8 @@ b { font-weight: 650; }
   color: var(--faint); pointer-events: none;
 }
 .searchbox-clear {
-  position: absolute; right: 6px;
-  width: 32px; height: 32px; border: 0; border-radius: 16px;
+  position: absolute; right: 4px;
+  width: 44px; height: 44px; border: 0; border-radius: 22px;
   background: none; color: var(--muted); font-size: 1.3rem; line-height: 1;
 }
 
@@ -628,8 +674,11 @@ b { font-weight: 650; }
   display: block; font-style: normal; font-size: 1.05rem; font-weight: 700;
   color: var(--ink); font-variant-numeric: tabular-nums;
 }
-.tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-.tab.on em { color: #fff; }
+/* var(--on-accent), nicht #fff: Im Dunkelmodus kippt --accent auf ein helles
+   Rosa, auf dem Weiß bei 2,28 zu 1 liegt — der ausgewählte Reiter war damit
+   schlechter lesbar als die nicht ausgewählten. */
+.tab.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tab.on em { color: var(--on-accent); }
 
 /* Ein Balken sagt in einem Blick, was Zahlen erst gelesen werden müssen. */
 .bar {
@@ -644,19 +693,21 @@ b { font-weight: 650; }
 .entries.roster .mark svg { width: 20px; height: 20px; color: var(--ok); }
 .mark-open {
   width: 15px; height: 15px; border-radius: 4px;
-  border: 1.7px solid var(--faint);
+  border: 1.9px solid var(--muted);
 }
 .entries.roster li.done .entry-code { color: var(--muted); }
 .entries.roster li.done .entry-name { color: var(--muted); }
 .entries li.duplicate .entry-code { color: var(--warn); }
 .entries li.unknown .entry-code { color: var(--bad); }
 .entries li.undone .entry-code { text-decoration: line-through; color: var(--faint); }
-.btn.small { min-height: 40px; padding: 0 14px; font-size: .85rem; }
+.btn.small { min-height: 44px; padding: 0 14px; font-size: .85rem; }
 
 /* Schmale Erinnerung, solange die App nur im Browser läuft. */
 .hint-bar {
-  display: grid; grid-template-columns: 20px 1fr 32px; align-items: center; gap: 10px;
-  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  display: grid; grid-template-columns: 20px 1fr 44px; align-items: center; gap: 10px;
+  /* Die Leiste sitzt oben. Der Ausgleich gehörte also nach oben, nicht nach
+     unten — dort waren es rund 34 Pixel totes Polster. */
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
   background: var(--accent-soft); color: var(--accent);
   border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
 }
@@ -670,7 +721,8 @@ b { font-weight: 650; }
 }
 .hint-close {
   border: 0; background: none; font: inherit; font-size: 1.4rem; line-height: 1;
-  color: var(--muted); cursor: pointer; padding: 4px;
+  color: var(--muted); cursor: pointer;
+  width: 44px; height: 44px;
 }
 
 /* Übersicht */
@@ -693,8 +745,8 @@ b { font-weight: 650; }
 .field-button.wide-label { width: auto; padding: 0 14px; font-size: .84rem; font-weight: 600; color: var(--accent); }
 .field-with-button input { padding-right: 104px; }
 .scanner-state.as-button {
-  border: 0; background: none; padding: 7px 0 9px; font: inherit; cursor: pointer;
-  text-align: left;
+  border: 0; background: none; padding: 11px 0; min-height: 44px;
+  font: inherit; cursor: pointer; text-align: left;
 }
 
 /* Die Leiste trägt inzwischen drei Knöpfe und den Status. Auf schmalen

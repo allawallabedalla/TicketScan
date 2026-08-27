@@ -170,24 +170,55 @@ function findTextRegion(
     }
   }
 
-  /** Längster zusammenhängender Abschnitt oberhalb eines Schwellwerts. */
-  const run = (profile: Int32Array, floor: number) => {
-    let bestFrom = -1, bestTo = -1, from = -1;
+  /** Alle zusammenhängenden Abschnitte oberhalb eines Schwellwerts. */
+  const runs = (profile: Int32Array, floor: number) => {
+    const out: Array<{ from: number; to: number }> = [];
+    let from = -1;
     for (let i = 0; i <= profile.length; i++) {
       const inside = i < profile.length && profile[i] >= floor;
       if (inside && from === -1) from = i;
-      if (!inside && from !== -1) {
-        if (i - from > bestTo - bestFrom) { bestFrom = from; bestTo = i; }
-        from = -1;
+      if (!inside && from !== -1) { out.push({ from, to: i }); from = -1; }
+    }
+    return out;
+  };
+
+  /** Fasst Abschnitte zusammen, die nur durch eine schmale Lücke getrennt
+   *  sind. Zwischen zwei Ziffern liegt Weiß; der längste zusammenhängende
+   *  Abschnitt allein schnitt die Nummer deshalb mitten durch — und zwar umso
+   *  sicherer, je näher das Ticket gehalten wurde. Genau die Reaktion, die
+   *  jeder zeigt, wenn es nicht liest, machte es schlechter. */
+  const gruppiere = (teile: Array<{ from: number; to: number }>, luecke: number) => {
+    if (!teile.length) return null;
+    let best: { from: number; to: number } | null = null;
+    let lauf = { ...teile[0] };
+    for (const teil of teile.slice(1)) {
+      if (teil.from - lauf.to <= luecke) lauf.to = teil.to;
+      else {
+        if (!best || lauf.to - lauf.from > best.to - best.from) best = lauf;
+        lauf = { ...teil };
       }
     }
-    return bestFrom === -1 ? null : { from: bestFrom, to: bestTo };
+    if (!best || lauf.to - lauf.from > best.to - best.from) best = lauf;
+    return best;
   };
 
   // Zeilen zuerst: Text bildet ein waagerechtes Band.
+  //
+  // Genommen wird nicht mehr das dichteste Band, sondern das dem Rahmen-
+  // mittelpunkt nächste. Ein Schriftzug in Versalien hat mehr Hell-dunkel-
+  // Wechsel je Zeile als fünf Ziffern in Monospace — er gewann jedes Mal.
+  // Der Ausschnitt lag dann auf „HERZBERG FESTIVAL 2027" statt auf der
+  // Nummer, und ein einzelnes O davor ergab die gültige Nummer 02027. Die
+  // Person hält die Nummer aber in die Mitte des Rahmens, nicht den
+  // Schriftzug.
   const peakRow = Math.max(...perRow);
-  const rows = run(perRow, Math.max(3, peakRow * 0.35));
-  if (!rows) return null;
+  const baender = runs(perRow, Math.max(3, peakRow * 0.35))
+    .filter((b) => b.to - b.from >= 4);
+  if (!baender.length) return null;
+
+  const mitte = H / 2;
+  const rows = baender.reduce((a, b) =>
+    Math.abs((a.from + a.to) / 2 - mitte) <= Math.abs((b.from + b.to) / 2 - mitte) ? a : b);
 
   // Spalten nur innerhalb dieses Bandes zählen, sonst zieht Struktur darüber
   // oder darunter den Ausschnitt in die Breite.
@@ -196,7 +227,7 @@ function findTextRegion(
     for (let x = 0; x < W; x++) if (edge[y * W + x] >= limit) inBand[x]++;
   }
   const bandHeight = rows.to - rows.from;
-  const cols = run(inBand, Math.max(1, bandHeight * 0.18));
+  const cols = gruppiere(runs(inBand, Math.max(1, bandHeight * 0.18)), bandHeight * 1.2);
   if (!cols) return null;
 
   const width = cols.to - cols.from;
@@ -226,6 +257,13 @@ function findTextRegion(
  *
  * Vergrößert wird nie — Hochskalieren fügt keine Information hinzu.
  */
+/** Liefert die Kamera überhaupt schon ein Bild? Nach der Rückkehr aus dem
+ *  Hintergrund meldet Safari kurzzeitig readyState 4 bei noch nicht
+ *  wiederhergestellten Maßen — drawImage wirft dann bei jedem Bild. */
+export function hasFrame(video: HTMLVideoElement): boolean {
+  return video.videoWidth > 0 && video.videoHeight > 0;
+}
+
 export function prepareFrame(
   video: HTMLVideoElement,
   roi: { x: number; y: number; w: number; h: number },
@@ -354,24 +392,28 @@ export class Consensus {
   // etwas abzufangen.
   constructor(private needed = 2, private memory = 4) {}
 
-  /** Gibt die Nummer zurück, sobald sie oft genug bestätigt wurde. */
+  /**
+   * Gibt die Nummer zurück, sobald sie oft genug bestätigt wurde.
+   *
+   * Verlangt werden AUFEINANDERFOLGENDE Übereinstimmungen. Vorher genügte es,
+   * dass ein Wert zweimal irgendwo in vier Bildern auftauchte: Die Folge
+   * B, A, B ergab B, obwohl die richtige Lesung dazwischen widersprach. Eine
+   * widersprechende Lesung setzt jetzt zurück — sie ist ein Hinweis darauf,
+   * dass die Erkennung schwankt, und genau dann darf nichts durchgehen.
+   */
   offer(reading: string | null): string | null {
-    if (reading) {
-      this.recent.push(reading);
-      if (this.recent.length > this.memory) this.recent.shift();
-    } else {
+    if (!reading) {
       // Ein leeres Bild löscht die Historie nicht sofort — die Hand zittert,
       // und ein einzelnes unscharfes Bild soll nicht von vorn anfangen lassen.
-      this.recent.shift();
+      this.recent.pop();
+      return null;
     }
 
-    const counts = new Map<string, number>();
-    for (const value of this.recent) counts.set(value, (counts.get(value) ?? 0) + 1);
+    if (this.recent.length && this.recent[0] !== reading) this.recent = [];
+    this.recent.push(reading);
+    if (this.recent.length > this.memory) this.recent.shift();
 
-    for (const [value, count] of counts) {
-      if (count >= this.needed) return value;
-    }
-    return null;
+    return this.recent.length >= this.needed ? reading : null;
   }
 
   reset(): void {

@@ -11,6 +11,40 @@ import type { Session } from "./store";
 
 const MAX_BATCH = 50;
 
+/** Nach so vielen vergeblichen Anläufen ist ein Vorgang nicht zustellbar. Er
+ *  blockierte sonst für immer die Anzeige „alles gesendet" — und damit die
+ *  einzige Stelle, an der ein echter Rückstau auffiele. */
+const MAX_ATTEMPTS = 10;
+
+/**
+ * Was die Warteschlange noch offen hat, je Ticketnummer.
+ *
+ * Ohne das überschreibt der Serverstand lokale Einlösungen, die noch nicht
+ * angekommen sind: Das Ticket steht dann wieder auf „frei" und kann ein
+ * zweites Mal durchgewinkt werden. Der alte Code setzte nur `pending: true`
+ * und übernahm `redeemed_at` trotzdem vom Server — der Kommentar dort
+ * versprach das Gegenteil.
+ */
+async function offen(): Promise<Map<string, "redeem" | "undo">> {
+  const map = new Map<string, "redeem" | "undo">();
+  for (const scan of await store.queued()) map.set(scan.code, scan.action);
+  return map;
+}
+
+/** Übernimmt die Stammdaten vom Server, behält aber die lokale Entscheidung,
+ *  solange sie noch in der Warteschlange steht. */
+function merge(server: store.Ticket[], wartend: Map<string, "redeem" | "undo">, lokal: Map<string, store.Ticket>): store.Ticket[] {
+  return server.map((t) => {
+    const action = wartend.get(t.code);
+    if (!action) return t;
+    const mine = lokal.get(t.code);
+    return action === "redeem"
+      ? { ...t, redeemedAt: mine?.redeemedAt ?? t.redeemedAt,
+          redeemedByDevice: mine?.redeemedByDevice ?? t.redeemedByDevice, pending: true }
+      : { ...t, redeemedAt: null, redeemedByDevice: null, pending: true };
+  });
+}
+
 export interface SyncState {
   online: boolean;
   queued: number;
@@ -35,7 +69,20 @@ export async function bootstrap(
     // verloren, die während des Ladens passiert sind.
     syncedUpto ??= page.serverTime;
 
-    await store.putTickets(page.tickets);
+    // Auch die Erstbefüllung darf nicht über eine noch nicht gesendete
+    // Einlösung schreiben. Das passiert genau dann, wenn die Sitzung ablief,
+    // während Vorgänge in der Warteschlange standen.
+    const wartend = await offen();
+    if (wartend.size) {
+      const lokal = new Map<string, store.Ticket>();
+      for (const code of wartend.keys()) {
+        const t = await store.getTicket(code);
+        if (t) lokal.set(code, t);
+      }
+      await store.putTickets(merge(page.tickets, wartend, lokal));
+    } else {
+      await store.putTickets(page.tickets);
+    }
     total += page.tickets.length;
     onProgress?.(total);
 
@@ -58,20 +105,32 @@ export async function pullChanges(session: Session): Promise<number> {
     const page = await api.fetchChanges(session, { since, sinceCode });
 
     if (page.tickets.length) {
-      // Was hier ankommt, ist die Wahrheit des Servers — bis auf Einlösungen,
+      // Was hier ankommt, ist die Wahrheit des Servers — bis auf Vorgänge,
       // die dieses Gerät noch in der Warteschlange hat.
-      const pending = new Set((await store.queued()).map((s) => s.code));
-      await store.putTickets(
-        page.tickets.map((t) => pending.has(t.code) ? { ...t, pending: true } : t),
-      );
+      const wartend = await offen();
+      const lokal = new Map<string, store.Ticket>();
+      for (const code of wartend.keys()) {
+        const t = await store.getTicket(code);
+        if (t) lokal.set(code, t);
+      }
+      await store.putTickets(merge(page.tickets, wartend, lokal));
       changed += page.tickets.length;
     }
 
     if (!page.more || page.tickets.length === 0) {
-      // Erst am Ende weiterstellen, und dann auf die Serverzeit: Ein
-      // abgebrochener Durchlauf wiederholt sich dann einfach.
-      await store.set("syncedUpto", page.serverTime);
-      await store.remove("syncedUptoCode");
+      // Der Zeiger darf nur auf Daten stehen, die auch angekommen sind.
+      //
+      // Vorher sprang er auf die Serverzeit. Die entsteht aber nach der
+      // Abfrage — eine Einlösung, die dazwischen sichtbar wurde, lag darunter
+      // und wurde diesem Gerät nie wieder geliefert. Das Ticket galt hier
+      // dauerhaft als frei, und der Fehler heilte nicht aus.
+      //
+      // page.cursor ist der Zeitstempel der letzten tatsächlich gelieferten
+      // Zeile; kam nichts, fällt der Endpunkt auf `since` zurück und der
+      // Zeiger bleibt stehen. Das ist die sichere Richtung.
+      if (page.cursor) await store.set("syncedUpto", page.cursor);
+      if (page.cursorCode) await store.set("syncedUptoCode", page.cursorCode);
+      else await store.remove("syncedUptoCode");
       break;
     }
 
@@ -95,6 +154,14 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
   const all = await store.queued();
   if (!all.length) return [];
 
+  // In der Reihenfolge der Einreihung senden. Der Schlüssel der Warteschlange
+  // ist eine Zufalls-UUID; ohne diese Sortierung konnte eine Rücknahme vor der
+  // Einlösung ankommen, die sie zurücknehmen sollte — danach war das Ticket
+  // auf dem Server eingelöst und auf dem Gerät frei, und der rechtmäßige
+  // Inhaber wurde an der nächsten Tür abgewiesen.
+  all.sort((a, b) =>
+    (a.seq ?? 0) - (b.seq ?? 0) || a.clientTs.localeCompare(b.clientTs));
+
   const results: api.ScanResult[] = [];
 
   for (let i = 0; i < all.length; i += MAX_BATCH) {
@@ -103,8 +170,21 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
 
     for (const answer of answers) {
       // Ein Fehler kommt beim nächsten Durchlauf erneut dran, statt verloren
-      // zu gehen.
-      if (answer.result === "error") continue;
+      // zu gehen — aber nicht endlos. Ein dauerhaft scheiternder Vorgang ließ
+      // die Statuszeile für immer auf „1 wartet" stehen und machte damit die
+      // einzige Anzeige blind, an der ein echter Rückstau auffiele.
+      if (answer.result === "error") {
+        const scan = batch.find((s) => s.scanId === answer.scanId);
+        if (!scan) continue;
+        const attempts = (scan.attempts ?? 0) + 1;
+        if (attempts >= MAX_ATTEMPTS) {
+          await store.dequeue(scan.scanId);
+          await store.amend(scan.scanId, { reason: "nicht zustellbar" });
+        } else {
+          await store.requeue({ ...scan, attempts });
+        }
+        continue;
+      }
 
       await store.dequeue(answer.scanId);
       results.push(answer);
@@ -145,15 +225,43 @@ export async function undo(code: string, reason: string): Promise<void> {
     clientTs: new Date().toISOString(),
     action: "undo",
     reason,
-    offline: false,
+    // Auch eine Rücknahme kann im Funkloch entstehen. Fest auf `false` gesetzt
+    // erschien sie im Protokoll als geprüft, obwohl sie es nicht war.
+    offline: !(await hadContact()),
     attempts: 0,
   });
 }
 
+/** Bestand zuletzt wirklich Kontakt zum Server? Maßstab ist derselbe wie in
+ *  der Statuszeile: der letzte erfolgreiche Abgleich, nicht navigator.onLine. */
+export async function hadContact(): Promise<boolean> {
+  const last = await store.get<string>("lastSyncAt");
+  return last !== undefined && Date.now() - Date.parse(last) < CONTACT_WINDOW;
+}
+
+/** Nach so langer Stille gilt der Kontakt als weg. Drei ausgefallene
+ *  Durchläufe bei acht Sekunden Takt, plus Reserve für einen langsamen. */
+export const CONTACT_WINDOW = 30_000;
+
 /** Ein Durchlauf: erst senden, dann holen. In dieser Reihenfolge, damit die
  *  eigenen Einlösungen nicht vom Server überschrieben werden, bevor sie dort
  *  angekommen sind. */
-export async function syncOnce(session: Session): Promise<api.ScanResult[]> {
+let laufend: Promise<api.ScanResult[]> | null = null;
+
+export function syncOnce(session: Session): Promise<api.ScanResult[]> {
+  // Nur ein Durchlauf gleichzeitig.
+  //
+  // Nach einer längeren Funklücke dauert das Leeren der Warteschlange länger
+  // als der Acht-Sekunden-Takt. Zwei überlappende Läufe lasen dieselbe
+  // Warteschlange und blätterten parallel durch die Änderungen — der
+  // langsamere schrieb am Ende seine älteren Seiten über die neueren des
+  // schnelleren, während der Zeiger schon dahinterstand. Einzelne Tickets
+  // standen danach dauerhaft falsch auf „frei".
+  laufend ??= durchlauf(session).finally(() => { laufend = null; });
+  return laufend;
+}
+
+async function durchlauf(session: Session): Promise<api.ScanResult[]> {
   const results = await flushQueue(session);
   await pullChanges(session);
 

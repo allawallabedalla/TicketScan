@@ -94,8 +94,11 @@ export function App() {
           // Aus der Geste heraus, sonst bleibt der Ton auf iOS stumm.
           unlockSound();
           await store.set("guideSeen", true);
-          const ready = await store.get<boolean>("setupDone");
-          setStage(!session ? "login" : ready ? "scanner" : "setup");
+          const [ready, onDevice] = await Promise.all([
+            store.get<boolean>("setupDone"),
+            store.countTickets(),
+          ]);
+          setStage(!session ? "login" : ready && onDevice > 0 ? "scanner" : "setup");
         }}
       />
     );
@@ -107,7 +110,23 @@ export function App() {
     return (
       <>
         {hint}
-        <Login onDone={(active) => { setSession(active); setStage("setup"); }} />
+        <Login
+          onDone={async (active) => {
+            setSession(active);
+            // Nicht blind in die Einrichtung.
+            //
+            // Die läuft sofort los und braucht Netz. Meldet sich um 6 Uhr ein
+            // Gerät neu an, das die vollständige Ticketliste längst im
+            // Speicher hat, strandete es ohne Verbindung auf dem
+            // Einrichtungsbildschirm — mit einem Knopf, der wieder scheitert.
+            // Zehn Geräte, alle zur selben Minute.
+            const [ready, onDevice] = await Promise.all([
+              store.get<boolean>("setupDone"),
+              store.countTickets(),
+            ]);
+            setStage(ready && onDevice > 0 ? "scanner" : "setup");
+          }}
+        />
       </>
     );
   }

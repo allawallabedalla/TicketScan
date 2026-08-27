@@ -5,8 +5,8 @@
 // lokal; der Server erfährt sie hinterher.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Consensus, prepareFrame, readFrame, startOcr } from "../lib/ocr";
-import { decide, findLikelyMistype, normalize, type Decision } from "../lib/decide";
+import { Consensus, hasFrame, prepareFrame, readFrame, startOcr, stopOcr } from "../lib/ocr";
+import { decide, normalize, type Decision } from "../lib/decide";
 import { feedback } from "../lib/feedback";
 import * as store from "../lib/store";
 import * as Icon from "../onboarding/Icons";
@@ -66,19 +66,51 @@ export function Scanner({ session }: { session: store.Session }) {
   const [showList, setShowList] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [loaded, setLoaded] = useState<number | null>(null);
+  const lastSize = useRef<string | null>(null);
+  const lastStamp = useRef(-1);
+  const hidden = useRef(false);
+  // Sperre gegen Doppeltippen: `redeem` ist asynchron, der Knopf hatte kein
+  // disabled. Ein Doppeltipp im Gedränge buchte zweimal — zwei Einträge im
+  // Verlauf, zwei in der Warteschlange, „2 warten" für eine Person.
+  const booking = useRef(false);
+  const [busyAction, setBusyAction] = useState(false);
+
+  const refreshKnown = useCallback(async () => {
+    // Einmal in den Arbeitsspeicher: Ein Nachschlagen je Einzelbild gegen die
+    // Datenbank wäre bei drei Bildern je Sekunde spürbar.
+    const codes = new Set((await store.allTickets()).map((t) => t.code));
+    known.current = (code) => codes.has(code);
+    setLoaded(codes.size);
+  }, []);
 
   useEffect(() => {
     void (async () => {
       setWidth(await store.get<number>("codeWidth") ?? 5);
       setPrefix(await store.get<string>("codePrefix") ?? "");
 
-      // Einmal in den Arbeitsspeicher: Ein Nachschlagen je Einzelbild gegen die
-      // Datenbank wäre bei drei Bildern je Sekunde spürbar.
-      const codes = new Set((await store.allTickets()).map((t) => t.code));
-      known.current = (code) => codes.has(code);
-      setLoaded(codes.size);
+      await refreshKnown();
     })();
-  }, []);
+  }, [refreshKnown]);
+
+  // Nachträglich importierte Tickets waren für die Kamera unsichtbar.
+  //
+  // `known` ist der wirksamste Filter der Erkennung — angenommen wird nur, was
+  // in der Liste steht. Wurde das Set einmal beim Öffnen des Scanners gebaut,
+  // las die Kamera Nummern, die die Abendkasse um 21:30 nachgetragen hat,
+  // nicht schlecht, sondern gar nicht, und ohne jede Meldung. Über die
+  // Tastatur ging es weiter, aber niemand wusste das.
+  //
+  // Dieselbe Stelle fängt den umgekehrten Fall ab: Räumt iOS den Speicher im
+  // laufenden Betrieb, fällt `loaded` auf 0 und die Warnung erscheint.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void (async () => {
+        const n = await store.countTickets();
+        if (n !== loaded) await refreshKnown();
+      })();
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [loaded, refreshKnown]);
 
   // Zustand der Übertragung.
   //
@@ -94,9 +126,11 @@ export function Scanner({ session }: { session: store.Session }) {
         store.get<string>("lastSyncAt"),
       ]);
       setPending(queued);
-      // Abgeglichen wird alle 20 Sekunden. Nach drei ausgefallenen Durchläufen
-      // ist der Kontakt weg und nicht bloß eine Runde ausgefallen.
-      setReachable(last !== undefined && Date.now() - Date.parse(last) < 75_000);
+      // Abgeglichen wird alle acht Sekunden. Nach etwa drei ausgefallenen
+      // Durchläufen ist der Kontakt weg und nicht bloß eine Runde ausgefallen.
+      // Vorher standen hier 75 Sekunden — über eine Minute lang behauptete die
+      // Zeile „alles gesendet", während längst nichts mehr ankam.
+      setReachable(last !== undefined && Date.now() - Date.parse(last) < sync.CONTACT_WINDOW);
     };
     void check();
     const timer = window.setInterval(() => void check(), 3000);
@@ -108,14 +142,6 @@ export function Scanner({ session }: { session: store.Session }) {
   const evaluate = useCallback(async (code: string) => {
     const ticket = await store.getTicket(code);
     const decision = decide(code, ticket);
-
-    if (decision.verdict === "duplicate") {
-      // Bei fortlaufenden Nummern lässt sich ein Vertipper sehr genau
-      // lokalisieren — siehe Konzept, Abschnitt 01.
-      decision.likelyMistype = findLikelyMistype(
-        code, await store.allTickets(), session.deviceId,
-      );
-    }
 
     if (decision.verdict !== "ok") {
       // Auch das Abgewiesene gehört ins Protokoll: Wer später klärt, muss
@@ -171,13 +197,28 @@ export function Scanner({ session }: { session: store.Session }) {
           video.current.srcObject = stream;
           await video.current.play();
         }
-        await startOcr();
       } catch (err) {
         setCamError(
           err instanceof DOMException && err.name === "NotAllowedError"
             ? "Die Kamera ist nicht freigegeben. Tippe unten auf Tastatur und gib die Nummer ein."
             : "Die Kamera lässt sich nicht öffnen. Die Tastatur funktioniert weiter.",
         );
+        return;
+      }
+
+      // Getrennt vom Kamerafehler.
+      //
+      // startOcr baut eigens eine Meldung, die die fehlende Datei nennt —
+      // genau das Szenario, für das vendor-ocr.mjs geschrieben wurde. Lag der
+      // Aufruf im selben try, wurde daraus „Die Kamera lässt sich nicht
+      // öffnen", obwohl das Kamerabild sichtbar war. Die Fehlersuche lief
+      // damit in die falsche Richtung.
+      try {
+        await startOcr();
+      } catch (err) {
+        setCamError(err instanceof Error
+          ? `Texterkennung nicht bereit: ${err.message} Die Tastatur funktioniert weiter.`
+          : "Texterkennung nicht bereit. Die Tastatur funktioniert weiter.");
         return;
       }
 
@@ -189,6 +230,13 @@ export function Scanner({ session }: { session: store.Session }) {
         // Bestätigungsschritt und nicht, während schon ein Bild läuft.
         if (paused.current || busy.current) return;
         if (!video.current || video.current.readyState < 2) return;
+        if (!hasFrame(video.current)) return;
+        // Nur ein tatsächlich neues Bild zählt. Steht das Video still — App im
+        // Hintergrund, Bildschirm gesperrt —, ergäben zwei Lesungen desselben
+        // Standbilds eine Bestätigung, und die Mehrfachbestätigung wäre genau
+        // dann aufgehoben, wenn niemand hinsieht.
+        if (video.current.currentTime === lastStamp.current) return;
+        lastStamp.current = video.current.currentTime;
         busy.current = true;
         try {
           // Abwechselnd eingegrenzt und ganzflächig. Findet die Eingrenzung
@@ -202,9 +250,21 @@ export function Scanner({ session }: { session: store.Session }) {
           // jedes zweite Bild und flackerte mit knapp zwei Hertz.
           if (narrow.current) setBox(frame.box);
           setSource(frame.source);
-          if (frame.source.w) void store.set("cameraSize", `${frame.source.w}×${frame.source.h}`);
+          // Nur bei Änderung schreiben. Vorher lief das in jedem Bild, also
+          // dreieinhalb Mal je Sekunde über den ganzen Abend — rund 77 000
+          // Transaktionen auf demselben Speicher, in dem auch der Verlauf liegt.
+          const size = frame.source.w ? `${frame.source.w}×${frame.source.h}` : null;
+          if (size && size !== lastSize.current) {
+            lastSize.current = size;
+            void store.set("cameraSize", size);
+          }
 
           const codes = await readFrame(frame.canvas, width, known.current);
+          // Zwischen Anforderung und Antwort liegen 200 bis 400 Millisekunden.
+          // In dieser Zeit kann jemand auf „Tastatur" getippt haben. Ohne diese
+          // Prüfung öffnete das Ergebnis dann einen Bestätigungsschritt über
+          // der Zifferntastatur — für ein Ticket, das gerade aufgegeben wurde.
+          if (stopped || paused.current) return;
           setSighted(codes[0] ?? null);
 
           // Mehrere Treffer in einem Bild heißt: Es ist nicht eindeutig, welche
@@ -215,6 +275,11 @@ export function Scanner({ session }: { session: store.Session }) {
             setSighted(null);
             await evaluate(hit);
           }
+        } catch {
+          // Ein einzelnes Bild darf scheitern — drawImage wirft, wenn die
+          // Kamera nach der Rückkehr aus dem Hintergrund kurz 0×0 meldet.
+          // Ohne diesen Zweig wurde daraus eine unbehandelte Ablehnung, und
+          // zwar bei jedem folgenden Bild erneut.
         } finally {
           busy.current = false;
         }
@@ -223,7 +288,19 @@ export function Scanner({ session }: { session: store.Session }) {
     })();
 
     // Kommt die App aus dem Hintergrund zurück, hat iOS das Video angehalten.
-    const wake = () => { if (!document.hidden) void video.current?.play(); };
+    //
+    // Und: Im Hintergrund wird nicht gelesen. Vorher lief die Schleife auf dem
+    // eingefrorenen letzten Bild weiter — beim Entsperren stand dann ein
+    // Bestätigungsschritt offen für ein Ticket, das vor der Sperre in der Hand
+    // lag. Ein Reflex-Tipp auf „Einlassen" hätte es gebucht.
+    const wake = () => {
+      hidden.current = document.hidden;
+      if (document.hidden) return;
+      consensus.current.reset();
+      setSighted(null);
+      setBox(null);
+      void video.current?.play();
+    };
     document.addEventListener("visibilitychange", wake);
 
     return () => {
@@ -231,6 +308,17 @@ export function Scanner({ session }: { session: store.Session }) {
       document.removeEventListener("visibilitychange", wake);
       window.clearTimeout(timer);
       stream?.getTracks().forEach((t) => t.stop());
+      // Sonst lägen nach der Rückkehr von der Tastatur bis zu vier alte
+      // Lesungen im Puffer: Eine einzelne frische Lesung derselben Nummer
+      // erreichte sofort die geforderten zwei — die Mehrfachbestätigung wäre
+      // für genau diesen Fall ausgehebelt.
+      consensus.current.reset();
+      // Der Worker samt WebAssembly-Speicher blieb sonst für die gesamte
+      // Lebensdauer der Seite bestehen — auch während der Tastatureingabe, in
+      // der Liste, in der Übersicht. Auf iOS ist genau das der Grund, warum
+      // eine Web-App im Hintergrund verworfen wird und beim Zurückholen neu
+      // lädt.
+      if (keypad) void stopOcr();
     };
   }, [keypad, width, evaluate]);
 
@@ -239,17 +327,43 @@ export function Scanner({ session }: { session: store.Session }) {
   useEffect(() => {
     // Auch offene Listen halten die Erkennung an: Sonst läuft im Hintergrund
     // ein Ticket durch, während jemand den Verlauf durchsieht.
-    paused.current = view.at !== "scan" || showRecent || showList || showStats;
+    paused.current = view.at !== "scan" || showRecent || showList || showStats || hidden.current;
     if (view.at === "scan") { consensus.current.reset(); setSighted(null); setBox(null); }
   }, [view, showRecent, showList, showStats]);
 
   // ------------------------------------------------------------------ Buchen --
 
   async function redeem(decision: Decision) {
+    // Doppeltipp und Doppelbuchung ausschließen.
+    if (booking.current) return;
+    booking.current = true;
+    setBusyAction(true);
+    try {
+      await buche(decision);
+    } finally {
+      booking.current = false;
+      setBusyAction(false);
+    }
+  }
+
+  async function buche(decision: Decision) {
     const code = decision.code;
     const now = new Date().toISOString();
 
-    const ticket = decision.ticket;
+    // Frisch nachlesen statt der Kopie aus dem Scan.
+    //
+    // Zwischen Lesen und Bestätigen können Minuten liegen — jemand spricht den
+    // Einlasser an, das Ticket liegt derweil auf dem Tresen. Löst in dieser
+    // Zeit ein anderes Gerät dasselbe Ticket ein, hatte die App die
+    // Doppeleinlösung längst im Speicher und warf sie mit der alten Kopie
+    // wieder weg. Statt zu buchen wird deshalb erneut entschieden.
+    const ticket = await store.getTicket(code);
+    if (ticket?.redeemedAt) {
+      setView({ at: "result", decision: decide(code, ticket) });
+      feedback.duplicate();
+      return;
+    }
+
     if (ticket) {
       await store.putTickets([{
         ...ticket, redeemedAt: now, redeemedByDevice: session.deviceId, pending: true,
@@ -272,6 +386,41 @@ export function Scanner({ session }: { session: store.Session }) {
 
     setView({ at: "result", decision: { ...decision, verdict: "ok" } });
     feedback.ok();
+  }
+
+  /**
+   * Gibt das vorgelegte Ticket frei UND lässt die Person ein.
+   *
+   * Der Knopf hieß von Anfang an „freigeben und einlassen", tat aber nur das
+   * Erste. Die Person ging mit Bändchen hinein, und das Ticket stand danach
+   * auf allen Geräten wieder auf offen — wer es weiterreichte oder fand, kam
+   * ein zweites Mal rein. Zusätzlich zählte die Übersicht eine Einlösung zu
+   * wenig, und der Bändchenabgleich schlug Alarm, obwohl alles richtig
+   * gemacht worden war.
+   */
+  async function override(decision: Decision) {
+    if (booking.current) return;
+    booking.current = true;
+    setBusyAction(true);
+    try {
+      await sync.undo(decision.code, "Ticket unversehrt, Einlösung freigegeben");
+      await markiereZurueckgenommen(decision.code);
+      const ticket = await store.getTicket(decision.code);
+      await buche({ ...decision, verdict: "ok", ticket });
+    } finally {
+      booking.current = false;
+      setBusyAction(false);
+    }
+  }
+
+  /** Trägt die Rücknahme im Verlauf dieses Geräts nach. */
+  async function markiereZurueckgenommen(code: string) {
+    const eintrag = (await store.history()).find(
+      (e) => e.code === code && e.verdict === "ok" && !e.undoneAt,
+    );
+    if (eintrag) {
+      await store.amend(eintrag.scanId, { undoneAt: new Date().toISOString() });
+    }
   }
 
   // Als useCallback, damit die Zeitschaltung in der Ergebnisanzeige nicht bei
@@ -381,16 +530,17 @@ export function Scanner({ session }: { session: store.Session }) {
         </div>
       )}
       {view.at === "confirm" && (
-        <Confirm decision={view.decision} onYes={() => void redeem(view.decision)} onNo={backToScan} />
+        <Confirm
+          decision={view.decision} busy={busyAction}
+          onYes={() => void redeem(view.decision)} onNo={backToScan}
+        />
       )}
       {view.at === "result" && (
         <Result
           decision={view.decision}
+          busy={busyAction}
           onDone={backToScan}
-          onRelease={async (code, reason) => {
-            await sync.undo(code, reason);
-            backToScan();
-          }}
+          onOverride={(decision) => void override(decision)}
         />
       )}
       {showRecent && <Recent onClose={() => setShowRecent(false)} />}
@@ -419,8 +569,8 @@ function Holder({ ticket }: { ticket?: store.Ticket }) {
   return <p className="sheet-name">{ticket.holderName}</p>;
 }
 
-function Confirm({ decision, onYes, onNo }: {
-  decision: Decision; onYes: () => void; onNo: () => void;
+function Confirm({ decision, busy, onYes, onNo }: {
+  decision: Decision; busy: boolean; onYes: () => void; onNo: () => void;
 }) {
   return (
     <div className="sheet ok overlay">
@@ -436,7 +586,9 @@ function Confirm({ decision, onYes, onNo }: {
       </p>
       <div className="sheet-actions">
         <button type="button" className="btn" onClick={onNo}>Abbrechen</button>
-        <button type="button" className="btn primary grow" onClick={onYes}>Einlassen</button>
+        <button type="button" className="btn primary grow" disabled={busy} onClick={onYes}>
+          {busy ? "…" : "Einlassen"}
+        </button>
       </div>
     </div>
   );
@@ -444,10 +596,11 @@ function Confirm({ decision, onYes, onNo }: {
 
 // ---------------------------------------------------------------- Ergebnis --
 
-function Result({ decision, onDone, onRelease }: {
+function Result({ decision, busy, onDone, onOverride }: {
   decision: Decision;
+  busy: boolean;
   onDone: () => void;
-  onRelease: (code: string, reason: string) => Promise<void>;
+  onOverride: (decision: Decision) => void;
 }) {
   // Grün verschwindet von selbst — bei den anderen beiden soll jemand
   // hinsehen und entscheiden.
@@ -489,10 +642,10 @@ function Result({ decision, onDone, onRelease }: {
   }
 
   const at = decision.ticket?.redeemedAt;
-  const trace = decision.likelyMistype;
 
   return (
     <div className="sheet warn full overlay">
+      <span className="sheet-big"><Icon.History /></span>
       <p className="sheet-label">Bereits eingelöst</p>
       <p className="sheet-code">{group(decision.code)}</p>
       {decision.ticket?.holderName && (
@@ -502,36 +655,17 @@ function Result({ decision, onDone, onRelease }: {
         {at ? `Eingelöst um ${time(at)} Uhr` : "Zeitpunkt unbekannt"}
       </p>
 
-      {trace && (
-        <div className="trace">
-          <p className="trace-label">Möglicher Erfassungsfehler</p>
-          <p>
-            Um {time(trace.at)} wurde an diesem Gerät{" "}
-            <b>{group(trace.code)}</b> erfasst — eine Ziffer Unterschied.
-            Wahrscheinlich war dieses Ticket gemeint.
-          </p>
-        </div>
-      )}
-
       <p className="sheet-ask">
-        Ist das Ticket unversehrt, war die Person noch nicht drin — dann ist es
-        ein Erfassungsfehler.
+        Ist das Ticket unversehrt und war die Person noch nicht drin, war es ein
+        Erfassungsfehler — dann einlassen.
       </p>
 
       <div className="sheet-actions column">
-        {trace && (
-          <button
-            type="button" className="btn primary wide"
-            onClick={() => void onRelease(trace.code, `Fehlbuchung, gemeint war ${decision.code}`)}
-          >
-            {group(trace.code)} zurücknehmen
-          </button>
-        )}
         <button
-          type="button" className="btn wide"
-          onClick={() => void onRelease(decision.code, "Ticket unversehrt, Einlösung freigegeben")}
+          type="button" className="btn wide" disabled={busy}
+          onClick={() => onOverride(decision)}
         >
-          {group(decision.code)} freigeben und einlassen
+          {busy ? "…" : "Trotzdem einlassen"}
         </button>
         <button type="button" className="btn wide" onClick={onDone}>Abweisen</button>
       </div>
@@ -562,18 +696,25 @@ function Keypad({ value, width, prefix, onChange, onSubmit }: {
           <span key={i} className={c === "·" ? "slot" : ""}>{c}</span>
         ))}
       </p>
-      <p className="keypad-hint">Die erste Ziffer steht fest</p>
+      {prefix.length > 0 && (
+        <p className="keypad-hint">
+          {prefix.length === 1 ? "Die erste Ziffer steht fest" : `Die ersten ${prefix.length} Ziffern stehen fest`}
+        </p>
+      )}
 
       <div className="keys">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
           <button key={d} type="button" className="key" onClick={() => press(d)}>{d}</button>
         ))}
-        <button type="button" className="key soft"
+        <button type="button" className="key soft" aria-label="Letzte Ziffer löschen"
           onClick={() => { feedback.tick(); onChange(value.slice(0, -1)); }}>
           ←
         </button>
         <button type="button" className="key" onClick={() => press("0")}>0</button>
-        <button type="button" className="key go" disabled={!full} onClick={onSubmit}>
+        <button
+          type="button" className="key go" disabled={!full}
+          aria-label="Nummer prüfen" onClick={onSubmit}
+        >
           <Icon.Check />
         </button>
       </div>

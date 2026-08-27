@@ -5,7 +5,7 @@
 // doppelt gebucht, sondern beantwortet wie der erste.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { CORS, json, requireDevice } from "../_shared/token.ts";
+import { CORS, json, requireActiveDevice } from "../_shared/token.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -29,12 +29,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json({ error: "Nur POST" }, 405);
 
-  const device = await requireDevice(req);
-  if (!device) return json({ error: "Anmeldung abgelaufen" }, 401);
-
-  const { data: row } = await db.from("devices")
-    .select("revoked_at").eq("device_id", device.deviceId).single();
-  if (row?.revoked_at) return json({ error: "Gerät gesperrt" }, 403);
+  const check = await requireActiveDevice(req, db);
+  if ("error" in check) return check.error;
+  const device = check.claims;
 
   let scans: Scan[];
   try {
@@ -48,11 +45,20 @@ Deno.serve(async (req) => {
   const results = [];
   for (const scan of scans) {
     if (scan.action === "undo") {
-      const { data } = await db.rpc("undo_redemption", {
+      // Der Fehler wurde hier weggeworfen: Scheiterte die RPC, war `data`
+      // undefined und die Antwort lautete "unknown" — der Client nahm den
+      // Eintrag daraufhin aus der Warteschlange, und die Rücknahme war
+      // verworfen, ohne je ausgeführt worden zu sein.
+      const { data, error } = await db.rpc("undo_redemption", {
         p_code: scan.code, p_device_id: device.deviceId,
         p_scan_id: scan.scanId, p_reason: scan.reason ?? null,
+        p_client_ts: scan.clientTs, p_offline: scan.offline ?? false,
       });
-      results.push({ scanId: scan.scanId, code: scan.code, result: data ? "ok" : "unknown" });
+      if (error || typeof data !== "string") {
+        results.push({ scanId: scan.scanId, code: scan.code, result: "error" });
+        continue;
+      }
+      results.push({ scanId: scan.scanId, code: scan.code, result: data });
       continue;
     }
 

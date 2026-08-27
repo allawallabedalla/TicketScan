@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { Fallback } from "./onboarding/Fallback";
 import "./styles.css";
 
 // Auf GitHub Pages liegt die App unter einem Unterpfad. Absolute Pfade in der
@@ -12,6 +13,8 @@ document.documentElement.style.setProperty(
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <Fallback>
+      <App />
+    </Fallback>
   </StrictMode>,
 );

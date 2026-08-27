@@ -6,8 +6,17 @@
 !web/.env.production
 
 # Die echte Ticketliste gehört nicht ins Repo, sie wird direkt importiert.
-data/tickets.csv
-data/tickets.xlsx
+#
+# Breit statt namentlich: Vorher standen hier genau zwei Dateinamen. Ein Export
+# als „tickets-final.csv" oder „Herzberg 2027.xlsx" wäre mitgecheckt worden —
+# 2305 Namen in einem öffentlichen Repository, und dazwischen liegt nur ein
+# Dateiname.
+data/*.csv
+data/*.xlsx
+data/*.xls
+!data/tickets.sample.csv
+*.csv
+!data/tickets.sample.csv
 
 node_modules/
 dist/

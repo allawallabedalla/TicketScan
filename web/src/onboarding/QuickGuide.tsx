@@ -192,7 +192,9 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
           </Perk>
         </ul>
         <p className="aside">
-          Morgen früh fragt sie noch einmal. Mitten in der Schicht nie.
+          Morgen früh fragt sie noch einmal. Fragt sie dazwischen doch einmal,
+          hat die Einlassleitung das Gerät neu freigegeben — dann dasselbe
+          Passwort wie heute eingeben.
         </p>
       </>
     ),
@@ -230,7 +232,7 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
             Ticket — nur die Nummer.
           </Move>
           <Move n={2} icon={<Icon.Check />}>
-            Warte auf <b>Grün</b>. Die Nummer erscheint groß auf dem Bildschirm.
+            Warte, bis die <b>Nummer groß</b> auf dem Bildschirm steht.
           </Move>
           <Move n={3} icon={<Icon.Person />}>
             <b>Vergleiche sie mit dem Ticket</b> und tippe dann auf
@@ -239,24 +241,29 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
             das kein Grund, jemanden abzuweisen — viele Tickets haben keinen.
           </Move>
           <Move n={4} icon={<Icon.Tear />}>
-            <b>Abschnitt abreißen</b>, Bändchen anlegen. Fertig.
+            Der Bildschirm wird <b>grün</b> — das heißt gebucht.
+            <b> Abschnitt abreißen</b>, Bändchen anlegen. Fertig.
+          </Move>
+          <Move n={5} icon={<Icon.History />}>
+            <b>Falsches Ticket erwischt?</b> Unter <b>Verlauf</b> lässt sich der
+            letzte Vorgang zurücknehmen — auch ohne Netz.
           </Move>
         </ol>
         <div className="alert soft">
           <Icon.Keypad />
           <p>
             <b>Kamera will nicht?</b> Ticket verknittert, zu dunkel, nass —
-            passiert. Tippe auf <b>Tastatur</b> und gib die vier Ziffern ein.
-            Die erste Null steht schon da.
+            passiert. Tippe auf <b>Tastatur</b> und gib die Ziffern ein. Die
+            festen Stellen stehen schon da.
           </p>
         </div>
         <div className="alert soft">
           <Icon.List />
           <p>
             <b>Nummer gar nicht mehr lesbar?</b> Unter <b>Liste</b> stehen alle
-            Tickets — was schon eingelöst ist und was noch offen. Dort lässt
-            sich nach einem Teil der Nummer oder nach dem Namen suchen und das
-            Ticket von Hand einlassen.
+            Tickets — was schon eingelöst ist und was noch offen. Dort nach
+            einem Teil der Nummer oder nach dem Namen suchen und auf
+            <b> Prüfen</b> tippen.
           </p>
         </div>
       </>

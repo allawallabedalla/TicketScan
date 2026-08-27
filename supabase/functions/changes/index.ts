@@ -5,7 +5,7 @@
 // geändert hat.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { CORS, json, requireDevice } from "../_shared/token.ts";
+import { CORS, json, requireActiveDevice } from "../_shared/token.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -20,17 +20,36 @@ const PAGE = 1000;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  const device = await requireDevice(req);
-  if (!device) return json({ error: "Anmeldung abgelaufen" }, 401);
-
-  const { data: row } = await db.from("devices")
-    .select("revoked_at").eq("device_id", device.deviceId).single();
-  if (row?.revoked_at) return json({ error: "Gerät gesperrt" }, 403);
+  const check = await requireActiveDevice(req, db);
+  if ("error" in check) return check.error;
+  const device = check.claims;
 
   const params = new URL(req.url).searchParams;
-  const since = params.get("since");
-  const sinceCode = params.get("sinceCode");
+  // Beide gehen ungeprüft in einen PostgREST-Filterausdruck. Ein sinceCode mit
+  // Klammer oder Komma schlösse die and(...)-Gruppe vorzeitig.
+  const rawSince = params.get("since");
+  const since = rawSince && !Number.isNaN(Date.parse(rawSince))
+    ? new Date(rawSince).toISOString()
+    : null;
+  const rawSinceCode = params.get("sinceCode");
+  const sinceCode = rawSinceCode && /^\d{1,10}$/.test(rawSinceCode) ? rawSinceCode : null;
   const offset = Math.max(0, Number(params.get("offset") ?? "0") || 0);
+
+  // Der Zeitstempel entsteht VOR der Abfrage, nicht danach.
+  //
+  // Das war die gefährlichste Stelle im ganzen Backend. now() ist in Postgres
+  // der Transaktionsbeginn, nicht der Commit — eine Einlösung, die um
+  // 20:14:03,100 beginnt und um 20:14:03,200 committet, trägt updated_at
+  // 20:14:03,100 und wird von einer Abfrage um 20:14:03,150 noch nicht
+  // gesehen. Stand der zurückgegebene Zeitstempel danach (20:14:03,250),
+  // fragte das Gerät ab da nach updated_at > 20:14:03,250 — und bekam diese
+  // Zeile nie wieder. Dieses eine Ticket galt dort dauerhaft als frei.
+  //
+  // Der Sicherheitsabstand von 60 Sekunden deckt zusätzlich Uhrenversatz
+  // zwischen Edge-Laufzeit und Datenbank ab. Doppelt gelieferte Zeilen kosten
+  // nichts, putTickets schreibt idempotent. Eine verlorene kostet einen
+  // Doppeleinlass.
+  const serverTime = new Date(Date.now() - 60_000).toISOString();
 
   const columns =
     "code, holder_name, category, note, redeemed_at, redeemed_by_device, updated_at";
@@ -59,7 +78,6 @@ Deno.serve(async (req) => {
   const { data, error } = await query;
   if (error) return json({ error: "Abgleich fehlgeschlagen", detail: error.message }, 500);
 
-  const serverTime = new Date().toISOString();
   await db.from("devices")
     .update({ last_seen_at: serverTime, synced_upto: serverTime })
     .eq("device_id", device.deviceId);

@@ -7,7 +7,7 @@
 // Einlass, eine Fehlbedienung — und zwar bevor es an der Tür auffällt.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { CORS, json, requireDevice } from "../_shared/token.ts";
+import { CORS, json, requireActiveDevice } from "../_shared/token.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -17,8 +17,9 @@ const db = createClient(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  const device = await requireDevice(req);
-  if (!device) return json({ error: "Anmeldung abgelaufen" }, 401);
+  const check = await requireActiveDevice(req, db);
+  if ("error" in check) return check.error;
+  const device = check.claims;
 
   if (req.method === "POST") {
     let counted = 0, note = "";
@@ -31,9 +32,14 @@ Deno.serve(async (req) => {
       return json({ error: "Bitte eine Anzahl angeben" }, 400);
     }
 
-    await db.from("wristband_counts").insert({
+    // Das Ergebnis ansehen, bevor Erfolg gemeldet wird: Der Fremdschlüssel auf
+    // devices kann verletzt sein, etwa wenn ein noch gültiges Token auf eine
+    // aufgeräumte Kennung zeigt. Eine Schicht, die eine Bestätigung bekommt,
+    // deren Zahl nirgends steht, merkt es erst am falschen Alarm.
+    const { error } = await db.from("wristband_counts").insert({
       device_id: device.deviceId, counted, note: note || null,
     });
+    if (error) return json({ error: "Bändchenstand nicht gespeichert" }, 500);
     return json({ ok: true });
   }
 
@@ -43,7 +49,7 @@ Deno.serve(async (req) => {
     db.from("tickets").select("code", { count: "exact", head: true }),
     db.from("devices").select("device_id, label, last_seen_at, revoked_at")
       .order("last_seen_at", { ascending: false }),
-    db.from("scan_log").select("code, device_id, server_ts")
+    db.from("scan_log").select("code, device_id, server_ts", { count: "exact" })
       .eq("result", "conflict").order("server_ts", { ascending: false }).limit(25),
     db.from("scan_log").select("code, device_id, server_ts")
       .eq("offline", true).eq("action", "redeem")
@@ -73,6 +79,9 @@ Deno.serve(async (req) => {
     gesamt: total.count ?? 0,
     geraete: devices.data ?? [],
     konflikte: conflicts.data ?? [],
+    // Die Liste ist auf 25 gekappt. Ohne die Gesamtzahl daneben stünde in der
+    // Übersicht bei 200 Konflikten die Zahl 25 — als Tatsachenaussage.
+    konflikteGesamt: conflicts.count ?? (conflicts.data ?? []).length,
     ungeprueft: windows.slice(-10).reverse(),
     baendchen: handedOut,
     // Der eigentliche Zweck der Gegenrechnung.

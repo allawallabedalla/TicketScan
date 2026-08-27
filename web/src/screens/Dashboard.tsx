@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import * as api from "../lib/api";
+import { Unauthorized } from "../lib/api";
 import type { Session } from "../lib/store";
 import { Feedback } from "./Feedback";
 
@@ -14,6 +15,8 @@ interface Stats {
   gesamt: number;
   geraete: Array<{ device_id: string; label: string; last_seen_at: string | null; revoked_at: string | null }>;
   konflikte: Array<{ code: string; server_ts: string }>;
+  /** Gesamtzahl, weil die Liste oben auf 25 gekappt ist. */
+  konflikteGesamt?: number;
   ungeprueft: Array<{ von: string; bis: string; anzahl: number }>;
   baendchen: number | null;
   abweichung: number | null;
@@ -29,8 +32,17 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
     try {
       setStats(await api.fetchStats<Stats>(session));
       setError(null);
-    } catch {
-      setError("Kennzahlen brauchen Netz — gerade nicht erreichbar.");
+    } catch (err) {
+      // Nicht jeder Fehler ist fehlendes Netz. Ein 404 heißt: der Endpunkt
+      // `stats` wurde nie ausgerollt — wer das für ein Netzproblem hält,
+      // sucht am falschen Ende.
+      setError(
+        err instanceof Unauthorized
+          ? "Anmeldung abgelaufen oder Gerät gesperrt. Bitte neu anmelden."
+          : err instanceof Error && /: 404$/.test(err.message)
+            ? "Der Endpunkt „stats“ ist nicht veröffentlicht. Siehe docs/einrichtung.md, Schritt 4."
+            : "Kennzahlen brauchen Netz — gerade nicht erreichbar.",
+      );
     }
   }, [session]);
 
@@ -41,9 +53,12 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
   }, [load]);
 
   async function submitBands() {
-    const counted = Number(bands.replace(/\D/g, ""));
-    if (!Number.isInteger(counted)) return;
-    await api.reportWristbands(session, counted);
+    const digits = bands.replace(/\D/g, "");
+    // Leer heißt leer, nicht null. Number("") ist 0 und Number.isInteger(0)
+    // ist wahr — ein Fehltipp auf den Knopf setzte den Bändchenstand damit
+    // auf 0 und ließ die Übersicht „alle nicht erfasst" melden.
+    if (!digits) return;
+    await api.reportWristbands(session, Number(digits));
     setBands("");
     await load();
   }
@@ -94,11 +109,15 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
                     `${Math.abs(stats.abweichung)} ${stats.abweichung > 0 ? "zu viel ausgegeben" : "nicht erfasst"}.`}
               </p>
             )}
-            <div className="field-with-button">
+            {/* Als .field, sonst greift keine der Eingabefeld-Regeln: Das
+                Feld war 21 Pixel hoch, der Knopf darin 13, und ohne die
+                17-Pixel-Schrift zoomt iOS beim Antippen hinein. */}
+            <div className="field field-with-button">
               <input
                 type="text" inputMode="numeric" value={bands}
                 onChange={(e) => setBands(e.target.value)}
                 placeholder="Ausgegebene Bändchen"
+                aria-label="Ausgegebene Bändchen"
               />
               <button type="button" className="field-button wide-label" onClick={() => void submitBands()}>
                 Eintragen
@@ -114,7 +133,8 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
                   <span className="entry-code small-code">{d.label}</span>
                   <span className="entry-meta">
                     {d.revoked_at ? "gesperrt"
-                      : d.last_seen_at ? `zuletzt ${time(d.last_seen_at)}`
+                      : d.last_seen_at
+                        ? `zuletzt ${time(d.last_seen_at)}${stale(d.last_seen_at) ? " · meldet sich nicht" : ""}`
                       : "noch nie gemeldet"}
                   </span>
                 </li>
@@ -141,9 +161,9 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
               </ul>
               <p className="aside">
                 In diesen Minuten konnte nicht gegen die anderen Geräte geprüft
-                werden. {stats.konflikte.length === 0
+                werden. {(stats.konflikteGesamt ?? stats.konflikte.length) === 0
                   ? "Doppelte Einlösungen gab es dabei keine."
-                  : `${stats.konflikte.length} doppelte Einlösungen aufgetreten.`}
+                  : `${stats.konflikteGesamt ?? stats.konflikte.length} doppelte Einlösungen aufgetreten.`}
               </p>
             </section>
           )}

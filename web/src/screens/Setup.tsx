@@ -33,6 +33,9 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
   // Ohne diese Angabe zeigte die Liste im Fehlerfall beide Schritte als
   // erledigt an — mit grünem Haken, obwohl gerade einer gescheitert war.
   const [failedAt, setFailedAt] = useState<Step | null>(null);
+  // Liegt schon eine Ticketliste auf dem Gerät? Dann ist ein gescheiterter
+  // Abgleich kein Grund, den Einlass stillzulegen.
+  const [onDevice, setOnDevice] = useState(0);
 
   const run = useCallback(async () => {
     setError(null);
@@ -67,6 +70,7 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
     } catch (err) {
       setPhase("fehler");
       setFailedAt(at);
+      setOnDevice(await store.countTickets().catch(() => 0));
       // Lieber eine hässliche technische Meldung als „Unbekannter Fehler“ —
       // die Einrichtung passiert am Vorabend, da darf man etwas nachschlagen.
       setError(
@@ -115,9 +119,25 @@ export function Setup({ session, onDone }: { session: store.Session; onDone: () 
         </button>
       )}
       {phase === "fehler" && (
-        <button type="button" className="btn primary wide" onClick={() => void run()}>
-          Noch einmal versuchen
-        </button>
+        <>
+          <button type="button" className="btn primary wide" onClick={() => void run()}>
+            Noch einmal versuchen
+          </button>
+          {/* Der Ausweg, der vorher fehlte.
+              Ohne ihn strandete ein Gerät mit vollständiger Ticketliste,
+              fertiger Texterkennung und gültigem Passwort auf diesem
+              Bildschirm, sobald der Abgleich kein Netz fand — und es gab
+              keinen Weg daran vorbei. Eines von zehn Geräten fiel damit für
+              den Rest der Nacht aus. */}
+          {onDevice > 0 && (
+            <button
+              type="button" className="btn wide"
+              onClick={() => { void store.set("setupDone", true).then(onDone); }}
+            >
+              Mit den {onDevice} Tickets von zuletzt weiterarbeiten
+            </button>
+          )}
+        </>
       )}
 
       <p className="build">Fassung {__BUILD__}</p>

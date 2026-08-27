@@ -4,15 +4,19 @@
 #
 # WICHTIG vor dem Festival: Ab dem Vortag nicht mehr ausrollen. Ein fehlerhafter
 # Build verteilt sich über den Service Worker auf alle Geräte gleichzeitig. Was
-# am Donnerstag läuft, läuft bis Sonntag unverändert — dafür diesen Ablauf in
-# den Repo-Einstellungen abschalten oder einfach nicht mehr pushen.
+# am Donnerstag läuft, läuft bis Sonntag unverändert.
+#
+# Dafür gibt es die Datei DEPLOY-GESPERRT im Wurzelverzeichnis: Liegt sie da,
+# bricht dieser Ablauf unten mit einer klaren Meldung ab. Anlegen, pushen,
+# fertig. Zum Aufheben löschen und pushen — die Datei steht in `paths`, der
+# Lauf startet also von selbst.
 
 name: App veröffentlichen
 
 on:
   push:
     branches: [claude/festival-ticket-scanner-app-20ycst]
-    paths: ["web/**", ".github/workflows/deploy.yml"]
+    paths: ["web/**", ".github/workflows/deploy.yml", "DEPLOY-GESPERRT"]
   workflow_dispatch:
 
 permissions:

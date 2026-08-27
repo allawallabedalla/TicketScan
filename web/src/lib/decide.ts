@@ -14,7 +14,6 @@ export interface Decision {
   code: string;
   ticket?: Ticket;
   /** Bei „bereits eingelöst“: die wahrscheinliche Fehleingabe, siehe unten. */
-  likelyMistype?: { code: string; at: string };
 }
 
 /** Normalisiert eine Eingabe auf die gedruckte Schreibweise. */
@@ -31,39 +30,29 @@ export function decide(code: string, ticket: Ticket | undefined): Decision {
 }
 
 /**
- * Sucht die wahrscheinliche Fehleingabe hinter einem abgewiesenen Ticket.
+ * Die Vertipper-Rückverfolgung ist ersatzlos entfernt.
  *
- * Weil die Nummern fortlaufend und damit dicht liegen, trifft ein Vertipper
- * fast immer ein anderes gültiges Ticket — dieselbe Eigenschaft lässt den
- * Fehler aber auch sehr genau lokalisieren: Wurde kurz zuvor auf demselben
- * Gerät eine Nummer mit genau einer abweichenden Ziffer eingelöst, war
- * höchstwahrscheinlich dieses Ticket gemeint.
+ * Sie hat vorgeschlagen, ein Nachbarticket zurückzunehmen, wenn kurz zuvor auf
+ * demselben Gerät eine Nummer mit genau einer abweichenden Ziffer eingelöst
+ * wurde. Die Auswahlmenge war systematisch falsch: Gesucht wurde unter den
+ * bereits EINGELÖSTEN Nachbarn — also unter Gästen, die tatsächlich drin sind.
+ *
+ * Der Fall, für den sie gebaut war, kann sie gar nicht erreichen. Wurde beim
+ * Scannen von Ticket B versehentlich A gebucht, ist B danach noch offen; ein
+ * erneuter Scan von B ergibt „gültig", und die Rückverfolgung wird nie
+ * aufgerufen. Ausgelöst hat sie stattdessen der Normalfall, dass eine Gruppe
+ * fortlaufende Nummern gekauft hat und nacheinander hereinkommt.
+ *
+ * Ein Prüflauf über 2305 Tickets mit 60 Einlösungen in zehn Minuten: In 34,9
+ * Prozent der Doppelscans wurde ein fremdes, korrekt eingelöstes Ticket zur
+ * Rücknahme angeboten — als erster, hervorgehobener Knopf, mit dem Text
+ * „Wahrscheinlich war dieses Ticket gemeint". Ein Gast, der längst auf dem
+ * Gelände war, stand danach wieder als nicht eingelöst da.
+ *
+ * Ein tragfähiger Ersatz existiert nicht: Jede Nummer hat bis zu 45 gültige
+ * Nachbarn mit einer Ziffer Unterschied. Was am Eingang wirklich hilft, sind
+ * die Tatsachen — wann eingelöst, an welchem Gerät — und die Möglichkeit, ein
+ * unversehrtes Ticket freizugeben. Beides bleibt.
  */
-export function findLikelyMistype(
-  code: string,
-  tickets: Ticket[],
-  deviceId: string,
-  windowMinutes = 10,
-): { code: string; at: string } | undefined {
-  const since = Date.now() - windowMinutes * 60_000;
 
-  const candidates = tickets.filter((t) =>
-    t.redeemedAt !== null &&
-    t.redeemedByDevice === deviceId &&
-    Date.parse(t.redeemedAt) >= since &&
-    differsByOneDigit(code, t.code)
-  );
 
-  if (candidates.length !== 1) return undefined; // Mehrdeutig? Dann lieber nichts behaupten.
-  const hit = candidates[0];
-  return { code: hit.code, at: hit.redeemedAt! };
-}
-
-function differsByOneDigit(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i] && ++diff > 1) return false;
-  }
-  return diff === 1;
-}

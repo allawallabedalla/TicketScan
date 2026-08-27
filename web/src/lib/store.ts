@@ -41,8 +41,20 @@ function run<T>(
     new Promise<T>((resolve, reject) => {
       const tx = db.transaction(store, mode);
       const req = work(tx.objectStore(store));
-      req.onsuccess = () => resolve(req.result);
+      let result: T;
+      req.onsuccess = () => { result = req.result; };
       req.onerror = () => reject(req.error);
+      // Auf oncomplete warten, nicht auf onsuccess.
+      //
+      // Ein Schreibvorgang meldet Erfolg, bevor die Transaktion festgeschrieben
+      // ist. Bricht sie danach ab — voller Speicher auf einem Telefon mit 300
+      // Fotos vom Abend —, hätte `enqueue` Erfolg gemeldet und die Einlösung
+      // wäre trotzdem nicht in der Warteschlange. Ohne jede Meldung.
+      if (mode === "readonly") tx.oncomplete = () => resolve(result);
+      else {
+        tx.oncomplete = () => resolve(result);
+        tx.onabort = () => reject(tx.error ?? new Error("Transaktion abgebrochen"));
+      }
     })
   );
 }
@@ -95,6 +107,11 @@ export async function putTickets(tickets: Ticket[]): Promise<void> {
 export interface QueuedScan {
   scanId: string;
   code: string;
+  /** Laufende Nummer der Einreihung. Der Schlüssel der Warteschlange ist eine
+   *  Zufalls-UUID, `getAll()` liefert also in Zufallsreihenfolge — und eine
+   *  Rücknahme konnte vor der Einlösung ankommen, die sie zurücknehmen
+   *  sollte. Danach war das Ticket auf dem Server eingelöst und lokal frei. */
+  seq?: number;
   clientTs: string;
   action: "redeem" | "undo";
   reason?: string;
@@ -104,7 +121,18 @@ export interface QueuedScan {
   attempts: number;
 }
 
-export const enqueue = (scan: QueuedScan) =>
+let lastSeq = 0;
+
+/** Reiht einen Vorgang ein, in nachvollziehbarer Reihenfolge. */
+export async function enqueue(scan: QueuedScan): Promise<void> {
+  const open = await queued();
+  lastSeq = Math.max(lastSeq, ...open.map((s) => s.seq ?? 0)) + 1;
+  await run("outbox", "readwrite", (s) =>
+    s.put({ ...scan, seq: lastSeq }) as IDBRequest<IDBValidKey>);
+}
+
+/** Ändert einen wartenden Vorgang, etwa um Fehlversuche mitzuzählen. */
+export const requeue = (scan: QueuedScan) =>
   run("outbox", "readwrite", (s) => s.put(scan) as IDBRequest<IDBValidKey>);
 
 export const queued = () =>

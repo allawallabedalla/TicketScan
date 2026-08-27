@@ -34,28 +34,51 @@ export function Tickets({ onPick, onClose }: {
   // Sekunden neu einlesen heißt: Was ein anderes Gerät gerade eingelassen
   // hat, steht hier kurz darauf auch.
   useEffect(() => {
-    const load = () => void store.allTickets().then(setAll);
+    // Nur neu einlesen, wenn sich wirklich etwas geändert hat. 2305 Zeilen
+    // alle fünf Sekunden zu lesen, zu sortieren und alle sichtbaren Zeilen neu
+    // zu zeichnen war auf einem älteren Telefon ein Ruckler beim Blättern —
+    // ausgerechnet dann, wenn jemand unter Zeitdruck eine Nummer sucht.
+    let stand = "";
+    const load = () => void store.allTickets().then((rows) => {
+      let n = 0, letzte = "";
+      for (const t of rows) if (t.redeemedAt) { n++; if (t.redeemedAt > letzte) letzte = t.redeemedAt; }
+      const jetzt = `${rows.length}:${n}:${letzte}`;
+      if (jetzt === stand) return;
+      stand = jetzt;
+      setAll(rows);
+    });
     load();
     const timer = window.setInterval(load, 5000);
     return () => window.clearInterval(timer);
   }, []);
 
+  // Die Suchmenge, noch ohne Filter — daraus kommen auch die Zahlen auf den
+  // Reitern. Vorher zählten die immer den Gesamtbestand: Bei der Eingabe
+  // „Christi" standen drei Zeilen unter „Offen 1980", und niemand konnte
+  // sehen, ob die Liste vollständig gefiltert war oder noch etwas nachkommt.
+  const gesucht = useMemo(() => {
+    const ziffern = query.replace(/\D/g, "");
+    const text = query.trim().toLowerCase();
+    // Ziffern schlagen Buchstaben: Wer eine Nummer eintippt, sucht eine Nummer.
+    if (ziffern.length >= 2) return all.filter((t) => t.code.includes(ziffern));
+    if (text.length >= 2) return all.filter((t) => t.holderName?.toLowerCase().includes(text));
+    return all;
+  }, [all, query]);
+
   const zahlen = useMemo(() => {
     let eingeloest = 0;
+    for (const t of gesucht) if (t.redeemedAt) eingeloest++;
+    return { gesamt: gesucht.length, eingeloest, offen: gesucht.length - eingeloest };
+  }, [gesucht]);
+
+  const gesamt = useMemo(() => {
+    let eingeloest = 0;
     for (const t of all) if (t.redeemedAt) eingeloest++;
-    return { gesamt: all.length, eingeloest, offen: all.length - eingeloest };
+    return { gesamt: all.length, eingeloest };
   }, [all]);
 
   const treffer = useMemo(() => {
-    const ziffern = query.replace(/\D/g, "");
-    const text = query.trim().toLowerCase();
-
-    let rows = all;
-    // Ziffern schlagen Buchstaben: Wer eine Nummer eintippt, sucht eine Nummer.
-    if (ziffern.length >= 2) rows = rows.filter((t) => t.code.includes(ziffern));
-    else if (text.length >= 2) {
-      rows = rows.filter((t) => t.holderName?.toLowerCase().includes(text));
-    }
+    let rows = gesucht;
 
     if (filter === "offen") rows = rows.filter((t) => !t.redeemedAt);
     if (filter === "eingeloest") rows = rows.filter((t) => t.redeemedAt);
@@ -68,7 +91,7 @@ export function Tickets({ onPick, onClose }: {
       rows = [...rows].sort((a, b) => a.code.localeCompare(b.code));
     }
     return rows;
-  }, [all, query, filter]);
+  }, [gesucht, filter]);
 
   // Jede neue Auswahl fängt oben an — sonst bliebe die Liste an der Stelle
   // stehen, an der man vorher war, und sähe leer aus.
@@ -113,18 +136,23 @@ export function Tickets({ onPick, onClose }: {
         )}
       </div>
 
-      <div className="tabs" role="tablist">
+      {/* Bewusst keine tab/tablist-Rollen: Das ARIA-Muster für Reiter verlangt
+          Pfeiltastensteuerung, ein tabpanel und ein rollendes tabindex. Nichts
+          davon war da — VoiceOver kündigte „Reiter 1 von 3" an und verhielt
+          sich dann anders. Es ist eine Filtergruppe, also heißt sie auch so. */}
+      <div className="tabs" role="group" aria-label="Filter">
         <Tab now={filter} me="alle" set={setFilter} n={zahlen.gesamt}>Alle</Tab>
         <Tab now={filter} me="offen" set={setFilter} n={zahlen.offen}>Offen</Tab>
         <Tab now={filter} me="eingeloest" set={setFilter} n={zahlen.eingeloest}>Eingelöst</Tab>
       </div>
 
       <div className="bar" aria-hidden>
-        <span style={{ width: `${zahlen.gesamt ? (zahlen.eingeloest / zahlen.gesamt) * 100 : 0}%` }} />
+        <span style={{ width: `${gesamt.gesamt ? (gesamt.eingeloest / gesamt.gesamt) * 100 : 0}%` }} />
       </div>
       <p className="aside tight">
-        {zahlen.eingeloest} von {zahlen.gesamt} eingelöst · Stand des letzten
+        {gesamt.eingeloest} von {gesamt.gesamt} eingelöst · Stand des letzten
         Abgleichs auf diesem Gerät
+        {query.trim() && ` · Suche: ${gesucht.length} ${gesucht.length === 1 ? "Treffer" : "Treffer"}`}
       </p>
 
       {treffer.length === 0 && (
@@ -180,7 +208,7 @@ function Tab({ now, me, set, n, children }: {
 }) {
   return (
     <button
-      type="button" role="tab" aria-selected={now === me}
+      type="button" aria-pressed={now === me}
       className={now === me ? "tab on" : "tab"}
       onClick={() => set(me)}
     >

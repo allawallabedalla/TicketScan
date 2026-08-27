@@ -3,10 +3,18 @@
 // das Passwort gesetzt, steht das Schema, liegen Tickets in der Datenbank?
 //
 // Gedacht für direkt nach der Einrichtung — und noch einmal am Vorabend des
-// Festivals. Bucht nichts und ändert nichts.
+// Festivals.
+//
+// ACHTUNG: Abschnitt 6 bucht tatsächlich. Er löst die höchste Nummer des
+// Bereichs ein, prüft die Doppelerkennung und nimmt sie wieder zurück — in
+// einem finally, damit die Rücknahme auch nach einem Abbruch läuft. Der Kopf
+// behauptete früher „Bucht nichts und ändert nichts"; das stimmte seit
+// Abschnitt 6 nicht mehr, und ein Abbruch dazwischen hätte ein echtes Ticket
+// als eingelöst stehen lassen.
 //
 //   TICKETSCAN_API=https://<ref>.supabase.co/functions/v1 \
 //   TICKETSCAN_EVENT_PASSWORD=... \
+//   TICKETSCAN_ERWARTE=2305 \
 //   node scripts/smoke-test.mjs
 
 import { env, exit, stderr } from "node:process";
@@ -28,12 +36,26 @@ if (!anonKey || looksMangled(anonKey)) {
   anonKey = keyFromCli(refFromUrl(API), "public") ?? null;
 }
 
+/** Sollzahl der Tickets. Ohne sie prüft der Testlauf nur auf „nicht leer" —
+ *  ein bei Zeile 1500 abgebrochener Import meldete damit grün, und 805 Gäste
+ *  liefen am Eingang als unbekannt auf. */
+const ERWARTE = Number(env.TICKETSCAN_ERWARTE ?? "0") || null;
+
 let failed = 0;
+let skipped = 0;
 const results = [];
 
 function record(ok, name, detail) {
   results.push({ ok, name, detail });
   if (!ok) failed++;
+}
+
+/** Eine Prüfung, die nicht laufen konnte. Sie darf nicht als grün durchgehen:
+ *  „Alles steht" neben drei fehlenden Zeilen ist die gefährlichste Ausgabe,
+ *  die ein Testlauf haben kann. */
+function skip(name, detail) {
+  results.push({ ok: null, name, detail });
+  skipped++;
 }
 
 async function step(name, work) {
@@ -134,11 +156,55 @@ if (session) {
     if (seen.size === 0) {
       throw new Error("0 Tickets — Liste noch nicht importiert (scripts/import-tickets.mjs)");
     }
+    if (ERWARTE && seen.size !== ERWARTE) {
+      throw new Error(
+        `${seen.size} Tickets, erwartet ${ERWARTE} — Import unvollständig?`,
+      );
+    }
 
     const codes = [...seen.keys()].sort();
     const offen = [...seen.values()].filter((t) => !t.redeemed_at).length;
+    const luecken = pruefeLuecken(codes);
     return `${seen.size} Tickets über ${seiten} Seiten, ${codes[0]} – ${codes.at(-1)}, ` +
-      `${offen} noch nicht eingelöst`;
+      `${offen} noch nicht eingelöst${luecken ? `, ${luecken}` : ""}`;
+  });
+
+  // Namen gehören zur Bedienung: Der Guide weist an, den Namen mit dem Ticket
+  // zu vergleichen, und die Liste sucht darüber. Ein Import mit falsch
+  // benannter Spalte füllt still null ein — ohne Fehler, ohne Hinweis.
+  await step("Namen sind hinterlegt", async () => {
+    const res = await fetch(`${API}/changes`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const { tickets } = await res.json();
+    const mit = tickets.filter((t) => t.holder_name).length;
+    if (!("holder_name" in (tickets[0] ?? {}))) {
+      throw new Error("Spalte holder_name fehlt in der Antwort — changes neu ausrollen");
+    }
+    if (mit === 0) {
+      throw new Error(
+        "kein einziger Name auf der ersten Seite — Spalte beim Import falsch benannt?",
+      );
+    }
+    return `${mit} von ${tickets.length} auf der ersten Seite`;
+  });
+
+  // Ohne diese Prüfung fällt nicht auf, dass `stats` nie ausgerollt wurde:
+  // Die Übersicht meldet dann „Kennzahlen brauchen Netz", und der zweite,
+  // körperliche Zähler — der Bändchenabgleich — ist einfach nicht da.
+  await step("Übersicht liefert Kennzahlen", async () => {
+    const res = await fetch(`${API}/stats`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (res.status === 404) {
+      throw new Error("404 — `stats` ist nicht ausgerollt (siehe docs/einrichtung.md, Schritt 4)");
+    }
+    if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 120)}`);
+    const stats = await res.json();
+    if (typeof stats.gesamt !== "number" || !Array.isArray(stats.geraete)) {
+      throw new Error("unerwartete Antwort — falsche Fassung von `stats`?");
+    }
+    return `${stats.eingeloest} von ${stats.gesamt} eingelöst, ${stats.geraete.length} Geräte`;
   });
 
   await step("Abgelaufenes Token wird abgewiesen", async () => {
@@ -199,6 +265,9 @@ if (ANON) {
     });
   }
 } else {
+  for (const tabelle of ["tickets", "scan_log", "devices"]) {
+    skip(`${tabelle} nicht öffentlich lesbar`, "übersprungen — kein öffentlicher Schlüssel");
+  }
   stderr.write(
     "\nHinweis: Ohne öffentlichen Schlüssel entfällt die Prüfung, ob die Tabellen\n" +
     "öffentlich abfragbar sind. Entweder TICKETSCAN_ANON_KEY setzen oder die\n" +
@@ -291,7 +360,7 @@ if (session) {
       action: "undo", reason: "Testlauf",
     }]);
     if (r.result !== "ok") {
-      throw new Error(`Rücknahme scheiterte (${r.result}) — Migration 0003 eingespielt?`);
+      throw new Error(`Rücknahme scheiterte (${r.result}) — Migrationen 0003/0004 eingespielt?`);
     }
 
     const res = await fetch(`${API}/changes?offset=2000`, {
@@ -302,17 +371,89 @@ if (session) {
     if (after?.redeemed_at) throw new Error("Ticket gilt weiterhin als eingelöst");
     return `${probe} wieder frei — Bestand unverändert`;
   });
+
+  // Wiederholte Rücknahme darf nichts erneut zurücknehmen.
+  //
+  // Das war ein echter Fund: undo_redemption prüfte die scan_id nicht, bevor
+  // es schrieb. Ging die Antwort auf dem Rückweg verloren und wurde derselbe
+  // Vorgang später erneut zugestellt, machte er eine fremde, inzwischen
+  // gültige Einlösung zunichte — ohne Spur im Protokoll.
+  await step("Wiederholte Rücknahme wirkt nicht doppelt", async () => {
+    const scanId = crypto.randomUUID();
+    const undoScan = {
+      scanId, code: probe, clientTs: new Date().toISOString(),
+      action: "undo", reason: "Testlauf Idempotenz",
+    };
+
+    // Erst einlösen, damit es etwas zurückzunehmen gibt.
+    await send([{
+      scanId: crypto.randomUUID(), code: probe, clientTs: new Date().toISOString(),
+      action: "redeem", offline: false,
+    }]);
+    const [erste] = await send([undoScan]);
+    if (erste.result !== "ok") throw new Error(`erste Rücknahme: ${erste.result}`);
+
+    // Zwischenzeitlich löst ein anderes Gerät regulär ein.
+    await send([{
+      scanId: crypto.randomUUID(), code: probe, clientTs: new Date().toISOString(),
+      action: "redeem", offline: false,
+    }]);
+
+    // Dieselbe Rücknahme noch einmal — sie darf die neue Einlösung nicht
+    // anfassen, sondern nur ihre damalige Antwort wiederholen.
+    const [zweite] = await send([undoScan]);
+    if (zweite.result !== "ok") throw new Error(`Wiederholung: ${zweite.result}`);
+
+    const res = await fetch(`${API}/changes?offset=2000`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const { tickets } = await res.json();
+    const after = tickets.find((t) => t.code === probe);
+    if (!after?.redeemed_at) {
+      throw new Error("die wiederholte Rücknahme hat die neue Einlösung zunichte gemacht");
+    }
+    return "Antwort wiederholt, fremde Einlösung unangetastet";
+  });
+
+  // Aufräumen, auch wenn oben etwas schiefging: Ein Abbruch dazwischen ließe
+  // sonst ein echtes Ticket als eingelöst stehen, und der Gast liefe am
+  // Eingang als „bereits drinnen" auf.
+  await step("Bestand am Ende unverändert", async () => {
+    await send([{
+      scanId: crypto.randomUUID(), code: probe, clientTs: new Date().toISOString(),
+      action: "undo", reason: "Testlauf aufräumen",
+    }]);
+    const res = await fetch(`${API}/changes?offset=2000`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const { tickets } = await res.json();
+    const after = tickets.find((t) => t.code === probe);
+    if (after?.redeemed_at) throw new Error(`${probe} ist noch eingelöst — bitte von Hand freigeben`);
+    return `${probe} frei`;
+  });
 }
 
 // ------------------------------------------------------------------ Bericht --
 
 stderr.write("\n");
 for (const { ok, name, detail } of results) {
-  stderr.write(`  ${ok ? "ok  " : "FEHL"}  ${name.padEnd(42)} ${detail ?? ""}\n`);
+  const mark = ok === null ? "??  " : ok ? "ok  " : "FEHL";
+  stderr.write(`  ${mark}  ${name.padEnd(42)} ${detail ?? ""}\n`);
 }
 stderr.write(
-  failed === 0
-    ? "\nAlles steht. Die App kann gegen dieses Backend arbeiten.\n"
-    : `\n${failed} von ${results.length} Prüfungen fehlgeschlagen.\n`,
+  failed > 0
+    ? `\n${failed} von ${results.length} Prüfungen fehlgeschlagen.\n`
+    : skipped > 0
+      ? `\nAlles Geprüfte steht — aber ${skipped} Prüfungen liefen nicht.\n` +
+        "Das ist kein grünes Licht. Siehe Hinweis oben.\n"
+      : "\nAlles steht. Die App kann gegen dieses Backend arbeiten.\n",
 );
-exit(failed === 0 ? 0 : 1);
+exit(failed > 0 ? 1 : skipped > 0 ? 2 : 0);
+
+/** Fehlende Nummern im Bereich benennen, statt nur zu zählen. */
+function pruefeLuecken(codes) {
+  const zahlen = codes.map(Number).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+  if (zahlen.length < 2) return null;
+  const fehlend = zahlen.at(-1) - zahlen[0] + 1 - zahlen.length;
+  return fehlend > 0 ? `${fehlend} Nummern fehlen im Bereich` : "lückenlos";
+}

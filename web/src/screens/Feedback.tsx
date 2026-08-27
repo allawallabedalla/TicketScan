@@ -57,7 +57,7 @@ export function Feedback({ onClose }: { onClose: () => void }) {
       <section className="block">
         <h2>Angaben vom Gerät</h2>
         <p className="aside">
-          Werden automatisch mitgeschickt. Ohne sie beginnt jede Fehlersuche mit
+          Gehen mit, egal welchen der beiden Wege du nimmst. Ohne sie beginnt jede Fehlersuche mit
           denselben Rückfragen.
         </p>
         <pre className="facts">{facts}</pre>

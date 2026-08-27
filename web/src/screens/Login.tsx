@@ -12,6 +12,29 @@ import { Logo } from "../onboarding/Logo";
 
 const API = import.meta.env.VITE_API_URL ?? "";
 
+/** Weiterarbeiten mit der letzten Anmeldung dieses Geräts. */
+async function offlineWeiter(
+  password: string,
+  label: string,
+  onDone: (session: store.Session) => void,
+): Promise<boolean> {
+  const known = await store.get<store.Session>("session");
+  if (!known || !(await localAuth.matches(password))) return false;
+
+  const rollover = new Date();
+  rollover.setHours(6, 0, 0, 0);
+  if (rollover <= new Date()) rollover.setDate(rollover.getDate() + 1);
+
+  const offlineSession: store.Session = {
+    ...known,
+    label: label.trim() || known.label,
+    expiresAt: Math.floor(rollover.getTime() / 1000),
+  };
+  await store.set("session", offlineSession);
+  onDone(offlineSession);
+  return true;
+}
+
 export function Login({ onDone }: { onDone: (session: store.Session) => void }) {
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
@@ -37,6 +60,10 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
       const data = await res.json();
 
       if (!res.ok) {
+        // Bei einem Serverfehler denselben Weg wie ohne Netz gehen: Ein
+        // pausiertes Projekt, eine überlastete Datenbank oder ein fehlendes
+        // Geheimnis sind für die Person am Eingang dasselbe wie Funkstille.
+        if (res.status >= 500 && await offlineWeiter(password, label, onDone)) return;
         setError(data.error ?? "Anmeldung fehlgeschlagen");
         return;
       }
@@ -49,21 +76,8 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
     } catch {
       // Kein Netz. War dieses Gerät schon einmal angemeldet, geht es trotzdem
       // weiter — der Server entscheidet erneut, sobald er erreichbar ist.
+      if (await offlineWeiter(password, label, onDone)) return;
       const known = await store.get<store.Session>("session");
-      if (known && await localAuth.matches(password)) {
-        const rollover = new Date();
-        rollover.setHours(6, 0, 0, 0);
-        if (rollover <= new Date()) rollover.setDate(rollover.getDate() + 1);
-
-        const offlineSession: store.Session = {
-          ...known,
-          label: label.trim() || known.label,
-          expiresAt: Math.floor(rollover.getTime() / 1000),
-        };
-        await store.set("session", offlineSession);
-        onDone(offlineSession);
-        return;
-      }
       setError(
         known
           ? "Kein Netz — und das Passwort stimmt nicht mit dem der letzten Anmeldung überein."

@@ -24,6 +24,8 @@ importieren, Geräte zurücksetzen, Veröffentlichung sperren.
   Durchgänge.
 - [`docs/einrichtung.md`](docs/einrichtung.md) — Backend aufsetzen, in acht
   Schritten, mit Testlauf und Checkliste vor dem Livegang.
+- [`docs/ticketliste-pflegen.md`](docs/ticketliste-pflegen.md) — Namen
+  nachtragen und Tickets ergänzen, im Browser, ohne Terminal.
 - [`docs/kurzanleitung-vorschau.html`](docs/kurzanleitung-vorschau.html) — die
   fünf Bildschirme der Kurzanleitung als Vorschau, umschaltbar zwischen iPhone
   und Android.

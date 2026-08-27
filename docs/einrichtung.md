@@ -360,6 +360,21 @@ Stammdaten und rührt `redeemed_at` nicht an. Er markiert aber alle Zeilen als
 geändert und löst damit auf allen Geräten einen vollständigen Neuabgleich aus
 — also nicht während des Einlasses.
 
+## Ticketliste pflegen, ohne Terminal
+
+Namen nachtragen, ein Ticket ergänzen, einen Vermerk setzen — das geht
+vollständig im Browser über den Tabelleneditor im Supabase-Dashboard, ohne
+CLI und ohne Schlüssel. Eigene Anleitung, auch zum Weitergeben:
+[`docs/ticketliste-pflegen.md`](ticketliste-pflegen.md).
+
+Kurz: **Table Editor → Tabelle `tickets`**, Zelle doppelklicken, tippen. Die
+Telefone haben die Änderung nach wenigen Sekunden. `redeemed_at` bleibt
+unangetastet — das ist der Einlassstand, kein Textfeld.
+
+Wer dafür Zugang bekommt, sieht im Dashboard auch die Schlüssel und kann die
+Datenbank leeren; eine Rolle „nur Ticketliste" gibt es in den kleinen Tarifen
+nicht.
+
 ## Listen am Laptop ansehen
 
 Drei Wege, je nachdem, was gebraucht wird.

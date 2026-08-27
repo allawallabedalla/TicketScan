@@ -182,7 +182,7 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
             <b>Das Passwort bekommst du von der Einlassleitung.</b> Es ist für
             alle Geräte dasselbe.
           </Perk>
-          <Perk icon={<Icon.Scan />}>
+          <Perk icon={<Icon.Tag />}>
             <b>Gib dem Gerät einen Namen</b> — zum Beispiel „Nordeingang 2“.
             Damit ist später erkennbar, an welcher Tür ein Ticket gescannt wurde.
           </Perk>
@@ -232,9 +232,11 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
           <Move n={2} icon={<Icon.Check />}>
             Warte auf <b>Grün</b>. Die Nummer erscheint groß auf dem Bildschirm.
           </Move>
-          <Move n={3}>
+          <Move n={3} icon={<Icon.Person />}>
             <b>Vergleiche sie mit dem Ticket</b> und tippe dann auf
             <b> Einlassen</b>. Dieser Blick ist wichtig: Er fängt Lesefehler ab.
+            Steht ein <b>Name</b> darunter, vergleiche auch den. Fehlt er, ist
+            das kein Grund, jemanden abzuweisen — viele Tickets haben keinen.
           </Move>
           <Move n={4} icon={<Icon.Tear />}>
             <b>Abschnitt abreißen</b>, Bändchen anlegen. Fertig.
@@ -246,6 +248,15 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
             <b>Kamera will nicht?</b> Ticket verknittert, zu dunkel, nass —
             passiert. Tippe auf <b>Tastatur</b> und gib die vier Ziffern ein.
             Die erste Null steht schon da.
+          </p>
+        </div>
+        <div className="alert soft">
+          <Icon.List />
+          <p>
+            <b>Nummer gar nicht mehr lesbar?</b> Unter <b>Liste</b> stehen alle
+            Tickets — was schon eingelöst ist und was noch offen. Dort lässt
+            sich nach einem Teil der Nummer oder nach dem Namen suchen und das
+            Ticket von Hand einlassen.
           </p>
         </div>
       </>

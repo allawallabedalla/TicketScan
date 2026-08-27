@@ -235,9 +235,14 @@ Drei Wege, je nachdem, was gebraucht wird.
 
 **Währenddessen, ohne Werkzeug:** Die App im Laptop-Browser öffnen
 (<https://allawallabedalla.github.io/TicketScan/>), mit demselben Passwort
-anmelden, unten rechts *Übersicht* antippen. Das ist derselbe Stand, den die
-Telefone sehen — Anzahl eingelöst, Geräte, Konflikte. Ein Laptop zählt dabei
+anmelden. Unten steht *Liste* — dort stehen alle 2305 Tickets, umschaltbar
+zwischen *Alle*, *Offen* und *Eingelöst*, durchsuchbar nach Nummer und Name.
+Über die Statuszeile darüber öffnet sich die *Übersicht* mit den Kennzahlen:
+Anzahl eingelöst, Geräte, Konflikte, Bändchenabgleich. Ein Laptop zählt dabei
 als weiteres Gerät; scannen muss er nicht.
+
+Dieselbe Liste hat auch jedes Telefon am Eingang — sie zeigt den Stand des
+letzten Abgleichs, also auch dann etwas, wenn gerade kein Netz da ist.
 
 **Als Tabelle, zum Weiterverarbeiten:**
 

@@ -7,7 +7,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as store from "../lib/store";
 import * as sync from "../lib/sync";
-import * as Icon from "../onboarding/Icons";
 
 export function Recent({ onClose }: { onClose: () => void }) {
   const [entries, setEntries] = useState<store.HistoryEntry[]>([]);
@@ -78,12 +77,4 @@ function group(code: string): string {
 
 function time(iso: string): string {
   return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-}
-
-export function RecentButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button type="button" className="btn" onClick={onClick} aria-label="Letzte Vorgänge">
-      <Icon.Scan />
-    </button>
-  );
 }

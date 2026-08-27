@@ -337,17 +337,25 @@ b { font-weight: 650; }
   padding: 12px 14px; text-shadow: none; color: #fff;
 }
 
-.scanner-bar {
+.scanner-foot {
   flex: 0 0 auto;
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px var(--pad) max(12px, env(safe-area-inset-bottom));
+  padding: 8px var(--pad) max(12px, env(safe-area-inset-bottom));
   background: var(--surface); border-top: 1px solid var(--line);
 }
+.scanner-bar { display: flex; align-items: center; gap: 10px; }
+.scanner-bar .btn { flex: 1 1 0; min-width: 0; }
 .scanner-state {
-  flex: 1; text-align: right; font-size: .86rem; color: var(--faint);
-  display: flex; flex-direction: column; align-items: flex-end;
+  width: 100%; font-size: .82rem; color: var(--faint);
+  display: flex; align-items: center; gap: 8px;
 }
+/* Die Kennzahlen stehen rechts, damit der Blick sie an derselben Stelle
+   findet wie den Zähler auf der Übersicht. */
+.state-more { margin-left: auto; color: var(--accent); font-weight: 600; }
 .scanner-state em { font-style: normal; color: var(--warn); font-weight: 600; }
+/* Das Balkensymbol sagt, dass hier etwas aufgeht — der Gerätename allein
+   sieht aus wie eine Beschriftung, nicht wie eine Schaltfläche. */
+.state-name { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.state-name svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--faint); }
 
 /* ------------------------------------------------- Bestätigung, Ergebnis -- */
 
@@ -584,7 +592,62 @@ b { font-weight: 650; }
   font-size: .95rem; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.entry-name.none { font-weight: 500; color: var(--faint); }
 .entry-meta { font-size: .84rem; color: var(--muted); }
+
+/* ------------------------------------------------------------ Ticketliste -- */
+
+/* Suchfeld mit Lupe: das eine Symbol, das ohne Beschriftung verstanden wird. */
+.searchbox { position: relative; display: flex; align-items: center; }
+.searchbox input {
+  flex: 1; min-width: 0;
+  padding: 12px 40px 12px 42px; font: inherit; font-size: 17px;
+  color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 12px;
+}
+.searchbox-icon {
+  position: absolute; left: 13px; width: 20px; height: 20px;
+  color: var(--faint); pointer-events: none;
+}
+.searchbox-clear {
+  position: absolute; right: 6px;
+  width: 32px; height: 32px; border: 0; border-radius: 16px;
+  background: none; color: var(--muted); font-size: 1.3rem; line-height: 1;
+}
+
+.tabs { display: flex; gap: 8px; }
+/* Zahl unter das Wort, nicht daneben: „Eingelöst 325“ bricht auf schmalen
+   Telefonen um und macht die drei Reiter unterschiedlich hoch. */
+.tab {
+  flex: 1; padding: 7px 6px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface);
+  color: var(--muted); font: inherit; font-size: .82rem; font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
+.tab em {
+  display: block; font-style: normal; font-size: 1.05rem; font-weight: 700;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tab.on em { color: #fff; }
+
+/* Ein Balken sagt in einem Blick, was Zahlen erst gelesen werden müssen. */
+.bar {
+  height: 8px; border-radius: 4px; overflow: hidden;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.bar span { display: block; height: 100%; background: var(--ok); }
+.aside.tight { margin-top: -6px; }
+
+.entries.roster li { grid-template-columns: 26px 1fr auto; gap: 10px; }
+.entries.roster .mark { display: flex; align-items: center; justify-content: center; }
+.entries.roster .mark svg { width: 20px; height: 20px; color: var(--ok); }
+.mark-open {
+  width: 15px; height: 15px; border-radius: 4px;
+  border: 1.7px solid var(--faint);
+}
+.entries.roster li.done .entry-code { color: var(--muted); }
+.entries.roster li.done .entry-name { color: var(--muted); }
 .entries li.duplicate .entry-code { color: var(--warn); }
 .entries li.unknown .entry-code { color: var(--bad); }
 .entries li.undone .entry-code { text-decoration: line-through; color: var(--faint); }
@@ -630,17 +693,23 @@ b { font-weight: 650; }
 .field-button.wide-label { width: auto; padding: 0 14px; font-size: .84rem; font-weight: 600; color: var(--accent); }
 .field-with-button input { padding-right: 104px; }
 .scanner-state.as-button {
-  border: 0; background: none; padding: 6px 0; font: inherit; cursor: pointer;
-  text-align: right;
+  border: 0; background: none; padding: 7px 0 9px; font: inherit; cursor: pointer;
+  text-align: left;
 }
 
 /* Die Leiste trägt inzwischen drei Knöpfe und den Status. Auf schmalen
    Telefonen darf davon nichts abgeschnitten werden. */
 .scanner-bar { gap: 8px; }
-.scanner-bar .btn { padding: 0 14px; flex: 0 0 auto; }
-.scanner-bar .btn svg { width: 22px; height: 22px; }
-.scanner-state { min-width: 0; }
-.scanner-state, .scanner-state em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.scanner-bar .btn { padding: 0 8px; gap: 6px; font-size: .84rem; }
+.scanner-bar .btn svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.scanner-state { min-width: 0; gap: 7px; font-size: .78rem; }
+/* Verkürzt wird der Gerätename — er ist die einzige Angabe hier, die man
+   ohnehin kennt. Ob noch etwas ungesendet ist, muss vollständig dastehen. */
+/* Die Beschriftung braucht ein eigenes Element: In einem Flex-Behälter
+   greift text-overflow nicht, der Name wäre hart abgeschnitten. */
+.state-name { flex: 0 1 auto; min-width: 0; }
+.state-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scanner-state em, .state-more { flex: 0 0 auto; white-space: nowrap; }
 
 /* Rückmeldung */
 .field textarea {

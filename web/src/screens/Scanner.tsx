@@ -11,7 +11,7 @@ import { feedback } from "../lib/feedback";
 import * as store from "../lib/store";
 import * as Icon from "../onboarding/Icons";
 import { Recent } from "./Recent";
-import { Search } from "./Search";
+import { Tickets } from "./Tickets";
 import { Dashboard } from "./Dashboard";
 import * as sync from "../lib/sync";
 
@@ -63,7 +63,7 @@ export function Scanner({ session }: { session: store.Session }) {
   const [source, setSource] = useState<{ w: number; h: number } | null>(null);
   const [reachable, setReachable] = useState(false);
   const [showRecent, setShowRecent] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
+  const [showList, setShowList] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [loaded, setLoaded] = useState<number | null>(null);
 
@@ -239,9 +239,9 @@ export function Scanner({ session }: { session: store.Session }) {
   useEffect(() => {
     // Auch offene Listen halten die Erkennung an: Sonst läuft im Hintergrund
     // ein Ticket durch, während jemand den Verlauf durchsieht.
-    paused.current = view.at !== "scan" || showRecent || showSearch || showStats;
+    paused.current = view.at !== "scan" || showRecent || showList || showStats;
     if (view.at === "scan") { consensus.current.reset(); setSighted(null); setBox(null); }
-  }, [view, showRecent, showSearch, showStats]);
+  }, [view, showRecent, showList, showStats]);
 
   // ------------------------------------------------------------------ Buchen --
 
@@ -324,34 +324,42 @@ export function Scanner({ session }: { session: store.Session }) {
         />
       )}
 
-      <div className="scanner-bar">
-        <button type="button" className="btn" onClick={() => { setKeypad(!keypad); setTyped(""); }}>
-          {keypad ? <><Icon.Camera /> Kamera</> : <><Icon.Keypad /> Tastatur</>}
-        </button>
-        <button
-          type="button" className="btn" onClick={() => setShowSearch(true)}
-          aria-label="Ticket suchen"
-        >
-          <Icon.Scan />
-        </button>
-        <button
-          type="button" className="btn" onClick={() => setShowRecent(true)}
-          aria-label="Letzte Vorgänge"
-        >
-          <Icon.Tear />
-        </button>
+      <div className="scanner-foot">
+        {/* Der Status hat eine eigene Zeile: In der Knopfreihe wurde er auf
+            schmalen Telefonen abgeschnitten — ausgerechnet die Angabe, ob
+            noch etwas ungesendet ist. */}
         <button
           type="button" className="scanner-state as-button"
           onClick={() => setShowStats(true)}
-          aria-label="Übersicht öffnen"
         >
-          {session.label}
+          <span className="state-name">
+            <Icon.Chart /><span className="state-label">{session.label}</span>
+          </span>
           {pending > 0
             ? <em className="warn">{pending} {pending === 1 ? "wartet" : "warten"}</em>
             : reachable
               ? <em className="ok">alles gesendet</em>
               : <em className="warn">kein Kontakt</em>}
+          <span className="state-more">Übersicht</span>
         </button>
+
+        {/* Beschriftet, nicht nur bebildert: Am Eingang steht jemand, der die
+            App zum ersten Mal in der Hand hat. Ein Symbol allein muss geraten
+            werden, ein Wort daneben nicht. */}
+        <div className="scanner-bar">
+          <button
+            type="button" className="btn"
+            onClick={() => { setKeypad(!keypad); setTyped(""); }}
+          >
+            {keypad ? <><Icon.Camera /> Kamera</> : <><Icon.Keypad /> Tastatur</>}
+          </button>
+          <button type="button" className="btn" onClick={() => setShowList(true)}>
+            <Icon.List /> Liste
+          </button>
+          <button type="button" className="btn" onClick={() => setShowRecent(true)}>
+            <Icon.History /> Verlauf
+          </button>
+        </div>
       </div>
 
       {loaded === 0 && (
@@ -387,10 +395,10 @@ export function Scanner({ session }: { session: store.Session }) {
       )}
       {showRecent && <Recent onClose={() => setShowRecent(false)} />}
       {showStats && <Dashboard session={session} onClose={() => setShowStats(false)} />}
-      {showSearch && (
-        <Search
-          onClose={() => setShowSearch(false)}
-          onPick={(code) => { setShowSearch(false); void evaluate(code); }}
+      {showList && (
+        <Tickets
+          onClose={() => setShowList(false)}
+          onPick={(code) => { setShowList(false); void evaluate(code); }}
         />
       )}
     </div>

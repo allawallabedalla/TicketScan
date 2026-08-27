@@ -1,4 +1,4 @@
-// Symbole für den Einstiegs-Guide. Bewusst als Strichzeichnungen in
+// Symbole der App. Bewusst als Strichzeichnungen in
 // currentColor: sie nehmen die Farbe ihrer Umgebung an und bleiben in beiden
 // Darstellungen lesbar.
 
@@ -136,5 +136,56 @@ export const EyeOff = (p: Props) => (
     <path d="M6.3 7.8A17.6 17.6 0 0 0 2 12s3.6 6.5 10 6.5a10.9 10.9 0 0 0 4-.75" />
     <path d="M10.1 10.1a2.7 2.7 0 0 0 3.8 3.8" />
     <path d="M3 3l18 18" />
+  </svg>
+);
+
+/** Suche: Lupe. Das eine Symbol, das jeder ohne Beschriftung erkennt. */
+export const Search = (p: Props) => (
+  <svg {...base} {...p}>
+    <circle cx="10.5" cy="10.5" r="6.5" />
+    <path d="M15.4 15.4L21 21" strokeWidth="2.1" />
+  </svg>
+);
+
+/** Ticketliste: Zeilen mit Häkchen und offenem Kästchen. */
+export const List = (p: Props) => (
+  <svg {...base} {...p}>
+    <path d="M4 7.5l1.6 1.6L8.6 6" strokeWidth="2" />
+    <rect x="4" y="15" width="4.6" height="4.6" rx="1" />
+    <path d="M12 8h8M12 17.3h8" strokeWidth="1.9" />
+  </svg>
+);
+
+/** Verlauf: Uhr mit Pfeil zurück. */
+export const History = (p: Props) => (
+  <svg {...base} {...p}>
+    <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" />
+    <path d="M3 3.5V9h5.5" />
+    <path d="M12 7.6V12l3 1.8" strokeWidth="2" />
+  </svg>
+);
+
+/** Übersicht: Balken. */
+export const Chart = (p: Props) => (
+  <svg {...base} {...p}>
+    <path d="M4 20V4" />
+    <path d="M4 20h16" />
+    <path d="M8.5 20v-5.5M13 20V8.5M17.5 20v-8" strokeWidth="2.4" />
+  </svg>
+);
+
+/** Gerätename: Anhänger mit Loch. */
+export const Tag = (p: Props) => (
+  <svg {...base} {...p}>
+    <path d="M11.4 3H19a2 2 0 0 1 2 2v7.6a2 2 0 0 1-.6 1.4l-6.4 6.4a2 2 0 0 1-2.8 0l-7.6-7.6a2 2 0 0 1 0-2.8L10 3.6a2 2 0 0 1 1.4-.6z" />
+    <circle cx="16.5" cy="7.5" r="1.4" />
+  </svg>
+);
+
+/** Person: für den Namen auf dem Ticket. */
+export const Person = (p: Props) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="8" r="3.6" />
+    <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
   </svg>
 );

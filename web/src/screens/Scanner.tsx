@@ -14,6 +14,7 @@ import { Fallback } from "../onboarding/Fallback";
 import { Recent } from "./Recent";
 import { Tickets } from "./Tickets";
 import { Dashboard } from "./Dashboard";
+import { Verwaltung } from "./Verwaltung";
 import * as sync from "../lib/sync";
 
 /** Der Suchrahmen, in Anteilen der angezeigten Fläche. Flach wie das Etikett,
@@ -80,6 +81,18 @@ export function Scanner({ session }: { session: store.Session }) {
   const [showRecent, setShowRecent] = useState(false);
   const [showList, setShowList] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showVerwaltung, setShowVerwaltung] = useState(false);
+
+  // Wer sich mit „Ticketliste pflegen" angemeldet hat, soll auch dort landen
+  // — und nicht erst durch den Scanner suchen müssen.
+  useEffect(() => {
+    void (async () => {
+      if (await store.get<boolean>("verwaltungGewuenscht")) {
+        await store.remove("verwaltungGewuenscht");
+        if (session.admin) setShowVerwaltung(true);
+      }
+    })();
+  }, [session.admin]);
   const [loaded, setLoaded] = useState<number | null>(null);
   const lastSize = useRef<string | null>(null);
   const lastStamp = useRef(-1);
@@ -372,7 +385,8 @@ export function Scanner({ session }: { session: store.Session }) {
   useEffect(() => {
     // Auch offene Listen halten die Erkennung an: Sonst läuft im Hintergrund
     // ein Ticket durch, während jemand den Verlauf durchsieht.
-    uiPaused.current = view.at !== "scan" || showRecent || showList || showStats;
+    uiPaused.current = view.at !== "scan" || showRecent || showList || showStats
+      || showVerwaltung;
     paused.current = uiPaused.current || hidden.current;
     if (view.at === "scan") {
       consensus.current.reset();
@@ -380,7 +394,7 @@ export function Scanner({ session }: { session: store.Session }) {
       setSighted(null);
       setBox(null);
     }
-  }, [view, showRecent, showList, showStats]);
+  }, [view, showRecent, showList, showStats, showVerwaltung]);
 
   // ------------------------------------------------------------------ Buchen --
 
@@ -624,6 +638,11 @@ export function Scanner({ session }: { session: store.Session }) {
       {/* Jede Fläche mit eigener Grenze: Wirft eine davon, bleibt der Scanner
           stehen und der Einlass läuft weiter. Genau dafür war die Grenze
           gedacht — die äußere allein hätte den Scanner mitgenommen. */}
+      {showVerwaltung && (
+        <Fallback label="Verwaltung" onClose={() => setShowVerwaltung(false)}>
+          <Verwaltung session={session} onClose={() => setShowVerwaltung(false)} />
+        </Fallback>
+      )}
       {showRecent && (
         <Fallback label="Verlauf" onClose={() => setShowRecent(false)}>
           <Recent onClose={() => setShowRecent(false)} />
@@ -639,6 +658,9 @@ export function Scanner({ session }: { session: store.Session }) {
           <Tickets
             onClose={() => setShowList(false)}
             onPick={(code) => { setShowList(false); void evaluate(code); }}
+            onEdit={session.admin
+              ? () => { setShowList(false); setShowVerwaltung(true); }
+              : undefined}
           />
         </Fallback>
       )}

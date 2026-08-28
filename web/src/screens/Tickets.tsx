@@ -20,9 +20,13 @@ const STEP = 120;
 
 type Filter = "alle" | "offen" | "eingeloest";
 
-export function Tickets({ onPick, onClose }: {
+export function Tickets({ onPick, onClose, onEdit }: {
   onPick: (code: string) => void;
   onClose: () => void;
+  /** Nur gesetzt, wenn dieses Gerät die Liste pflegen darf. Der Weg dorthin
+   *  führte vorher ausschließlich über die Übersicht — gesucht wird er aber
+   *  hier, in der Liste, die man gerade vor sich hat. */
+  onEdit?: () => void;
 }) {
   const [all, setAll] = useState<store.Ticket[]>([]);
   const [query, setQuery] = useState("");
@@ -121,7 +125,12 @@ export function Tickets({ onPick, onClose }: {
     <div className="sheet overlay list" ref={scroller} onScroll={onScroll}>
       <header className="list-head">
         <h1>Ticketliste</h1>
-        <button type="button" className="btn" onClick={onClose}>Schließen</button>
+        <div className="list-head-actions">
+          {onEdit && (
+            <button type="button" className="btn" onClick={onEdit}>Bearbeiten</button>
+          )}
+          <button type="button" className="btn" onClick={onClose}>Schließen</button>
+        </div>
       </header>
 
       <div className="searchbox">

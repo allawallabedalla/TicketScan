@@ -602,6 +602,7 @@ b { font-weight: 650; }
 .list { overflow-y: auto; justify-content: flex-start; gap: 14px; }
 .list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .list-head h1 { font-size: 1.35rem; }
+.list-head-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 .entries { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .entries li {
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
@@ -760,8 +761,27 @@ b { font-weight: 650; }
 }
 a.btn { text-decoration: none; }
 
-/* Ein Textknopf, der nicht wie eine Schaltfläche aussehen soll — für den
-   Weg, den am Eingang niemand nimmt. */
+/* Die Wahl am Anfang: zwei große Flächen, jede mit einem Satz, der sagt,
+   wofür sie da ist. Wer das Telefon zum ersten Mal in der Hand hat, soll
+   nicht raten müssen. */
+.wahl {
+  display: flex; align-items: flex-start; gap: 14px; width: 100%;
+  padding: 18px; margin-bottom: 12px; text-align: left;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 14px;
+  font: inherit; cursor: pointer;
+}
+.wahl:active { background: var(--surface-2); }
+.wahl b { display: block; font-size: 1.05rem; font-weight: 650; margin-bottom: 3px; }
+.wahl small { display: block; font-size: .88rem; line-height: 1.45; color: var(--muted); }
+.wahl-icon {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.wahl-icon svg { width: 24px; height: 24px; }
+
+/* Ein Textknopf, der nicht wie eine Schaltfläche aussehen soll. */
 .linky {
   align-self: flex-start; border: 0; background: none; padding: 10px 0;
   font: inherit; font-size: .9rem; color: var(--accent); text-decoration: underline;

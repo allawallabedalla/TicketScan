@@ -34,13 +34,18 @@ nicht etwa offen, sondern abgeschaltet.
 
 1. App öffnen: <https://allawallabedalla.github.io/TicketScan/>
    — geht am Telefon wie am Laptop.
-2. Anmelden, aber mit dem **Verwaltungspasswort** statt des Eventpassworts.
-   Der Gerätename kann alles sein, etwa „Laptop Büro“.
-3. Unten die Statuszeile antippen → **Übersicht**.
-4. Dort steht der Abschnitt **Ticketliste pflegen** → *Liste bearbeiten*.
+2. Beim ersten Bildschirm auf **Ticketliste pflegen** tippen (der andere Knopf
+   ist für die Leute am Eingang).
+3. Verwaltungspasswort eingeben, Gerätename beliebig, etwa „Laptop Büro“.
 
-Wer sich mit dem gewöhnlichen Eventpasswort anmeldet, sieht diesen Abschnitt
-nicht, und der Server weist ihn auch ab, wenn er es doch versucht.
+Danach öffnet sich die Verwaltung von selbst. Später kommt man auch über die
+**Liste** dorthin — oben rechts steht dann *Bearbeiten*.
+
+Wer sich mit dem Einlasspasswort anmeldet, sagt die App das direkt. Und ein
+Gerät am Eingang bekommt den Knopf gar nicht erst zu sehen; der Server weist
+es zusätzlich ab, falls es das doch versucht.
+
+**Passwort wechseln:** Übersicht → ganz unten *Abmelden*, dann neu anmelden.
 
 ## Einzeln ändern
 

@@ -35,7 +35,23 @@ async function offlineWeiter(
   return true;
 }
 
+type Zweck = null | "scanner" | "verwaltung";
+
 export function Login({ onDone }: { onDone: (session: store.Session) => void }) {
+  /**
+   * Erst die Frage, wofür — dann das Passwort.
+   *
+   * Vorher stand hier nur ein Feld, und die Verwaltung versteckte sich hinter
+   * dem zweiten Passwort, von dem auf diesem Bildschirm nichts stand. Das war
+   * als Zurückhaltung gedacht und war in Wahrheit eine Sackgasse: Wer die
+   * Liste pflegen sollte, fand den Weg nicht — und wer schon angemeldet war,
+   * kam gar nicht mehr hierher zurück.
+   *
+   * Verborgen schützt ohnehin nichts. Was schützt, ist das Passwort. Also
+   * steht die Wahl jetzt offen da, in zwei Worten, die keiner Erklärung
+   * bedürfen.
+   */
+  const [zweck, setZweck] = useState<Zweck>(null);
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
   const [label, setLabel] = useState("");
@@ -73,7 +89,23 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
       }
 
       const session: store.Session = data;
+
+      // Wer „Ticketliste pflegen" gewählt, aber das Einlasspasswort getippt
+      // hat, bekommt es gesagt — statt sich hinterher zu fragen, warum
+      // nirgends ein Bearbeiten-Knopf ist.
+      if (zweck === "verwaltung" && !session.admin) {
+        setError(
+          "Das war das Einlasspasswort. Zum Pflegen der Liste braucht es das " +
+          "Verwaltungspasswort.",
+        );
+        return;
+      }
+
       await store.set("session", session);
+      // Damit die App gleich dort landet, wo die Wahl hinzeigte.
+      if (session.admin && zweck === "verwaltung") {
+        await store.set("verwaltungGewuenscht", true);
+      }
       // Für den Fall, dass morgens kein Netz da ist.
       await localAuth.keep(password);
       onDone(session);
@@ -92,12 +124,48 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
     }
   }
 
+  if (zweck === null) {
+    return (
+      <div className="login">
+        <Logo className="logo-lead" label="Herzberg Festival" />
+        <h1>Wofür brauchst du die App?</h1>
+        <p className="lead">Einmal für heute. Danach fragt sie nicht noch einmal.</p>
+
+        <button
+          type="button" className="wahl"
+          onClick={() => { setZweck("scanner"); setError(null); }}
+        >
+          <span className="wahl-icon"><Icon.Camera /></span>
+          <span>
+            <b>Einlass scannen</b>
+            <small>Tickets prüfen und Bändchen ausgeben. Das ist der Normalfall.</small>
+          </span>
+        </button>
+
+        <button
+          type="button" className="wahl"
+          onClick={() => { setZweck("verwaltung"); setError(null); }}
+        >
+          <span className="wahl-icon"><Icon.List /></span>
+          <span>
+            <b>Ticketliste pflegen</b>
+            <small>Namen nachtragen und Tickets ergänzen. Eigenes Passwort.</small>
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  const istVerwaltung = zweck === "verwaltung";
+
   return (
     <form className="login" onSubmit={submit}>
       <Logo className="logo-lead" label="Herzberg Festival" />
-      <h1>Anmelden</h1>
+      <h1>{istVerwaltung ? "Ticketliste pflegen" : "Einlass scannen"}</h1>
       <p className="lead">
-        Einmal für heute. Beim Scannen fragt die App nicht noch einmal.
+        {istVerwaltung
+          ? "Dafür gibt es ein eigenes Passwort — nicht das vom Eingang."
+          : "Einmal für heute. Beim Scannen fragt die App nicht noch einmal."}
       </p>
 
       <label className="field">
@@ -110,7 +178,7 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
             value={password} required autoComplete="current-password"
             autoCapitalize="none" autoCorrect="off" spellCheck={false}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Von der Einlassleitung"
+            placeholder={istVerwaltung ? "Verwaltungspasswort" : "Von der Einlassleitung"}
           />
           <button
             type="button" className="field-button"
@@ -128,20 +196,26 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
         <input
           type="text" value={label} required maxLength={40} autoComplete="off"
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="z. B. Nordeingang 2"
+          placeholder={istVerwaltung ? "z. B. Laptop Büro" : "z. B. Nordeingang 2"}
         />
-        <small>Damit später erkennbar ist, an welcher Tür gescannt wurde.</small>
+        <small>
+          {istVerwaltung
+            ? "Beliebig — er steht später in der Geräteliste."
+            : "Damit später erkennbar ist, an welcher Tür gescannt wurde."}
+        </small>
       </label>
 
-      {/* Kein zweites Feld für die Verwaltung.
-          Wer das Verwaltungspasswort statt des Eventpassworts eingibt,
-          bekommt zusätzlich das Recht, die Liste zu pflegen. Auf diesem
-          Bildschirm steht davon nichts — am Eingang soll niemand danach
-          suchen, und wer es braucht, weiß es. */}
       {error && <p className="error" role="alert">{error}</p>}
 
       <button type="submit" className="btn primary wide" disabled={busy}>
         {busy ? "Einen Moment…" : "Anmelden"}
+      </button>
+
+      <button
+        type="button" className="linky"
+        onClick={() => { setZweck(null); setPassword(""); setError(null); }}
+      >
+        Zurück zur Auswahl
       </button>
     </form>
   );

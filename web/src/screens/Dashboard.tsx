@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as api from "../lib/api";
 import { Unauthorized } from "../lib/api";
+import * as store from "../lib/store";
 import type { Session } from "../lib/store";
 import { Feedback } from "./Feedback";
 import { Verwaltung } from "./Verwaltung";
@@ -190,6 +191,26 @@ export function Dashboard({ session, onClose }: { session: Session; onClose: () 
               </button>
             </section>
           )}
+
+          {/* Ohne diesen Knopf kam niemand mehr an den Passwort-Bildschirm
+              zurück: Die Anmeldung gilt bis 6 Uhr morgens, und wer das
+              Verwaltungspasswort eingeben wollte, hatte schlicht keine
+              Möglichkeit dazu. Aufgefallen ist das beim ersten Versuch, die
+              Ticketliste zu pflegen. */}
+          <section className="block">
+            <h2>Abmelden</h2>
+            <p className="aside">
+              Nur nötig, um mit einem anderen Passwort neu anzumelden. Die
+              Ticketliste und alles, was noch nicht gesendet ist, bleiben auf
+              dem Gerät — es geht nichts verloren.
+            </p>
+            <button
+              type="button" className="btn wide"
+              onClick={() => { void store.remove("session").then(() => location.reload()); }}
+            >
+              Abmelden
+            </button>
+          </section>
 
           <section className="block">
             <h2>Etwas stimmt nicht?</h2>

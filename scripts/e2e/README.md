@@ -39,6 +39,15 @@ node run.mjs
 Erwartet werden 24 Zeilen `ok` und `SEITENFEHLER: keine` — bis auf die eine
 Meldung `ERR_INTERNET_DISCONNECTED`, die der Flugmodus-Test selbst auslöst.
 
+## Anmeldung
+
+`anmeldung.mjs` prüft die Wahl am Anfang — beide Wege, die Meldung beim
+falschen Passwort, und dass der Verwaltungsweg auch dort landet.
+
+```bash
+node anmeldung.mjs
+```
+
 ## Verwaltungsansicht
 
 `verwaltung.mjs` prüft den zweiten Weg in die App — das Pflegen der

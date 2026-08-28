@@ -14,7 +14,7 @@
 // Einlösung zurücknehmen will, tut das im Verlauf — das hinterlässt eine Spur
 // im Protokoll, ein überschriebenes Feld nicht.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as api from "../lib/api";
 import * as store from "../lib/store";
 import * as sync from "../lib/sync";
@@ -23,6 +23,11 @@ import * as Icon from "../onboarding/Icons";
 /** Der Endpunkt nimmt 500 Zeilen je Anfrage. 2305 sind damit fünf Anfragen. */
 const BLOCK = 500;
 
+/** Wie viele Zeilen auf einmal in den Baum gehen, und wie viele beim
+ *  Weiterblättern dazukommen. 2305 gleichzeitig machen das Blättern auf einem
+ *  älteren Gerät spürbar zäh. */
+const STEP = 80;
+
 type Zeile = { code: string; holderName: string | null; category: string; note: string | null };
 
 export function Verwaltung({ session, onClose }: {
@@ -30,9 +35,10 @@ export function Verwaltung({ session, onClose }: {
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<"einzeln" | "liste">("einzeln");
+  const scroller = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="sheet overlay list">
+    <div className="sheet overlay list" ref={scroller}>
       <header className="list-head">
         <h1>Ticketliste pflegen</h1>
         <button type="button" className="btn" onClick={onClose}>Schließen</button>
@@ -55,7 +61,9 @@ export function Verwaltung({ session, onClose }: {
         </button>
       </div>
 
-      {tab === "einzeln" ? <Einzeln session={session} /> : <AlsListe session={session} />}
+      {tab === "einzeln"
+        ? <Einzeln session={session} scroller={scroller} />
+        : <AlsListe session={session} />}
 
       <p className="aside">
         Der Einlassstand lässt sich hier nicht ändern — weder setzen noch
@@ -68,25 +76,60 @@ export function Verwaltung({ session, onClose }: {
 
 // --------------------------------------------------------------- Einzeln --
 
-function Einzeln({ session }: { session: store.Session }) {
+function Einzeln({ session, scroller }: {
+  session: store.Session;
+  scroller: React.RefObject<HTMLDivElement>;
+}) {
   const [alle, setAlle] = useState<store.Ticket[]>([]);
   const [query, setQuery] = useState("");
   const [offen, setOffen] = useState<Zeile | null>(null);
   const [busy, setBusy] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [limit, setLimit] = useState(STEP);
 
   useEffect(() => { void store.allTickets().then(setAlle); }, [meldung]);
 
+  /**
+   * Ein leeres Feld heißt „alles", nicht „nichts".
+   *
+   * Vorher zeigte die Suche erst ab zwei Zeichen etwas an — davor eine leere
+   * Fläche, auf der nicht zu erkennen war, ob überhaupt Tickets da sind. Das
+   * hier ist ein Filter, kein Suchschlitz: Ohne Eingabe steht die ganze Liste
+   * da, und jede Eingabe engt sie ein.
+   */
   const treffer = useMemo(() => {
     const ziffern = query.replace(/\D/g, "");
     const text = query.trim().toLowerCase();
-    if (ziffern.length >= 2) return alle.filter((t) => t.code.includes(ziffern)).slice(0, 25);
-    if (text.length >= 2) {
-      return alle.filter((t) => t.holderName?.toLowerCase().includes(text)).slice(0, 25);
+    // Ziffern schlagen Buchstaben: Wer eine Nummer eintippt, sucht eine Nummer.
+    if (ziffern.length >= 1) return alle.filter((t) => t.code.includes(ziffern));
+    if (text.length >= 1) {
+      return alle.filter((t) => t.holderName?.toLowerCase().includes(text));
     }
-    return [];
+    return alle;
   }, [alle, query]);
+
+  // Jede neue Eingabe fängt oben an — sonst bliebe die Liste an der Stelle
+  // stehen, an der man vorher war.
+  useEffect(() => {
+    setLimit(STEP);
+    scroller.current?.scrollTo({ top: 0 });
+  }, [query, scroller]);
+
+  // Nachladen beim Blättern, am Scrollbereich der ganzen Fläche.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (el.scrollTop + el.clientHeight > el.scrollHeight - 500) {
+        setLimit((n) => n + STEP);
+      }
+    };
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [scroller]);
+
+  const sichtbar = treffer.slice(0, limit);
 
   async function speichern() {
     if (!offen) return;
@@ -177,8 +220,15 @@ function Einzeln({ session }: { session: store.Session }) {
 
       {meldung && <p className="verdict ok">{meldung}</p>}
 
+      <p className="aside tight">
+        {query.trim()
+          ? `${treffer.length} ${treffer.length === 1 ? "Treffer" : "Treffer"}`
+          : `${alle.length} Tickets`}
+        {limit < treffer.length && ` · ${sichtbar.length} angezeigt, weiterblättern lädt nach`}
+      </p>
+
       <ul className="entries roster">
-        {treffer.map((t) => (
+        {sichtbar.map((t) => (
           <li key={t.code} className={t.redeemedAt ? "done" : "open"}>
             <span className="mark" aria-hidden>
               {t.redeemedAt ? <Icon.Check /> : <span className="mark-open" />}
@@ -203,8 +253,12 @@ function Einzeln({ session }: { session: store.Session }) {
         ))}
       </ul>
 
-      {query.trim().length >= 2 && treffer.length === 0 && (
-        <p className="lead">Kein Treffer.</p>
+      {treffer.length === 0 && (
+        <p className="lead">
+          {alle.length === 0
+            ? "Auf diesem Gerät liegt noch keine Ticketliste."
+            : "Kein Treffer."}
+        </p>
       )}
     </>
   );

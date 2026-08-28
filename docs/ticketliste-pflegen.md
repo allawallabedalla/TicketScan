@@ -49,8 +49,9 @@ es zusätzlich ab, falls es das doch versucht.
 
 ## Einzeln ändern
 
-Der Reiter **Einzeln**. Nummer oder Name ins Suchfeld, beim Treffer auf
-*Ändern*. Zu ändern sind:
+Der Reiter **Einzeln**. Das Feld oben ist ein Filter, kein Suchschlitz: Ohne
+Eingabe steht die ganze Liste da, jede Ziffer und jeder Buchstabe engt sie
+ein. Beim gesuchten Ticket auf *Ändern*. Zu ändern sind:
 
 - **Name** — steht nach dem Scan groß unter der Nummer. Darf leer bleiben.
 - **Kategorie** — „Festival-Ticket“, „Crew“, „Presse“ …

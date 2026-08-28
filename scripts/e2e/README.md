@@ -60,6 +60,9 @@ node verwaltung.mjs
 
 Der nachgestellte Server kennt dafür `nimda-test` als Verwaltungspasswort.
 
+`verwaltung-filter.mjs` prüft dasselbe für das Filterfeld darin — leeres
+Feld zeigt die ganze Liste, Blättern lädt nach.
+
 ## Den Fehler absichtlich einbauen
 
 Ein Test, der nur auf der heilen Fassung läuft, prüft nichts. `KAPUTT=1`

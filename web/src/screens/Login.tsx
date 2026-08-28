@@ -84,7 +84,20 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
         // Sitzung und den passenden Passworthash hat.
         if ((res.status >= 500 || res.status === 429)
             && await offlineWeiter(password, label, onDone)) return;
-        setError(data.error ?? "Anmeldung fehlgeschlagen");
+        // Bei einem abgelehnten Passwort auf Groß- und Kleinschreibung
+        // hinweisen, und zwar deutlich, wenn tatsächlich alles groß getippt
+        // wurde. Genau das ist beim ersten Versuch passiert: Feststelltaste,
+        // „NIMDA" statt „nimda", und die Meldung sagte nur „stimmt nicht".
+        // Nachts um drei im Dunkeln kommt das wieder.
+        const nurGross = password.length > 1
+          && password === password.toUpperCase()
+          && password !== password.toLowerCase();
+        setError(
+          res.status === 401
+            ? `${data.error ?? "Passwort stimmt nicht"} — Groß- und Kleinschreibung zählt.` +
+              (nurGross ? " Feststelltaste an?" : "")
+            : data.error ?? "Anmeldung fehlgeschlagen",
+        );
         return;
       }
 

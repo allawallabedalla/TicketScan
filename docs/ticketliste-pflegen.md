@@ -20,9 +20,12 @@ Gesetzt wird es einmalig vom Projektinhaber:
 
 ```bash
 npx supabase secrets set TICKETSCAN_ADMIN_PASSWORD='<das-verwaltungspasswort>'
-npx supabase functions deploy session     --no-verify-jwt
-npx supabase functions deploy verwaltung  --no-verify-jwt
+npx supabase functions deploy session     --no-verify-jwt --use-api
+npx supabase functions deploy verwaltung  --no-verify-jwt --use-api
 ```
+
+`--use-api` baut serverseitig. Ohne den Schalter braucht die CLI Docker und
+wartet endlos ohne Meldung, wenn Docker Desktop nicht läuft.
 
 Ist die Variable nicht gesetzt, gibt es die Verwaltung nicht — sie ist dann
 nicht etwa offen, sondern abgeschaltet.

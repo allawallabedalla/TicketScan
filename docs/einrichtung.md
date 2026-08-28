@@ -105,14 +105,20 @@ veröffentlicht wurde — samt Bändchenabgleich, also dem zweiten, körperliche
 Zähler. Der Testlauf prüft es inzwischen mit.
 
 ```bash
-npx supabase functions deploy session --no-verify-jwt
-npx supabase functions deploy scans   --no-verify-jwt
-npx supabase functions deploy changes --no-verify-jwt
-npx supabase functions deploy stats   --no-verify-jwt
+npx supabase functions deploy session --no-verify-jwt --use-api
+npx supabase functions deploy scans   --no-verify-jwt --use-api
+npx supabase functions deploy changes --no-verify-jwt --use-api
+npx supabase functions deploy stats   --no-verify-jwt --use-api
 
 # Nur wenn jemand ohne Dashboard-Zugang die Liste pflegen soll:
-npx supabase functions deploy verwaltung --no-verify-jwt
+npx supabase functions deploy verwaltung --no-verify-jwt --use-api
 ```
+
+**`--use-api` nicht weglassen.** Ohne den Schalter baut die CLI die Funktionen
+in einem Docker-Container. Läuft Docker Desktop gerade nicht, wartet der
+Befehl **endlos und ohne jede Meldung** — man sitzt vor einem Terminal, das
+nichts sagt und nichts tut. Mit `--use-api` baut Supabase serverseitig, und
+Docker wird gar nicht erst gebraucht.
 
 `--no-verify-jwt` ist hier richtig und kein Sicherheitsloch: Die Endpunkte
 prüfen selbst — `session` das Eventpasswort, `scans` und `changes` das
@@ -372,8 +378,8 @@ selbst, ohne Terminal und **ohne Zugang zum Supabase-Dashboard**. Wer das
 
 ```bash
 npx supabase secrets set TICKETSCAN_ADMIN_PASSWORD='<das-verwaltungspasswort>'
-npx supabase functions deploy session     --no-verify-jwt
-npx supabase functions deploy verwaltung  --no-verify-jwt
+npx supabase functions deploy session     --no-verify-jwt --use-api
+npx supabase functions deploy verwaltung  --no-verify-jwt --use-api
 ```
 
 Dieses Passwort geht durch dasselbe Feld wie das Eventpasswort. Wer es

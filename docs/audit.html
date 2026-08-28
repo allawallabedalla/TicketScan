@@ -298,10 +298,10 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:v
   <p>Migration und alle vier Endpunkte müssen einmal veröffentlicht werden — <code>stats</code> war nie dabei:</p>
   <pre>git pull
 npx supabase db push
-npx supabase functions deploy session --no-verify-jwt
-npx supabase functions deploy scans   --no-verify-jwt
-npx supabase functions deploy changes --no-verify-jwt
-npx supabase functions deploy stats   --no-verify-jwt
+npx supabase functions deploy session --no-verify-jwt --use-api
+npx supabase functions deploy scans   --no-verify-jwt --use-api
+npx supabase functions deploy changes --no-verify-jwt --use-api
+npx supabase functions deploy stats   --no-verify-jwt --use-api
 
 TICKETSCAN_ERWARTE=2305 node scripts/smoke-test.mjs</pre>
   <p><strong>Und das Wichtigste:</strong> Das Eventpasswort ist öffentlich gewesen. Vor dem Festival ein neues setzen, dazu ein neues <code>TICKETSCAN_TOKEN_SECRET</code>. Die vollständige Reihenfolge steht als Checkliste am Ende von <code>docs/einrichtung.md</code>.</p>

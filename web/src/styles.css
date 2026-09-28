@@ -810,3 +810,11 @@ a.btn { text-decoration: none; }
   min-height: 44px; padding: 0 16px; z-index: 2;
 }
 .cam .torch.on { background: #FFE58A; color: #1B1B1B; }
+
+/* Eine Fläche, die AUS einer anderen Fläche heraus geöffnet wird —
+   Rückmeldung und Listenpflege aus der Übersicht —, an den Bildschirm
+   binden, nicht an die Fläche darunter. Die Übersicht scrollt: Mit
+   `absolute` öffnete sich die neue Fläche am oberen Ende des
+   Scrollbereichs, und wer zum Knopf ganz unten gescrollt hatte, sah davon
+   nichts. „Rückmeldung geben" tat scheinbar nichts. */
+.sheet.overlay .sheet.overlay { position: fixed; }

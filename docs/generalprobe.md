@@ -56,7 +56,7 @@ gesondert dafür eingeteilten Gerät läuft.
 
 | Nr | Was tun | Erwartet | OK/Fehler |
 |---|---|---|---|
-| A1 | Gerät zum ersten Mal öffnen, Eventpasswort eingeben, Gerätenamen vergeben | Anmeldung gelingt, Ticketbestand lädt, Kurzanleitung erscheint | |
+| A1 | Gerät zum ersten Mal öffnen, Kurzanleitung durchtippen, „Einlass scannen“ wählen, Eventpasswort und Gerätenamen eingeben | Anmeldung gelingt, Einrichtung lädt Ticketliste und Texterkennung, danach „Scanner öffnen“ | |
 | A2 | App schließen und am selben Tag erneut öffnen | Keine erneute Passwortabfrage — das Gerätetoken gilt bis 6 Uhr | |
 | A3 | Gerät in den Flugmodus versetzen, App öffnen, ohne gültiges Netz anmelden | Offline-Rückfall greift: Anmeldung mit dem zuletzt erfolgreich geprüften Passwort funktioniert auch ohne Netz | |
 | A4 | Verwaltungsgerät: Verwaltungspasswort statt Eventpasswort eingeben | Es öffnet sich die Verwaltung, nicht der Scanner | |
@@ -69,14 +69,14 @@ gesondert dafür eingeteilten Gerät läuft.
 | B2 | Dieselbe Nummer über die Zifferntastatur eingeben | Gleiches Ergebnis wie über die Kamera | |
 | B3 | Bestätigungsschritt beobachten | Nummer **und Name** sind sichtbar; die Buchung erfolgt erst nach Tippen auf „Einlassen“ | |
 | B4 | iPhone: App vollständig aus dem Multitasking entfernen, neu öffnen, einmal auf den Bildschirm tippen, dann scannen | Es ertönt ein Ton | |
-| B5 | Nach dem Einlass den Verlauf öffnen | Der Vorgang steht dort mit Nummer, Zeit und Gerät | |
+| B5 | Nach dem Einlass den Verlauf öffnen | Der Vorgang steht dort mit Nummer, Uhrzeit und „eingelassen“ | |
 
 ### C · Fehlbedienung
 
 | Nr | Was tun | Erwartet | OK/Fehler |
 |---|---|---|---|
-| C1 | Ein bereits eingelöstes Ticket am selben Gerät erneut scannen | Meldung „bereits eingelöst“, mit Zeitpunkt und Gerät der ersten Einlösung | |
-| C2 | Ticket an Gerät A einlösen, nach dem nächsten Abgleich dieselbe Nummer an Gerät B scannen | Gerät B zeigt ebenfalls „bereits eingelöst“, mit dem korrekten Gerät und Zeitpunkt | |
+| C1 | Ein bereits eingelöstes Ticket am selben Gerät erneut scannen | Meldung „Bereits eingelöst“ mit der Uhrzeit der ersten Einlösung | |
+| C2 | Ticket an Gerät A einlösen, etwa 10 Sekunden warten, dieselbe Nummer an Gerät B scannen | Gerät B zeigt ebenfalls „Bereits eingelöst“ mit der Uhrzeit von Gerät A | |
 | C3 | Eine Nummer eingeben, die nicht auf der Liste steht | Meldung „unbekannt“, kein Einlass möglich | |
 | C4 | Eine Einlösung im Verlauf zurücknehmen, danach dieselbe Nummer erneut scannen | Ticket ist wieder frei und lässt sich normal einlösen | |
 | C5 | Ein bereits eingelöstes, aber unversehrtes Ticket vorlegen (Erfassungsfehler-Fall) und „Trotzdem einlassen“ wählen | Einlass wird gebucht, Vorgang ist im Verlauf und Protokoll nachvollziehbar | |

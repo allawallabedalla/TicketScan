@@ -277,9 +277,16 @@ variables* → *Actions*):
 
 | Secret | Woher |
 |---|---|
-| `SUPABASE_ACCESS_TOKEN` | [supabase.com](https://supabase.com) → *Account* → *Access Tokens* |
-| `SUPABASE_DB_PASSWORD` | Projekt → *Project Settings* → *Database* — das Datenbank-Passwort aus Abschnitt 1 |
+| `SUPABASE_ACCESS_TOKEN` | [supabase.com](https://supabase.com) → *Account* → *Access Tokens*. Rechte: nur *Edge Functions: Read & Write*, Ressource nur dieses Projekt, Ablauf kurz nach dem Festival |
+| `SUPABASE_DB_URL` | Projekt → *Connect* → **Session pooler** (Port 5432) → Adresse kopieren, `[YOUR-PASSWORD]` durch das Datenbank-Passwort ersetzen. Das Passwort steht nirgends mehr zum Ablesen; vergessen heißt: unter *Project Settings → Database* neu setzen, am besten nur aus Buchstaben und Ziffern, sonst muss es in der Adresse kodiert werden |
 | `SUPABASE_PROJECT_REF` | der Teil der Projekt-URL vor `.supabase.co` (dasselbe `$REF` wie in Abschnitt 1/2) |
+
+Der Ablauf kommt ohne `supabase link` aus. Die Verknüpfung fragt eine Reihe
+von Verwaltungsschnittstellen ab und scheiterte mit einem eng zugeschnittenen
+Zugangsschlüssel an immer neuen fehlenden Rechten; Migrationen laufen deshalb
+direkt über die Verbindungsadresse. Session pooler statt direkter Verbindung,
+weil die direkte Adresse nur über IPv6 erreichbar ist und GitHub-Runner kein
+IPv6 haben.
 
 Der Ablauf respektiert `DEPLOY-GESPERRT` genau wie `deploy.yml` — ab dem
 Vortag des Festivals rollt auch dieser Weg nichts mehr aus.

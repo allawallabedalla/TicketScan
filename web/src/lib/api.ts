@@ -8,8 +8,41 @@ const BASE = import.meta.env.VITE_API_URL ?? "";
 
 export class Unauthorized extends Error {}
 
+/**
+ * Obergrenze für eine einzelne Anfrage.
+ *
+ * Ohne sie wartete fetch, bis der Browser selbst aufgibt — auf iOS eine
+ * Minute, in Chrome mehrere. Im schwankenden Mobilfunk bleibt eine Anfrage
+ * genau so hängen: gesendet, Funkzelle gewechselt, keine Antwort. Weil der
+ * Abgleich nur einen Durchlauf zur Zeit erlaubt, stand damit die ganze
+ * Übertragung still — keine Einlösung ging raus, keine fremde kam an, und das
+ * Fenster für Doppeleinlass wuchs von acht Sekunden auf Minuten. Bei der
+ * Anmeldung um 6 Uhr hieß es „Einen Moment…" ohne Ende, und der Rückfall auf
+ * die Anmeldung ohne Netz griff nie, weil nie ein Fehler kam.
+ *
+ * Eine abgebrochene Anfrage ist harmlos: Scans sind über die scanId
+ * idempotent, der nächste Takt sendet sie erneut.
+ */
+export const FRIST_MS = 20_000;
+
+/** fetch mit Zeitlimit. AbortController statt AbortSignal.timeout, weil
+ *  Letzteres auf älteren iPhones fehlt. */
+export async function fetchMitFrist(
+  url: string,
+  init: RequestInit = {},
+  ms = FRIST_MS,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function call<T>(path: string, session: Session, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchMitFrist(`${BASE}${path}`, {
     ...init,
     headers: {
       ...init.headers,

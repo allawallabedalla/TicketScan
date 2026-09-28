@@ -470,8 +470,16 @@ Einzelheiten und den Grenzen (die Kamera lässt sich damit nicht prüfen).
 Der Reihe nach. Jeder Punkt hat oben einen Abschnitt.
 
 - [ ] **Alle vier Endpunkte ausgerollt** — `session`, `scans`, `changes`,
-      `stats`. Der letzte wurde am häufigsten vergessen (Abschnitt 5).
-- [ ] **Alle Migrationen eingespielt**, `0001` bis `0004` (Abschnitt 3).
+      `stats`, dazu `verwaltung`, falls die Liste in der App gepflegt wird.
+      `stats` wurde am häufigsten vergessen (Abschnitt 5).
+- [ ] **Alle Migrationen eingespielt**, `0001` bis `0005` (Abschnitt 3).
+- [ ] **Supabase-Projekt kann nicht einschlafen.** Im kostenlosen Tarif
+      pausiert Supabase Projekte nach einer Woche ohne Aktivität — dann
+      scheitern Anmeldung, Einrichtung und Abgleich aller Geräte. Am Vortag im
+      Dashboard nachsehen, dass das Projekt läuft, und den Testlauf
+      (Abschnitt 7) laufen lassen. Dort auch das Kontingent für
+      Funktionsaufrufe prüfen: Zehn Geräte rufen alle acht Sekunden ab, das
+      sind rund 4 500 Aufrufe je Stunde.
 - [ ] **Eventpasswort ersetzt.** Das alte stand im Klartext in diesem Dokument
       und ist damit öffentlich gewesen — es gilt als verbrannt (Abschnitt 4).
 - [ ] **`TICKETSCAN_TOKEN_SECRET` neu gewürfelt**, aus demselben Grund.
@@ -496,6 +504,22 @@ Der Reihe nach. Jeder Punkt hat oben einen Abschnitt.
       GitHub-Verknüpfung aktiv ist").
 - [ ] **`DEPLOY-GESPERRT` angelegt und gepusht** (Abschnitt „Veröffentlichung
       sperren").
+- [ ] **Geräte höchstens ein paar Tage vorher einrichten, und auf dem
+      Home-Bildschirm.** Safari löscht den Speicher einer Seite, die sieben
+      Tage lang nicht geöffnet wurde — samt Ticketliste und Anmeldung. Als
+      Home-Bildschirm-App gilt das nicht.
+- [ ] **Stummschalter aus, Lautstärke hoch** (iPhone). Web-Töne folgen auf
+      älteren iPhones dem Schalter an der Seite, und vibrieren kann ein iPhone
+      aus dem Browser heraus nicht. Ohne Ton gibt es dann keine Rückmeldung,
+      die man nicht ansehen muss.
+- [ ] **Auto-Sperre auf „Nie" oder 5 Minuten** für die Schicht. Die App hält
+      den Bildschirm selbst wach, wo das Telefon es erlaubt; als
+      Home-Bildschirm-App auf iPhones vor iOS 18.4 geht das nicht, im
+      Stromsparmodus oft auch nicht.
+- [ ] **Geheimnisse vor dem Einrichten wechseln, nicht danach.** Ein neues
+      `TICKETSCAN_TOKEN_SECRET` macht jede bestehende Anmeldung ungültig —
+      am Festivaltag hieße das: alle zehn Geräte gleichzeitig auf dem
+      Anmeldebildschirm.
 - [ ] **Powerbanks, Lampe je Eingang, WLAN-Router** — die App löst kein
       leeres Telefon.
 

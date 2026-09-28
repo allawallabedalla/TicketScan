@@ -58,7 +58,10 @@ for (let i = 0; i < 12; i++) {
 }
 await shot(p, "02-nach-guide");
 
-// Anmeldung
+// Anmeldung — seit der Wahl am Anfang steht davor „Einlass scannen".
+const wahl = p.getByRole("button", { name: /Einlass scannen/i });
+if (await wahl.count()) await wahl.first().click();
+await p.waitForTimeout(300);
 const pw = p.locator('input[type="password"], input[name="password"]').first();
 if (await pw.count()) {
   await pw.fill("herzberg2027");

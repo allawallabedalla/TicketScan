@@ -22,6 +22,9 @@ importieren, Geräte zurücksetzen, Veröffentlichung sperren.
   Oberfläche, Betriebskonzept und Umsetzungsplan.
 - [`docs/audit.html`](docs/audit.html) — Audit und Backlog über sechs
   Durchgänge.
+- [`docs/audit-livebetrieb.md`](docs/audit-livebetrieb.md) — siebter Durchgang:
+  Zuverlässigkeit unter Livebedingungen (Mobilfunk, private Handys), mit
+  Prüfplan für die Generalprobe.
 - [`docs/einrichtung.md`](docs/einrichtung.md) — Backend aufsetzen, in acht
   Schritten, mit Testlauf und Checkliste vor dem Livegang.
 - [`docs/ticketliste-pflegen.md`](docs/ticketliste-pflegen.md) — Namen

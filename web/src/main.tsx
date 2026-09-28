@@ -2,7 +2,11 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { Fallback } from "./onboarding/Fallback";
+import { keepSoundUnlocked } from "./lib/feedback";
 import "./styles.css";
+
+// Ab der ersten Berührung nach jedem Start, nicht nur nach der Kurzanleitung.
+keepSoundUnlocked();
 
 // Auf GitHub Pages liegt die App unter einem Unterpfad. Absolute Pfade in der
 // CSS-Datei zeigen sonst ins Leere.

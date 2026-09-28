@@ -22,7 +22,14 @@ function open(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("tickets")) db.createObjectStore("tickets", { keyPath: "code" });
       if (!db.objectStoreNames.contains("outbox")) db.createObjectStore("outbox", { keyPath: "scanId" });
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // Eine geschlossene Verbindung nicht weiter ausgeben. Das Betriebssystem
+      // darf sie jederzeit kappen; der nächste Zugriff öffnet dann neu.
+      db.onclose = () => { handle = null; };
+      db.onversionchange = () => { db.close(); handle = null; };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   }).catch((err) => {
     // Sonst bliebe ein einmaliger Fehler für die ganze Sitzung hängen.
@@ -32,12 +39,41 @@ function open(): Promise<IDBDatabase> {
   return handle;
 }
 
+/**
+ * Einmal neu verbinden, wenn die Verbindung tot ist.
+ *
+ * Bekannter WebKit-Fehler: Nach Hintergrund oder Sperre meldet Safari
+ * „Connection to Indexed Database server lost" (UnknownError) oder wirft beim
+ * Anlegen der Transaktion einen InvalidStateError — und zwar bei JEDEM
+ * weiteren Zugriff über dieselbe Verbindung. Weil `handle` die Verbindung
+ * zwischenspeichert, war das Gerät damit bis zum Neuladen taub: keine
+ * Entscheidung, keine Buchung, kein Abgleich, nur „Das hat nicht geklappt".
+ *
+ * Wiederholen ist hier ungefährlich. Alle Schreibvorgänge sind put oder
+ * delete über einen festen Schlüssel und damit idempotent.
+ */
+function isDeadConnection(err: unknown): boolean {
+  const name = (err as { name?: string } | null)?.name;
+  return name === "InvalidStateError" || name === "UnknownError";
+}
+
+async function withReconnect<T>(attempt: (db: IDBDatabase) => Promise<T>): Promise<T> {
+  try {
+    return await attempt(await open());
+  } catch (err) {
+    if (!isDeadConnection(err)) throw err;
+    try { (await handle)?.close(); } catch { /* ohnehin tot */ }
+    handle = null;
+    return await attempt(await open());
+  }
+}
+
 function run<T>(
   store: StoreName,
   mode: IDBTransactionMode,
   work: (s: IDBObjectStore) => IDBRequest<T>,
 ): Promise<T> {
-  return open().then((db) =>
+  return withReconnect((db) =>
     new Promise<T>((resolve, reject) => {
       const tx = db.transaction(store, mode);
       const req = work(tx.objectStore(store));
@@ -94,17 +130,16 @@ export const countTickets = () =>
   run<number>("tickets", "readonly", (s) => s.count());
 
 export async function putTickets(tickets: Ticket[]): Promise<void> {
-  const db = await open();
   // Alle in einer Transaktion: 2305 einzelne Transaktionen wären auf einem
   // Telefon spürbar langsam.
-  await new Promise<void>((resolve, reject) => {
+  await withReconnect((db) => new Promise<void>((resolve, reject) => {
     const tx = db.transaction("tickets", "readwrite");
     const store = tx.objectStore("tickets");
     for (const ticket of tickets) store.put(ticket);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error ?? new Error("Transaktion abgebrochen"));
-  });
+  }));
 }
 
 // ---------------------------------------------------------- Warteschlange --

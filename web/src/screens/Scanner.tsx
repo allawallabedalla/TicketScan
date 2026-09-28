@@ -60,6 +60,8 @@ export function Scanner({ session }: { session: store.Session }) {
 
   const [view, setView] = useState<View>({ at: "scan" });
   const [keypad, setKeypad] = useState(false);
+  // Zählt hoch, wenn der Kamerastrom neu geöffnet werden muss.
+  const [camEpoch, setCamEpoch] = useState(0);
   const [typed, setTyped] = useState("");
   const [camError, setCamError] = useState<string | null>(null);
   const [width, setWidth] = useState(5);
@@ -227,6 +229,12 @@ export function Scanner({ session }: { session: store.Session }) {
           });
         } catch { /* Gerät kann es nicht — dann eben nicht. */ }
         if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
+        setCamError(null);
+        // Beendet das Betriebssystem den Strom — Anruf, andere App mit
+        // Kamera, Sperre —, gleich neu öffnen, sobald die App vorn ist.
+        stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+          if (!stopped && !document.hidden) setCamEpoch((n) => n + 1);
+        });
         if (video.current) {
           video.current.srcObject = stream;
           await video.current.play();
@@ -345,6 +353,15 @@ export function Scanner({ session }: { session: store.Session }) {
       wide.current.reset();
       setSighted(null);
       setBox(null);
+      // play() allein genügt nicht immer. Als Web-App auf dem Home-Bildschirm
+      // beendet iOS den Kamerastrom beim Wechsel in den Hintergrund; danach
+      // bleibt das Bild schwarz, bis jemand die App neu startet. Ein beendeter
+      // Strom wird deshalb neu angefordert.
+      const track = stream?.getVideoTracks()[0];
+      if (stream && (!track || track.readyState === "ended")) {
+        setCamEpoch((n) => n + 1);
+        return;
+      }
       void video.current?.play();
     };
     document.addEventListener("visibilitychange", wake);
@@ -361,7 +378,48 @@ export function Scanner({ session }: { session: store.Session }) {
       consensus.current.reset();
       wide.current.reset();
     };
-  }, [keypad, width, evaluate]);
+  }, [keypad, width, evaluate, camEpoch]);
+
+  /**
+   * Bildschirm wach halten, solange der Scanner offen ist.
+   *
+   * Zwischen zwei Gästen vergehen oft mehr als 30 Sekunden — die übliche
+   * Auto-Sperre. Danach heißt es entsperren, Kamera kommt zurück (oder nicht),
+   * und der nächste Gast wartet. Die Sperre fällt beim Wechsel in den
+   * Hintergrund von selbst weg und wird bei der Rückkehr neu angefordert.
+   *
+   * Wo die Schnittstelle fehlt oder verweigert wird — ältere iPhones, als
+   * Home-Bildschirm-App erst ab iOS 18.4 zuverlässig —, bleibt nur die
+   * Auto-Sperre in den Einstellungen. Das steht in der Checkliste.
+   */
+  useEffect(() => {
+    type Sentinel = { release: () => Promise<void> };
+    const wl = (navigator as unknown as {
+      wakeLock?: { request: (type: "screen") => Promise<Sentinel> };
+    }).wakeLock;
+    if (!wl) return;
+
+    let sentinel: Sentinel | null = null;
+    let active = true;
+    const acquire = async () => {
+      if (document.hidden || sentinel) return;
+      try {
+        const s = await wl.request("screen");
+        if (!active) { void s.release(); return; }
+        sentinel = s;
+        (s as unknown as EventTarget).addEventListener?.("release", () => { sentinel = null; });
+      } catch { /* verweigert, etwa im Stromsparmodus */ }
+    };
+    const onVisible = () => { if (!document.hidden) void acquire(); };
+
+    void acquire();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      void sentinel?.release().catch(() => {});
+    };
+  }, []);
 
   /**
    * Den Texterkennungs-Worker abbauen, wenn er nicht gebraucht wird.

@@ -7,6 +7,7 @@
 import { type FormEvent, useState } from "react";
 import * as store from "../lib/store";
 import * as localAuth from "../lib/localAuth";
+import { fetchMitFrist } from "../lib/api";
 import * as Icon from "../onboarding/Icons";
 import { Logo } from "../onboarding/Logo";
 
@@ -68,7 +69,9 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
       // Telefon am nächsten Morgen dieselbe Kennung behält.
       const known = await store.get<store.Session>("session");
 
-      const res = await fetch(`${API}/session`, {
+      // Mit Zeitlimit: Hängt die Anfrage im Funkloch, soll der Rückfall auf
+      // die Anmeldung ohne Netz greifen, statt ewig zu warten.
+      const res = await fetchMitFrist(`${API}/session`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ password, label: label.trim(), deviceId: known?.deviceId ?? null }),

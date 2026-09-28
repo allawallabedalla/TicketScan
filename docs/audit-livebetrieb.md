@@ -113,3 +113,63 @@ Stummschalter, Auto-Sperre, Geheimnisse vor dem Einrichten wechseln.
 5. **Langer Betrieb:** Ein Gerät zwei Stunden ohne Neustart im Scanner lassen,
    mit Sperre und App-Wechseln dazwischen. Danach muss es noch buchen und
    abgleichen.
+
+---
+
+# Zweiter Teil: was der erste Durchgang nicht geprüft hatte
+
+Der erste Teil hatte „Livebetrieb" als Netz, Gerät und Betriebssystem
+gelesen. Die Verwaltung, der Verlauf, die Übersicht, die Skripte und die
+Texterkennung auf Altgeräten blieben ungelesen. Ausgelöst hat die Nachprüfung
+eine Frage aus dem Betrieb: ob sich die Namen in der Liste überschreiben
+lassen. Das ging, und es ging schlimmer als gedacht.
+
+Fünf Prüfer liefen parallel, jeder auf einem Bereich; einer prüfte gezielt die
+Fixes aus dem ersten Teil. Rund 55 Befunde. Jeder übernommene wurde am Code
+nachvollzogen. Einer wurde verworfen: Das angebliche automatische Neuladen
+mitten in der Schicht gibt es nicht, das gebaute `registerSW.js` registriert
+nur.
+
+## Behoben — konnte zu Doppeleinlass oder falschen Namen führen
+
+| Befund | Fix |
+|---|---|
+| Eine abgelehnte Rücknahme ließ das Ticket auf dem Gerät **dauerhaft frei**. Eine Kopie des Tickets ging dort grün durch. | `scans` liefert nach jeder Rücknahme den tatsächlichen Stand, das Gerät übernimmt ihn. Der Verlauf zeigt „Rücknahme abgelehnt". |
+| Der Abgleich konnte Einlösungen und Namensänderungen **dauerhaft verpassen** (Zeitstempel = Transaktionsbeginn, nicht Sichtbarkeit). Die früheren Durchgänge hielten den Zeiger für dicht. | Jede Abfrage greift eine Minute hinter den Zeiger zurück. |
+| „Trotzdem einlassen" markierte den **falschen Verlaufseintrag** als zurückgenommen. | Die neue Einlösung ist ausgenommen. |
+| Beim Einfügen einer Liste wurde **„Müller, Hans" zerlegt**, leere Felder **löschten Namen**, doppelte Nummern fielen nicht auf. Das Import-Skript löschte genauso. | Ein Trennzeichen je Liste, Anführungszeichen wie CSV. Neuer Schreibweg `stammdaten_schreiben` (Migration 0006): ein fehlendes Feld bleibt stehen, Probelauf vor dem Schreiben, Dubletten und Stellenzahl werden geprüft, neue Nummern nur mit Freigabe, Änderungsprotokoll `ticket_changes`. |
+| Die Einrichtung schrieb die **Testliste mit erfundenen Namen** auf die echten Nummern. | Die Testliste hat keine Namen mehr. |
+| Das Zeitlimit aus Teil 1 deckte den **Antwortinhalt nicht** ab. Ein hängendes Senden blockierte auch das Holen. | Die Frist umfasst den Inhalt. Das Holen läuft auch, wenn das Senden scheitert. Bündel werden kleiner, wenn der Server langsam ist. |
+
+## Behoben — Aufsicht und Betrieb
+
+- **Bändchenabgleich:** Bisher galt nur die global letzte Meldung, was Fehlalarme gab. Jetzt zählt die jüngste Meldung je Gerät, summiert und mit Zeitpunkt angezeigt.
+- **Ungeprüfte Zeiträume:** Sie richten sich nach der Uhrzeit auf dem Gerät statt nach dem Upload, werden je Gerät getrennt und zählen doppelte Einlösungen je Zeitraum.
+- **Übersicht ohne Netz:** Abmelden, Rückmeldung und Listenpflege sind trotzdem erreichbar. Die Zahlen tragen „Stand HH:MM". Das Eintragen der Bändchen meldet Erfolg oder Fehler.
+- **Texterkennung:**
+  - Ein hängender Erkennungsdurchlauf wird nach 6 s verworfen und neu gestartet.
+  - Die Erkennung startet regelmäßig neu.
+  - Der ganzflächige Durchgang ist auf 1600 px begrenzt.
+  - Es gibt eine Taschenlampe, wo der Browser sie steuern lässt (Android).
+  - Die Kamera versucht es nach einem Fehler erneut.
+- **Verlauf:** eigener Speicherbereich, ohne Wettlauf beim Schreiben und ohne Grenze von 200.
+- **`reset-redemptions.mjs`:** braucht `--gesichert`. Es warnt, wenn die letzte Einlösung jünger als 2 Stunden ist, scheitert laut bei falschem Projekt und nennt das Löschen des Protokolls ausdrücklich.
+- **Backend ohne Terminal:** Es gibt den Ablauf „Backend veröffentlichen" (GitHub Actions, nur von Hand, standardmäßig als Probelauf).
+- **Doku, `.env.example`, README:**
+  - Migrationen und Endpunkte sind vollständig aufgeführt.
+  - Die Doku zeigt, wie Passwörter gesetzt werden, ohne in der Shell-History zu landen.
+  - Es gibt einen Notfallabschnitt für einen Ausfall des Backends und zum Nachbuchen von Papier-Einlässen.
+  - Der Testlauf legt kein neues Gerät mehr an.
+
+## Reihenfolge beim Ausrollen
+
+**Erst das Backend, dann die App.** Der alte Endpunkt `verwaltung` kennt keinen
+Probelauf. Ein „Prüfen" aus der neuen App würde dort schreiben, mit der alten
+Logik, bei der leere Felder Namen löschen. Die neue Backend-Fassung verträgt die
+alte App dagegen.
+
+## Geprüft
+
+- Migrationen 0001–0006 gegen Postgres 16 eingespielt, 0006 zweimal. `stammdaten_schreiben` in acht Fällen getestet: Probelauf, Änderung, fehlende Freigabe, Dubletten, Stellenzahl, bewusstes Leeren, Länge und unberührter Einlassstand.
+- Die Browser-Durchläufe gegen den nachgestellten Server sind grün: `run` 24/24, `anmeldung` 4/4, `verwaltung` 13/13 (davon 5 neue Prüfungen zu Stammdaten), `verwaltung-filter` 5/5. `verwaltung.mjs` war wie `run.mjs` seit der Wahl am Anfang veraltet und ist nachgezogen.
+- Die Edge Functions wurden nur auf Syntax geprüft (esbuild), nicht gegen echtes Supabase. Das übernimmt der Testlauf `smoke-test.mjs` nach dem Ausrollen.

@@ -11,7 +11,7 @@ Die App ist vollständig: Kurzanleitung, Anmeldung mit Offline-Rückfall,
 Einrichtung, Kameraerfassung, Zifferntastatur, Bestätigungsschritt,
 Ausgangswarteschlange, Abgleich, Verlauf mit Rücknahme, die vollständige
 Ticketliste mit Suche über Nummer und Name, und eine Übersicht mit
-Bändchenabgleich. Backend: vier Endpunkte, vier Migrationen.
+Bändchenabgleich. Backend: fünf Endpunkte, sechs Migrationen.
 
 Vor dem Livegang steht die Checkliste in
 [`docs/einrichtung.md`](docs/einrichtung.md) — Passwort ersetzen, echte Liste
@@ -124,15 +124,16 @@ Erzeugt 2305 Zeilen im Importformat (`code,holder_name,category,note`) und
 meldet die feste Vorsilbe der Nummern — hier `0`, weshalb die Tastatureingabe
 mit vier statt fünf Stellen auskommt.
 
-Die Namen darin sind erfunden und dienen der Vorführung; `--ohne-namen` lässt
-sie weg. Etwa jedes neunte Ticket bleibt bewusst namenlos, damit der Fall in
-der App auch tatsächlich vorkommt: Ein fehlender Name ist kein Verdachtsfall
-und darf niemanden den Einlass kosten. Die Namen hängen allein an der Nummer,
-zweimal erzeugt ergibt also dieselbe Datei. Folgenlos macht das einen zweiten
-Import allerdings nicht: Der Trigger `tickets_touch` setzt `updated_at` bei
-jedem UPDATE neu, auch wenn sich kein Wert ändert. Ein erneuter Import löst
-deshalb trotzdem auf allen Geräten einen vollständigen Neuabgleich aus —
-ungefährlich für die Einlösungen, aber nichts für die Einlasszeit.
+Standardmäßig ohne Namen — genau die Datei, die als `data/tickets.sample.csv`
+im Repo liegt. Erst `--mit-namen` fügt erfundene Namen zur Vorführung hinzu,
+und die gehören dann nie gegen die echte Datenbank importiert: Sie landeten
+einmal versehentlich auf den echten Nummern in der Produktionsdatenbank, und
+am Einlass stand ein erfundener Name beim falschen Gast (siehe
+docs/einrichtung.md). Mit Namen bleibt außerdem etwa jedes neunte Ticket
+bewusst namenlos, damit der Fall in der App auch tatsächlich vorkommt: Ein
+fehlender Name ist kein Verdachtsfall und darf niemanden den Einlass kosten.
+Die Namen hängen allein an der Nummer, zweimal erzeugt ergibt also dieselbe
+Datei.
 
 ## Einlösemodell
 

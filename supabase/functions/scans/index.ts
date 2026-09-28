@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       // undefined und die Antwort lautete "unknown" — der Client nahm den
       // Eintrag daraufhin aus der Warteschlange, und die Rücknahme war
       // verworfen, ohne je ausgeführt worden zu sein.
-      const { data, error } = await db.rpc("undo_redemption", {
+      const undoArgs = {
         p_code: scan.code, p_device_id: device.deviceId,
         p_scan_id: scan.scanId, p_reason: scan.reason ?? null,
         p_client_ts: scan.clientTs, p_offline: scan.offline ?? false,
@@ -59,20 +59,43 @@ Deno.serve(async (req) => {
         // zurück, was gerade eingelöst ist — das ist der Fall „Trotzdem
         // einlassen", bei dem jemand bewusst eine fremde Einlösung freigibt.
         p_undo_of: scan.undoOf ?? null,
-      });
+      };
+      let { data, error } = await db.rpc("undo_redemption", undoArgs);
+      // Einmal wiederholen: Lief dieselbe scanId gerade noch in einer
+      // abgebrochenen Anfrage des Geräts, scheitert der Protokolleintrag am
+      // Primärschlüssel. Der zweite Aufruf findet ihn und wiederholt die
+      // damalige Antwort.
+      if (error) ({ data, error } = await db.rpc("undo_redemption", undoArgs));
       if (error || typeof data !== "string") {
         results.push({ scanId: scan.scanId, code: scan.code, result: "error" });
         continue;
       }
-      results.push({ scanId: scan.scanId, code: scan.code, result: data });
+
+      // Den tatsächlichen Stand mitschicken. Ohne ihn setzte das Gerät das
+      // Ticket nach JEDER Rücknahme auf frei — auch nach einer abgelehnten
+      // („unknown": inzwischen fremd eingelöst). Weil der Server die Zeile
+      // dann nicht anfasst, lieferte auch der Abgleich sie nie nach, und das
+      // Ticket blieb auf diesem Gerät dauerhaft frei.
+      const { data: stand, error: standFehler } = await db.from("tickets")
+        .select("redeemed_at, redeemed_by_device").eq("code", scan.code).maybeSingle();
+      results.push({
+        scanId: scan.scanId, code: scan.code, result: data,
+        ...(standFehler ? {} : {
+          redeemed_at: stand?.redeemed_at ?? null,
+          redeemed_by_device: stand?.redeemed_by_device ?? null,
+        }),
+      });
       continue;
     }
 
-    const { data, error } = await db.rpc("redeem_ticket", {
+    const redeemArgs = {
       p_code: scan.code, p_device_id: device.deviceId,
       p_scan_id: scan.scanId, p_client_ts: scan.clientTs,
       p_offline: scan.offline ?? false,
-    });
+    };
+    let { data, error } = await db.rpc("redeem_ticket", redeemArgs);
+    // Siehe oben: gleichzeitige Doppelzustellung derselben scanId.
+    if (error) ({ data, error } = await db.rpc("redeem_ticket", redeemArgs));
     // Nicht abbrechen: der Rest des Bündels soll trotzdem durchlaufen, und das
     // Gerät sendet die gescheiterten Scans beim nächsten Mal erneut.
     if (error || !data?.[0]) {

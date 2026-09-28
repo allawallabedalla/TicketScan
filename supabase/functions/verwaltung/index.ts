@@ -30,18 +30,7 @@ const db = createClient(
  *  Liste in einem Rutsch einzuspielen, klein genug für ein Mobilfunknetz. */
 const MAX_ZEILEN = 500;
 
-interface Zeile {
-  code?: unknown;
-  holderName?: unknown;
-  category?: unknown;
-  note?: unknown;
-}
-
-const text = (v: unknown, max: number): string | null => {
-  if (typeof v !== "string") return null;
-  const t = v.trim();
-  return t ? t.slice(0, max) : null;
-};
+const FELDER = { holderName: "holder_name", category: "category", note: "note" } as const;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -53,52 +42,64 @@ Deno.serve(async (req) => {
     return json({ error: "Dieses Gerät darf die Liste nicht ändern" }, 403);
   }
 
-  let zeilen: Zeile[];
+  let body: { zeilen?: unknown; probe?: unknown; neuAnlegen?: unknown };
   try {
-    ({ zeilen } = await req.json());
+    body = await req.json();
   } catch {
     return json({ error: "Ungültige Anfrage" }, 400);
   }
+  const zeilen = body.zeilen;
   if (!Array.isArray(zeilen)) return json({ error: "zeilen fehlt" }, 400);
   if (!zeilen.length) return json({ error: "Nichts zu tun" }, 400);
   if (zeilen.length > MAX_ZEILEN) {
     return json({ error: `Höchstens ${MAX_ZEILEN} Zeilen je Anfrage` }, 400);
   }
 
-  // Die vorhandenen Nummern holen, um Stellenzahl und Bestand zu prüfen.
-  // Ohne das könnte ein Tippfehler eine vierstellige Nummer anlegen — und die
-  // App leitet aus der Liste ab, wie viele Stellen einzutippen sind.
-  const { data: vorhanden, error: leseFehler } = await db
-    .from("tickets").select("code").order("code").limit(1);
-  if (leseFehler) return json({ error: "Liste nicht lesbar" }, 500);
-  const stellen = vorhanden?.[0]?.code.length ?? 5;
-
+  // Nur die Felder weitergeben, die die Zeile tatsächlich trägt.
+  //
+  // Vorher ging jede Zeile vollständig in einen Upsert — ein fehlender Name
+  // wurde zu null und überschrieb den vorhandenen. Eine Liste nur aus
+  // Nummern leerte damit die Namen aller enthaltenen Tickets. Jetzt gilt:
+  // fehlt ein Feld, bleibt es; ist es null, wird es geleert. Die eigentliche
+  // Arbeit, samt Stellenprüfung, Dubletten, Längen und Protokoll, macht
+  // stammdaten_schreiben (Migration 0006) — derselbe Weg wie das Import-Skript.
   const sauber = [];
   for (const [i, zeile] of zeilen.entries()) {
-    const code = text(zeile.code, 32);
-    if (!code || !/^\d+$/.test(code)) {
-      return json({ error: `Zeile ${i + 1}: „${String(zeile.code)}" ist keine Nummer` }, 400);
+    if (!zeile || typeof zeile !== "object") {
+      return json({ error: `Zeile ${i + 1}: ungültig` }, 400);
     }
-    if (code.length !== stellen) {
-      return json({
-        error: `Zeile ${i + 1}: „${code}" hat ${code.length} statt ${stellen} Stellen. ` +
-          "Führende Nullen im Export verloren?",
-      }, 400);
+    const z = zeile as Record<string, unknown>;
+    if (typeof z.code !== "string" || !/^\d+$/.test(z.code.trim())) {
+      return json({ error: `Zeile ${i + 1}: „${String(z.code)}" ist keine Nummer` }, 400);
     }
-    sauber.push({
-      code,
-      holder_name: text(zeile.holderName, 120),
-      category: text(zeile.category, 60) ?? "Festival-Ticket",
-      note: text(zeile.note, 300),
-    });
+    const aus: Record<string, string | null> = { code: z.code.trim() };
+    for (const [von, nach] of Object.entries(FELDER)) {
+      if (!(von in z) || z[von] === undefined) continue;
+      if (z[von] !== null && typeof z[von] !== "string") {
+        return json({ error: `Zeile ${i + 1}: ${von} ist kein Text` }, 400);
+      }
+      aus[nach] = z[von] as string | null;
+    }
+    sauber.push(aus);
   }
 
-  // merge-duplicates schreibt genau die Spalten des Payloads. redeemed_at
-  // steht nicht darin und bleibt deshalb unangetastet — auch bei einem Ticket,
-  // das gerade eingelöst wurde.
-  const { error } = await db.from("tickets")
-    .upsert(sauber, { onConflict: "code" });
-  if (error) return json({ error: "Nicht gespeichert", detail: error.message }, 500);
+  const { data, error } = await db.rpc("stammdaten_schreiben", {
+    p_zeilen: sauber,
+    p_quelle: `app:${check.claims.label}`,
+    p_neu_erlaubt: body.neuAnlegen === true,
+    p_probe: body.probe === true,
+  });
 
-  return json({ ok: true, geschrieben: sauber.length });
+  if (error) {
+    // Eine Prüfung der Funktion (raise exception) ist ein Eingabefehler und
+    // gehört wörtlich vor die Person, die die Liste pflegt. Alles andere ist
+    // ein Serverfehler.
+    if (error.code === "P0001") return json({ error: error.message }, 400);
+    if (error.code === "PGRST202") {
+      return json({ error: "Migration 0006 fehlt — bitte Backend veröffentlichen." }, 500);
+    }
+    return json({ error: "Nicht gespeichert", detail: error.message }, 500);
+  }
+
+  return json(data);
 });

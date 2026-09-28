@@ -7,10 +7,18 @@
 //
 //   node data/generate-tickets.mjs --from 1 --to 2305 > data/tickets.sample.csv
 //
-// Die Namen sind erfunden und dienen nur der Vorführung. Sie hängen allein an
-// der Ticketnummer, nicht am Zufall des Aufrufs: Zweimal erzeugt ergibt
-// zweimal dieselbe Liste — sonst würde jeder Import alle 2305 Zeilen als
-// geändert markieren und jedes Gerät den ganzen Bestand neu ziehen.
+// Standardmäßig OHNE Namen. Bis zum 28.09. trug die Testliste erfundene
+// Namen und landete unter diesem Namen (`tickets.sample.csv`) einmal auf den
+// echten Nummern 00001–02305 in der Produktionsdatenbank (siehe
+// docs/einrichtung.md, Abschnitt „Nach der Generalprobe") — am Einlass stand
+// dann „Ben Reinhardt“ beim falschen Gast. Eine Testliste, die grundsätzlich
+// keine erfundenen Namen tragen kann, macht genau diesen Fehler unmöglich.
+//
+// Namen gibt es nur noch ausdrücklich mit --mit-namen, und auch dann nur zur
+// Vorführung — niemals gegen die echte Datenbank importieren. Sie hängen
+// allein an der Ticketnummer, nicht am Zufall des Aufrufs: Zweimal erzeugt
+// ergibt zweimal dieselbe Liste — sonst würde jeder Import alle 2305 Zeilen
+// als geändert markieren und jedes Gerät den ganzen Bestand neu ziehen.
 
 import { argv, stdout, stderr, exit } from "node:process";
 
@@ -23,7 +31,9 @@ const from = Number(arg("from", 1));
 const to = Number(arg("to", 2305));
 const width = Number(arg("width", 5));
 const category = arg("category", "Festival-Ticket");
-const withNames = !argv.includes("--ohne-namen");
+// Standardmäßig ohne Namen — siehe Warnung oben. Nur mit --mit-namen, und
+// dann ausschließlich zur Vorführung.
+const withNames = argv.includes("--mit-namen");
 
 if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < from) {
   stderr.write("Ungültiger Bereich. Erwartet: --from <n> --to <m> mit n <= m\n");
@@ -97,7 +107,7 @@ for (let n = from; n <= to; n++) {
 stderr.write(
   [
     `${rows.length} Tickets erzeugt`,
-    `Namen:            ${withNames ? "erfunden, zur Vorführung (--ohne-namen lässt sie weg)" : "keine"}`,
+    `Namen:            ${withNames ? "erfunden, NUR zur Vorführung — nicht gegen die echte Datenbank importieren" : "keine (Standard; --mit-namen fügt erfundene Namen zur Vorführung hinzu)"}`,
     `Bereich:          ${rows[0]} – ${rows[rows.length - 1]}`,
     `Feste Vorsilbe:   ${commonPrefix || "(keine)"}`,
     `Eingabestellen:   ${width - commonPrefix.length} statt ${width}`,

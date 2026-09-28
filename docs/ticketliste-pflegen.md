@@ -16,13 +16,22 @@ Anmeldebildschirm:
 Auf dem Anmeldebildschirm steht von der zweiten Möglichkeit nichts. Wer sie
 braucht, weiß davon; am Eingang soll niemand danach suchen.
 
-Gesetzt wird es einmalig vom Projektinhaber:
+Gesetzt wird es einmalig vom Projektinhaber. Nicht als Klartext in den Befehl
+schreiben — sonst steht das Passwort danach in der Shell-History:
 
 ```bash
-npx supabase secrets set TICKETSCAN_ADMIN_PASSWORD='<das-verwaltungspasswort>'
+read -rs PW
+npx supabase secrets set TICKETSCAN_ADMIN_PASSWORD="$PW"
+unset PW
+
 npx supabase functions deploy session     --no-verify-jwt --use-api
 npx supabase functions deploy verwaltung  --no-verify-jwt --use-api
 ```
+
+Ohne Terminal geht das Setzen des Passworts auch im Dashboard unter *Project
+Settings → Edge Functions → Secrets* — dort steht es ohnehin nur verdeckt.
+Das Ausrollen der beiden Funktionen selbst braucht dann noch die CLI, oder
+den Ablauf „Backend veröffentlichen“ aus docs/einrichtung.md.
 
 `--use-api` baut serverseitig. Ohne den Schalter braucht die CLI Docker und
 wartet endlos ohne Meldung, wenn Docker Desktop nicht läuft.
@@ -66,29 +75,57 @@ Der Reiter **Liste einfügen**. Dafür ist der Bildschirm eigentlich da: Der
 Organisator schickt eine Tabelle, und die kommt hier per Zwischenablage rein —
 2305 Zeilen einzeln zu tippen macht niemand.
 
-Eine Zeile je Ticket, Nummer zuerst, getrennt durch **Komma, Semikolon oder
-Tabulator**:
+Eine Zeile je Ticket, Nummer zuerst. Getrennt wird **an einem einzigen
+Trennzeichen für die ganze Liste** — die App erkennt es selbst: zuerst wird
+nach Tabulator gesucht (der Normalfall beim Einfügen aus Excel oder Numbers),
+sonst nach Semikolon, sonst nach Komma. Eine Liste mischt also nicht mehrere
+Trennzeichen durcheinander:
 
 ```
-00425, Anna Weber
-00426; Ben Weber
-00427	Clara Meier
-00428, , Crew
+00425	Anna Weber
+00426	Ben Weber
+00427	"Müller, Hans"
+00428		Crew
 00429
 ```
+
+Ein Name wie `Müller, Hans` in Anführungszeichen bleibt dabei ein Name und
+reißt die Zeile nicht auseinander — genau wie beim CSV-Import.
 
 Dritte Spalte ist die Kategorie, vierte ein Vermerk — beide dürfen fehlen.
 Eine Zeile nur mit Nummer legt ein Ticket ohne Namen an. Eine Kopfzeile
 (`code,name`) wird übersprungen.
 
-Aus Excel oder Numbers: die beiden Spalten markieren, kopieren, hier einfügen.
-Die Spalten kommen als Tabulator an, das passt.
+**Eine leere Spalte überschreibt nichts.** In Zeile `00428` oben ist der Name
+leer — das ändert einen vorher eingetragenen Namen bei `00428` nicht, es lässt
+ihn stehen. Nur die Kategorie wird auf `Crew` gesetzt. Wer einen Namen
+tatsächlich löschen will, macht das einzeln über **Ändern** (Abschnitt
+„Einzeln ändern") — dort lässt sich das Feld gezielt leeren.
 
-**Vor dem Übernehmen zeigt die App, was sie gelesen hat** — Anzahl der Zeilen,
-wie viele davon einen Namen haben, und wie viele Stellen die Nummern haben.
-Stehen dort zwei verschiedene Stellenzahlen, sind beim Export die führenden
-Nullen verlorengegangen (`425` statt `00425`); dann ist der Knopf gesperrt.
-Das ist der häufigste Fehler auf dem Weg über eine Tabellenkalkulation.
+Aus Excel oder Numbers: die Spalten markieren, kopieren, hier einfügen. Die
+Spalten kommen als Tabulator an, das passt.
+
+**Vor dem Übernehmen zeigt die App, was sich ändern würde** — wie viele
+Zeilen neu sind, wie viele sich ändern und wie viele unverändert bleiben,
+dazu die Namensänderungen einzeln als alt → neu. Das ist ein echter
+Probelauf gegen den Bestand, keine reine Textprüfung mehr: Stehen dort zwei
+verschiedene Stellenzahlen, sind beim Export die führenden Nullen
+verlorengegangen (`425` statt `00425`); das ist der häufigste Fehler auf dem
+Weg über eine Tabellenkalkulation.
+
+**Neue Nummern müssen ausdrücklich freigegeben werden.** Enthält die Liste
+Nummern, die es im Bestand noch nicht gibt, zeigt die App das gesondert an —
+übernommen werden sie erst nach einer zusätzlichen Bestätigung. Das fängt
+den Fall ab, dass eine vertauschte Spalte oder ein falscher Nummernbereich
+sonst stillschweigend hunderte neue Tickets anlegen würde.
+
+**Jede tatsächliche Änderung steht im Änderungsprotokoll** (Tabelle
+`ticket_changes`) — wer wann welches Feld bei welcher Nummer geändert hat.
+Ansehen geht im SQL-Editor:
+
+```sql
+select * from ticket_changes order by at desc limit 50;
+```
 
 **Nicht während des Einlasses.** Eine Änderung an vielen Zeilen lässt jedes
 Telefon den Bestand neu ziehen. Vormittags ja, Freitagabend nicht.
@@ -109,8 +146,9 @@ Das hinterlässt eine Spur im Protokoll; ein überschriebenes Feld nicht.
 
 **Tickets löschen.** Eine Nummer, die auf einem Papierticket steht, aus der
 Liste zu nehmen heißt, jemanden an der Tür abzuweisen. Das gehört nicht hinter
-einen Knopf, den man versehentlich trifft — dafür bleibt der Weg über das
-Supabase-Dashboard oder `scripts/import-tickets.mjs`.
+einen Knopf, den man versehentlich trifft — weder hier noch in
+`scripts/import-tickets.mjs`: Der Importer kann nur anlegen und ändern, nie
+löschen. Löschen geht ausschließlich über das Supabase-Dashboard.
 
 ## Nachsehen, was drin ist
 

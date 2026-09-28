@@ -21,6 +21,11 @@ data/*.xls
 node_modules/
 dist/
 .DS_Store
+
+# Gerätekennung von scripts/smoke-test.mjs, damit Testläufe über mehrere
+# Aufrufe hinweg dasselbe Gerät wiederverwenden statt bei jedem Lauf ein
+# neues „Smoke-Test“-Gerät anzulegen. Enthält nur eine UUID, kein Geheimnis.
+.smoke-test-device
 web/dist/
 web/dev-dist/
 # 18 MB Texterkennung — kommen reproduzierbar aus node_modules, siehe

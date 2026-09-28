@@ -53,10 +53,17 @@ Was tatsächlich in der Datenbank steht, verrät der SQL-Editor:
 select version, name from supabase_migrations.schema_migrations order by version;
 ```
 
-Es müssen **alle** Dateien aus `supabase/migrations/` dastehen — derzeit
-`0001_init`, `0002_harden`, `0003_funktionen`, `0004_ruecknahme`. Vergleiche
-mit `ls supabase/migrations/`, statt eine Zahl aus diesem Text abzuhaken; sonst
-veraltet der Satz beim nächsten Mal wieder.
+Es müssen **alle** Dateien aus `supabase/migrations/` dastehen. Welche das
+derzeit sind, verrät am zuverlässigsten:
+
+```bash
+ls supabase/migrations/
+```
+
+Stand dieses Texts: `0001_init` bis `0006` (sechs Migrationen). Bewusst nicht
+mehr als feste Liste hier ausgeschrieben — genau das ist schon einmal
+veraltet, als eine neue Migration dazukam und dieser Satz nicht mitgezogen
+wurde.
 
 Was fehlt, wenn eine fehlt:
 
@@ -65,16 +72,39 @@ Was fehlt, wenn eine fehlt:
 | `0002_harden` | ist die Sicht `offline_windows` über die Data API lesbar |
 | `0003_funktionen` | fehlt `scan_log.offline`; **jeder Scan schlägt fehl**, und die Rücknahme ist nicht lauffähig |
 | `0004_ruecknahme` | ist die Rücknahme nicht idempotent — eine doppelt zugestellte Rücknahme kann eine fremde, gültige Einlösung zunichtemachen |
+| `0005_ruecknahme_gezielt` | trifft eine Rücknahme nicht nur die gemeinte Einlösung — sie kann eine fremde, inzwischen gültige Einlösung zunichtemachen (siehe Migrationsdatei) |
+| `0006` | fehlt der Stammdaten-Schreibweg (`stammdaten_schreiben`); `scripts/import-tickets.mjs` und die Ticketpflege in der App (`verwaltung`) laufen nicht, ins Änderungsprotokoll (`ticket_changes`) landet nichts, und eine Rücknahme liefert in der Antwort keinen aktuellen Stand mehr |
+
+**Ohne Terminal:** siehe „Backend ohne Terminal veröffentlichen“ weiter unten
+— derselbe Schritt, ausgelöst über GitHub Actions statt über die CLI.
 
 ## 4 · Geheimnisse setzen
 
+Die unkritischen Werte in einem Zug:
+
 ```bash
 npx supabase secrets set \
-  TICKETSCAN_EVENT_PASSWORD='<euer-eventpasswort>' \
   TICKETSCAN_TOKEN_SECRET="$(openssl rand -base64 48)" \
   TICKETSCAN_TIMEZONE='Europe/Berlin' \
   TICKETSCAN_ALLOWED_ORIGIN='https://<eure-app-adresse>'
 ```
+
+Das Eventpasswort separat, und dabei **nicht** als Klartext in den Befehl
+schreiben: Wer es direkt hinter `TICKETSCAN_EVENT_PASSWORD=` tippt, hat es
+danach in der Shell-History stehen — lesbar für jeden, der später an
+demselben Rechner `history` aufruft.
+
+```bash
+read -rs PW
+npx supabase secrets set TICKETSCAN_EVENT_PASSWORD="$PW"
+unset PW
+```
+
+`read -rs` liest die Eingabe verdeckt (wie ein Passwortfeld) und legt sie nur
+in der Variablen ab, nie im Befehl selbst; `unset` räumt sie danach aus der
+laufenden Shell. Wer lieber ganz ohne Terminal bleibt, setzt das Passwort
+stattdessen im Dashboard unter *Project Settings → Edge Functions →
+Secrets* — dort steht es ohnehin nur verdeckt und wird nirgends protokolliert.
 
 > **Diese Anleitung hat sich selbst widersprochen.** An beiden Stellen oben
 > stand bis zum 27.08. das echte Passwort im Klartext — in einem öffentlichen
@@ -126,6 +156,9 @@ Gerätetoken. Ohne den Schalter würde Supabase zusätzlich einen eigenen JWT
 verlangen, den unsere Geräte gar nicht haben; das Ergebnis wäre ein 401, dessen
 Ursache man lange sucht.
 
+**Ohne Terminal:** siehe „Backend ohne Terminal veröffentlichen“ weiter unten
+— rollt alle fünf Endpunkte in einem Lauf aus.
+
 ## 6 · Ticketliste importieren
 
 Bis die echte Liste da ist, geht es mit der erzeugten Testliste.
@@ -133,8 +166,8 @@ Bis die echte Liste da ist, geht es mit der erzeugten Testliste.
 ```bash
 export SUPABASE_URL="https://$REF.supabase.co"
 
-node scripts/import-tickets.mjs data/tickets.sample.csv            # nur prüfen
-node scripts/import-tickets.mjs data/tickets.sample.csv --commit   # schreiben
+node scripts/import-tickets.mjs data/tickets.sample.csv                          # nur prüfen
+node scripts/import-tickets.mjs data/tickets.sample.csv --commit --neu-anlegen   # schreiben
 ```
 
 **Kein Schlüssel nötig.** Weil die CLI aus Schritt 3 angemeldet ist, holt sich
@@ -146,8 +179,18 @@ ganzen Einrichtung.
 Wer ihn doch von Hand setzen will, kann `SUPABASE_SERVICE_ROLE_KEY` angeben;
 dann bitte über den Kopier-Knopf im Dashboard, nicht durch Markieren.
 
-Der Importer prüft erst und schreibt nur mit `--commit`. Er bricht ab bei
-Dubletten, uneinheitlicher Stellenzahl und verschobenen Spalten.
+Der Importer prüft immer zuerst mit einem Probelauf gegen die Datenbank
+(nichts wird geschrieben) und zeigt, was neu ist, was sich ändert und was
+gleich bleibt. Geschrieben wird erst mit `--commit`; da bei einer leeren
+Datenbank **alle** Nummern neu sind, braucht es hier zusätzlich
+`--neu-anlegen` — ohne den Schalter bricht der Importer ab, mit Hinweis
+darauf. Er bricht außerdem ab bei Dubletten, uneinheitlicher Stellenzahl und
+verschobenen Spalten, sowie bei unbekannten Spalten in der Kopfzeile (erlaubt
+sind ausschließlich `code`, `holder_name`, `category`, `note`).
+
+Ein späterer Import derselben oder einer aktualisierten Datei, bei der die
+Nummern schon im Bestand stehen, braucht `--neu-anlegen` nicht mehr — nur
+dann, wenn tatsächlich neue Nummern dazukommen.
 
 > **Zur echten Liste:** Excel entfernt führende Nullen — aus `00245` wird `245`.
 > Am besten direkt aus dem Vorverkaufssystem exportieren und die Datei nicht in
@@ -216,6 +259,36 @@ Lokal bauen geht weiterhin:
 ```bash
 cd web && npm install && npm run build
 ```
+
+## Backend ohne Terminal veröffentlichen
+
+Alternative zu Abschnitt 3 (Schema) und Abschnitt 5 (Endpunkte): der
+GitHub-Ablauf **„Backend veröffentlichen“**
+(`.github/workflows/backend.yml`). Er spielt die Migrationen ein und rollt
+alle fünf Endpunkte aus — denselben Schritt, den Abschnitt 3 und 5 über die
+CLI beschreiben, nur ausgelöst über GitHub statt über ein Terminal.
+
+Er läuft **ausschließlich manuell**: Repo → *Actions* → *Backend
+veröffentlichen* → *Run workflow*. Kein Push löst ihn aus, damit ein
+Schema-Push nicht unbeabsichtigt zur Nebenwirkung eines anderen Commits wird.
+
+**Einmalig drei Repository-Secrets anlegen** (Repo → *Settings* → *Secrets and
+variables* → *Actions*):
+
+| Secret | Woher |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | [supabase.com](https://supabase.com) → *Account* → *Access Tokens* |
+| `SUPABASE_DB_PASSWORD` | Projekt → *Project Settings* → *Database* — das Datenbank-Passwort aus Abschnitt 1 |
+| `SUPABASE_PROJECT_REF` | der Teil der Projekt-URL vor `.supabase.co` (dasselbe `$REF` wie in Abschnitt 1/2) |
+
+Der Ablauf respektiert `DEPLOY-GESPERRT` genau wie `deploy.yml` — ab dem
+Vortag des Festivals rollt auch dieser Weg nichts mehr aus.
+
+**Was er nicht tut:** Geheimnisse wie das Eventpasswort setzt er nicht. Die
+bleiben im Dashboard unter *Edge Functions → Secrets*, oder werden über die
+CLI gesetzt wie in Abschnitt 4 beschrieben — beides unabhängig von diesem
+Ablauf, und mit Absicht: Ein Repository-Secret ist für alle mit Schreibzugang
+auf das Repo einsehbar, ein Supabase-Secret nur fürs Projekt.
 
 ---
 
@@ -320,9 +393,17 @@ Mitten im Einlass ist das die teurere Maßnahme.
 
 ## Passwort wechseln
 
+Auch hier nicht als Klartext in den Befehl schreiben — sonst steht das neue
+Passwort in der Shell-History:
+
 ```bash
-npx supabase secrets set TICKETSCAN_EVENT_PASSWORD='<neues-passwort>'
+read -rs PW
+npx supabase secrets set TICKETSCAN_EVENT_PASSWORD="$PW"
+unset PW
 ```
+
+Ohne Terminal geht dasselbe im Dashboard unter *Project Settings → Edge
+Functions → Secrets*.
 
 Zwei Dinge, die dabei nicht offensichtlich sind:
 
@@ -333,6 +414,41 @@ Zwei Dinge, die dabei nicht offensichtlich sind:
   seit dem Wechsel kein Netz hatte, prüft gegen den Hash der letzten
   erfolgreichen Anmeldung. Bei einem verlorenen Gerät zählt deshalb die Sperre
   oben, nicht der Passwortwechsel.
+
+## Wenn das Backend am Festivaltag ausfällt
+
+Die Geräte scannen **lokal weiter**. Die Entscheidung „schon eingelöst oder
+nicht" fällt auf dem Gerät selbst, aus dem Stand des letzten Abgleichs, und
+jeder Vorgang landet in der Warteschlange. Kein Netz heißt also nicht: kein
+Einlass — es heißt nur, dass die Geräte sich untereinander vorübergehend
+nicht abstimmen können. Konflikte daraus (zwei Geräte lassen dieselbe Nummer
+unabhängig voneinander ein) klärt der Abgleich, sobald das Backend wieder da
+ist.
+
+**Nur beim Totalausfall der Geräte** — nicht nur des Backends, sondern wenn
+gar kein Telefon mehr scannen kann — greift die Papierliste:
+
+```bash
+node scripts/export-log.mjs > einlass.csv
+```
+
+Ausgedruckt vorher besorgen (siehe Checkliste), nicht erst im Ausfall.
+
+**Nachbuchen der Papier-Einlässe.** Sobald wieder mindestens ein Gerät läuft:
+jede am Papier abgehakte Nummer dort über die Zifferntastatur eingeben und
+bestätigen — **an einem einzigen Gerät**, nicht verteilt auf mehrere, sonst
+entstehen unnötige Konflikte aus dem Nachbuchen selbst. Meldet die App dabei
+„bereits eingelöst": das **abweisen**, nicht „Trotzdem einlassen" wählen. Wer
+„Trotzdem einlassen" tippt, überschreibt eine möglicherweise echte,
+inzwischen regulär entstandene Einlösung — genau der Fall, den die Rücknahme
+aus Migration 0005 verhindern soll, wenn er stattdessen über einen normalen
+Scan passiert. Ist die Nummer schon eingelöst, ist das entweder ein
+Doppeleintrag auf dem Papier oder ein Gast, der bereits reguläres Netz
+hatte; beides klärt sich hinterher in der Übersicht, nicht am Eingang.
+
+Danach in der Übersicht die **Konflikte** durchsehen — dort stehen alle
+Fälle, in denen zwei Vorgänge auf dieselbe Nummer trafen, egal ob durch das
+Nachbuchen entstanden oder durch den eigentlichen Ausfall.
 
 ## Nach der Generalprobe
 
@@ -366,9 +482,9 @@ Zeitpunkt irrt. Die Geräte ziehen den Stand beim nächsten Abgleich nach.
 > App genügt dafür **nicht**.
 
 Ein zweiter Import derselben Datei ist dagegen ungefährlich: Er schreibt nur
-Stammdaten und rührt `redeemed_at` nicht an. Er markiert aber alle Zeilen als
-geändert und löst damit auf allen Geräten einen vollständigen Neuabgleich aus
-— also nicht während des Einlasses.
+Stammdaten und rührt `redeemed_at` nicht an. Seit Migration 0006 löst er auch
+keinen unnötigen Neuabgleich mehr aus — `stammdaten_schreiben` schreibt nur
+Zeilen, die sich tatsächlich ändern, und meldet den Rest als „unverändert".
 
 ## Ticketliste pflegen — in der App
 
@@ -376,11 +492,21 @@ Namen nachtragen, Tickets ergänzen, Vermerke setzen: Das geht in der App
 selbst, ohne Terminal und **ohne Zugang zum Supabase-Dashboard**. Wer das
 übernehmen soll, bekommt nur ein Passwort.
 
+Nicht als Klartext in den Befehl schreiben — sonst steht es danach in der
+Shell-History:
+
 ```bash
-npx supabase secrets set TICKETSCAN_ADMIN_PASSWORD='<das-verwaltungspasswort>'
+read -rs PW
+npx supabase secrets set TICKETSCAN_ADMIN_PASSWORD="$PW"
+unset PW
+
 npx supabase functions deploy session     --no-verify-jwt --use-api
 npx supabase functions deploy verwaltung  --no-verify-jwt --use-api
 ```
+
+Ohne Terminal geht das Setzen des Passworts auch im Dashboard unter *Project
+Settings → Edge Functions → Secrets*, oder das Ausrollen beider Funktionen
+über „Backend ohne Terminal veröffentlichen" weiter oben.
 
 Dieses Passwort geht durch dasselbe Feld wie das Eventpasswort. Wer es
 eingibt, findet unter *Übersicht* zusätzlich den Abschnitt **Ticketliste
@@ -469,10 +595,10 @@ Einzelheiten und den Grenzen (die Kamera lässt sich damit nicht prüfen).
 
 Der Reihe nach. Jeder Punkt hat oben einen Abschnitt.
 
-- [ ] **Alle vier Endpunkte ausgerollt** — `session`, `scans`, `changes`,
-      `stats`, dazu `verwaltung`, falls die Liste in der App gepflegt wird.
-      `stats` wurde am häufigsten vergessen (Abschnitt 5).
-- [ ] **Alle Migrationen eingespielt**, `0001` bis `0005` (Abschnitt 3).
+- [ ] **Alle fünf Endpunkte ausgerollt** — `session`, `scans`, `changes`,
+      `stats`, `verwaltung`. `stats` wurde am häufigsten vergessen
+      (Abschnitt 5).
+- [ ] **Alle Migrationen eingespielt**, `0001` bis `0006` (Abschnitt 3).
 - [ ] **Supabase-Projekt kann nicht einschlafen.** Im kostenlosen Tarif
       pausiert Supabase Projekte nach einer Woche ohne Aktivität — dann
       scheitern Anmeldung, Einrichtung und Abgleich aller Geräte. Am Vortag im
@@ -488,11 +614,14 @@ Der Reihe nach. Jeder Punkt hat oben einen Abschnitt.
 - [ ] **Service-Role-Schlüssel rotiert**, falls er je in einem Chat, einer
       Mail oder einem Terminalprotokoll stand.
 - [ ] **Echte Ticketliste importiert** und der Testlauf mit
-      `TICKETSCAN_ERWARTE=<anzahl>` grün (Abschnitte 6 und 7).
+      `TICKETSCAN_ERWARTE=<anzahl>` grün — das ist der letzte Testlauf am
+      Vorabend (Abschnitte 6 und 7).
+- [ ] **Testgeräte aufgeräumt** (Abschnitt „Testgeräte aufräumen"). Erst
+      **nachdem** der letzte Testlauf oben gelaufen ist — sonst legt genau
+      dieser Lauf das aufgeräumte Testgerät wieder an.
 - [ ] **Alle Geräte zurückgesetzt und neu eingerichtet**, wenn vorher mit der
       Testliste gearbeitet wurde (Abschnitt „Nach der Generalprobe").
 - [ ] **Durchlauf `scripts/e2e` grün**, 24 von 24.
-- [ ] **Testgeräte aufgeräumt** (Abschnitt „Testgeräte aufräumen").
 - [ ] **Generalprobe** mit echten Tickets an echten Geräten, im Dunkeln.
 - [ ] **Bändchenstand einmal eingetragen**, damit die Gegenrechnung von Beginn
       an eine Grundlage hat.

@@ -5,8 +5,22 @@
 // Lücken im Bereich. Geschrieben wird erst mit --commit, damit sich ein
 // kaputter Export nicht unbemerkt in die Datenbank schiebt.
 //
+// Seit Migration 0006 läuft der Schreibweg über die Datenbankfunktion
+// `stammdaten_schreiben`, nicht mehr über einen Upsert auf der Tabelle
+// direkt. Zwei Gründe:
+//
+//   - Leere Zellen werden nicht mehr mitgesendet, sondern als fehlender
+//     Schlüssel weggelassen. Ein Upsert hätte eine leere Zelle als „auf leer
+//     setzen" verstanden — ein erneuter Import mit einer unvollständig
+//     ausgefüllten Liste hätte damit in der App nachgetragene Namen und
+//     Vermerke wieder gelöscht. Wer bewusst leeren will, macht das einzeln in
+//     der App (siehe docs/ticketliste-pflegen.md).
+//   - Neue Nummern brauchen eine ausdrückliche Freigabe (--neu-anlegen), und
+//     jede echte Änderung landet im Änderungsprotokoll (ticket_changes).
+//
 //   node scripts/import-tickets.mjs data/tickets.sample.csv
 //   node scripts/import-tickets.mjs data/tickets.csv --commit
+//   node scripts/import-tickets.mjs data/tickets.csv --commit --neu-anlegen
 
 import { readFileSync } from "node:fs";
 import { argv, env, exit, stderr, stdout } from "node:process";
@@ -14,9 +28,10 @@ import { keyFromCli, looksMangled, refFromUrl } from "./supabase-key.mjs";
 
 const file = argv[2];
 const commit = argv.includes("--commit");
+const neuAnlegen = argv.includes("--neu-anlegen");
 
 if (!file) {
-  stderr.write("Aufruf: node scripts/import-tickets.mjs <datei.csv> [--commit]\n");
+  stderr.write("Aufruf: node scripts/import-tickets.mjs <datei.csv> [--commit] [--neu-anlegen]\n");
   exit(1);
 }
 
@@ -58,11 +73,26 @@ function splitCsv(text) {
   return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
 }
 
+// Die einzigen Spalten, die die Datenbankfunktion versteht. Eine unbekannte
+// Spalte — etwa ein Tippfehler oder ein Exportfeld aus dem Vorverkaufssystem,
+// das hier niemand erwartet — soll auffallen, statt still ignoriert zu
+// werden.
+const ERLAUBTE_SPALTEN = ["code", "holder_name", "category", "note"];
+
 function parseCsv(text) {
   const rows = splitCsv(text);
   if (rows.length < 2) throw new Error("Die Datei enthält keine Datenzeilen.");
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
+
+  const unbekannt = header.filter((h) => !ERLAUBTE_SPALTEN.includes(h));
+  if (unbekannt.length) {
+    throw new Error(
+      `Unbekannte Spalte(n) in der Kopfzeile: ${unbekannt.join(", ")}. ` +
+      `Erlaubt sind ausschließlich: ${ERLAUBTE_SPALTEN.join(", ")}.`,
+    );
+  }
+
   const codeAt = header.indexOf("code");
   if (codeAt === -1) throw new Error("Es fehlt eine Spalte `code`.");
 
@@ -79,12 +109,24 @@ function parseCsv(text) {
     };
     const code = (cells[codeAt] ?? "").trim();
     if (!code) throw new Error(`Zeile ${i + 2}: leere Ticketnummer.`);
-    return {
-      code,
-      holder_name: value("holder_name") || null,
-      category: value("category") || "Festival-Ticket",
-      note: value("note") || null,
+
+    // Rohwerte, ausschließlich für die Vorabprüfung und die Anzeige unten —
+    // dort soll eine leere Zelle sichtbar leer bleiben.
+    const raw = {
+      holder_name: value("holder_name"),
+      category: value("category"),
+      note: value("note"),
     };
+
+    // Für den Schreibweg zählt nur, was tatsächlich in der Zelle steht: ein
+    // fehlender Schlüssel heißt „unverändert lassen", eine leere Zelle wird
+    // deshalb NICHT mitgeschickt. Nur `code` ist immer da.
+    const zeile = { code };
+    if (raw.holder_name) zeile.holder_name = raw.holder_name;
+    if (raw.category) zeile.category = raw.category;
+    if (raw.note) zeile.note = raw.note;
+
+    return { code, raw, zeile };
   });
 }
 
@@ -156,8 +198,8 @@ stderr.write([
   `Tickets:          ${rows.length}`,
   `Bereich:          ${[...codes].sort()[0]} – ${[...codes].sort().at(-1)}`,
   `Feste Vorsilbe:   ${prefix || "(keine)"} — Eingabe mit ${width - prefix.length} statt ${width} Stellen`,
-  `Kategorien:       ${[...new Set(rows.map((r) => r.category))].join(", ")}`,
-  `Personalisiert:   ${rows.some((r) => r.holder_name) ? "ja" : "nein"}`,
+  `Kategorien:       ${[...new Set(rows.map((r) => r.raw.category).filter(Boolean))].join(", ") || "(keine gesetzt)"}`,
+  `Personalisiert:   ${rows.some((r) => r.raw.holder_name) ? "ja" : "nein"}`,
   "",
 ].join("\n"));
 
@@ -170,12 +212,7 @@ if (errors.length) {
   exit(1);
 }
 
-if (!commit) {
-  stderr.write("Prüfung bestanden. Zum Schreiben erneut mit --commit aufrufen.\n");
-  exit(0);
-}
-
-// --------------------------------------------------------------- schreiben --
+// ------------------------------------------------------------------ Schlüssel --
 
 const url = env.SUPABASE_URL;
 if (!url) {
@@ -185,7 +222,9 @@ if (!url) {
 
 // Bevorzugt die angemeldete CLI. Das umgeht die fehleranfälligste Stelle der
 // Einrichtung: Das Dashboard zeigt den Schlüssel maskiert, und wer den
-// angezeigten Text markiert, kopiert Aufzählungspunkte.
+// angezeigten Text markiert, kopiert Aufzählungspunkte. Der Schlüssel wird
+// schon für den Probelauf gebraucht, nicht erst zum Schreiben — die
+// Datenbankfunktion läuft als service_role.
 let key = env.SUPABASE_SERVICE_ROLE_KEY;
 if (!key || looksMangled(key)) {
   if (key) stderr.write("Der gesetzte Schlüssel ist unbrauchbar — frage die Supabase-CLI…\n");
@@ -212,38 +251,168 @@ if (!key || looksMangled(key)) {
 // Rechteproblem aussieht statt nach der falschen Zutat.
 if (/^sb_publishable_/.test(key.trim()) || /"role":"anon"/.test(atob(key.split(".")[1] ?? "") || "")) {
   stderr.write(
-    "Das ist der öffentliche Schlüssel. Zum Schreiben braucht es den geheimen —\n" +
+    "Das ist der öffentliche Schlüssel. Es braucht den geheimen —\n" +
     "am einfachsten, indem du SUPABASE_SERVICE_ROLE_KEY gar nicht setzt und die\n" +
     "angemeldete Supabase-CLI ihn holen lässt.\n",
   );
   exit(1);
 }
 
-const CHUNK = 500;
-let written = 0;
+// -------------------------------------------------------------------- RPC --
 
-for (let i = 0; i < rows.length; i += CHUNK) {
-  const chunk = rows.slice(i, i + CHUNK);
-  const res = await fetch(`${url}/rest/v1/tickets?on_conflict=code`, {
+// Höchstens 500 Zeilen je Aufruf — dieselbe Grenze, die die Datenbankfunktion
+// selbst durchsetzt.
+const CHUNK = 500;
+const QUELLE = "import-skript";
+
+/**
+ * Ruft `stammdaten_schreiben` für einen Block auf. Wirft mit einer lesbaren
+ * Meldung, wenn PostgREST einen Fehler zurückgibt (etwa doppelte Nummern
+ * innerhalb des Blocks oder eine abweichende Stellenzahl gegenüber dem
+ * Bestand — beides prüft die Funktion selbst, HTTP 400 mit `message`).
+ */
+async function stammdatenSchreiben(zeilen, { probe, neuErlaubt }) {
+  const res = await fetch(`${url}/rest/v1/rpc/stammdaten_schreiben`, {
     method: "POST",
     headers: {
-      apikey: key,
-      authorization: `Bearer ${key}`,
-      "content-type": "application/json",
-      // Bestehende Einlösungen bleiben unangetastet: der Upsert schreibt nur
-      // die Stammdaten, nicht redeemed_at.
-      prefer: "resolution=merge-duplicates,return=minimal",
+      apikey: key, authorization: `Bearer ${key}`, "content-type": "application/json",
     },
-    body: JSON.stringify(chunk),
+    body: JSON.stringify({
+      p_zeilen: zeilen, p_quelle: QUELLE, p_neu_erlaubt: neuErlaubt, p_probe: probe,
+    }),
   });
+  const text = await res.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch { /* keine JSON-Antwort */ }
 
   if (!res.ok) {
-    stderr.write(`\nAbbruch bei Zeile ${i + 1}: ${res.status} ${await res.text()}\n`);
+    const message = data?.message ?? text.slice(0, 300);
+    throw new Error(`${res.status}: ${message}`);
+  }
+  return data;
+}
+
+function zeilenBereich(i, chunkLength) {
+  const start = i + 2; // Zeile 1 ist die Kopfzeile.
+  const end = start + chunkLength - 1;
+  return start === end ? `Zeile ${start}` : `Zeilen ${start}–${end}`;
+}
+
+// ------------------------------------------------------------- Probelauf --
+//
+// Läuft immer, auch ohne --commit — er ist die eigentliche Vorschau. Dabei
+// immer mit p_neu_erlaubt=true aufgerufen: Sonst bräche die Funktion schon
+// beim ersten neuen Ticket mit einem Fehler ab, und genau diese Information
+// — wie viele neue Nummern die Datei enthält — soll die Vorschau ja zeigen.
+// Geschrieben wird wegen p_probe=true so oder so nichts.
+
+let probeNeu = 0, probeGeaendert = 0, probeUnveraendert = 0;
+const neueCodes = [];
+const aenderungen = [];
+
+stderr.write("Probelauf gegen die Datenbank (nichts wird geschrieben)…\n");
+
+for (let i = 0; i < rows.length; i += CHUNK) {
+  const block = rows.slice(i, i + CHUNK);
+  let ergebnis;
+  try {
+    ergebnis = await stammdatenSchreiben(block.map((r) => r.zeile), {
+      probe: true, neuErlaubt: true,
+    });
+  } catch (err) {
+    stderr.write(`\nProbelauf abgebrochen bei ${zeilenBereich(i, block.length)}: ${err.message}\n`);
     exit(1);
   }
-  written += chunk.length;
-  stdout.write(`\r${written}/${rows.length} geschrieben`);
+  probeNeu += ergebnis.neu ?? 0;
+  probeGeaendert += ergebnis.geaendert ?? 0;
+  probeUnveraendert += ergebnis.unveraendert ?? 0;
+  for (const c of ergebnis.neueCodes ?? []) neueCodes.push(c);
+  for (const a of ergebnis.aenderungen ?? []) aenderungen.push(a);
+}
+
+stderr.write([
+  "",
+  "Ergebnis des Probelaufs:",
+  `  neu:          ${probeNeu}`,
+  `  geändert:     ${probeGeaendert}`,
+  `  unverändert:  ${probeUnveraendert}`,
+  "",
+].join("\n"));
+
+const namensaenderungen = aenderungen.filter((a) => a.feld === "holder_name");
+if (namensaenderungen.length) {
+  stderr.write(`  Namensänderungen (erste ${Math.min(20, namensaenderungen.length)} von ${namensaenderungen.length}):\n`);
+  for (const a of namensaenderungen.slice(0, 20)) {
+    stderr.write(`    ${a.code}: ${a.alt || "(leer)"} → ${a.neu || "(leer)"}\n`);
+  }
+  stderr.write("\n");
+}
+
+if (neueCodes.length) {
+  stderr.write(
+    `  Neue Nummern (erste ${Math.min(20, neueCodes.length)} von insgesamt ${probeNeu}): ` +
+    `${neueCodes.slice(0, 20).join(", ")}\n\n`,
+  );
+}
+
+if (!commit) {
+  stderr.write(
+    "Nur geprüft, nichts geschrieben. Zum Schreiben erneut mit --commit aufrufen" +
+    (probeNeu > 0 ? ", bei neuen Nummern zusätzlich mit --neu-anlegen.\n" : ".\n"),
+  );
+  exit(0);
+}
+
+// Neue Nummern brauchen eine ausdrückliche, zweite Zustimmung: Ein Import mit
+// vertauschter Kopfzeile oder einem falschen Nummernbereich soll nicht
+// stillschweigend 2000 neue Tickets anlegen.
+if (probeNeu > 0 && !neuAnlegen) {
+  stderr.write(
+    `Abbruch: ${probeNeu} neue Nummer(n) in der Datei, aber --neu-anlegen wurde\n` +
+    "nicht angegeben. Erneut aufrufen mit --commit --neu-anlegen, wenn das\n" +
+    "gewollt ist — oder die Datei prüfen, falls nicht.\n",
+  );
+  exit(1);
+}
+
+// -------------------------------------------------------------- schreiben --
+
+let geschriebeneBloecke = 0;
+let geschriebeneZeilen = 0;
+const gesamtBloecke = Math.ceil(rows.length / CHUNK);
+
+for (let i = 0; i < rows.length; i += CHUNK) {
+  const block = rows.slice(i, i + CHUNK);
+  let ergebnis;
+  try {
+    ergebnis = await stammdatenSchreiben(block.map((r) => r.zeile), {
+      probe: false, neuErlaubt: neuAnlegen,
+    });
+  } catch (err) {
+    stderr.write(
+      `\nAbbruch beim Schreiben von ${zeilenBereich(i, block.length)} ` +
+      `(Block ${geschriebeneBloecke + 1} von ${gesamtBloecke}): ${err.message}\n\n` +
+      (geschriebeneBloecke > 0
+        ? `Bereits geschrieben: ${geschriebeneBloecke} von ${gesamtBloecke} Blöcken ` +
+          `(${geschriebeneZeilen} Zeilen). Der Rest der Datei wurde nicht angefasst.\n`
+        : "Es wurde noch kein Block geschrieben.\n"),
+    );
+    exit(1);
+  }
+  if (!ergebnis.geschrieben) {
+    stderr.write(
+      `\nAbbruch bei ${zeilenBereich(i, block.length)}: Die Funktion meldet ` +
+      "geschrieben=false, obwohl kein Probelauf angefordert war.\n" +
+      (geschriebeneBloecke > 0
+        ? `Bereits geschrieben: ${geschriebeneBloecke} von ${gesamtBloecke} Blöcken.\n`
+        : ""),
+    );
+    exit(1);
+  }
+  geschriebeneBloecke++;
+  geschriebeneZeilen += block.length;
+  stdout.write(`\r${geschriebeneZeilen}/${rows.length} geschrieben`);
 }
 
 stdout.write("\n");
-stderr.write(`Fertig. ${written} Tickets importiert.\n`);
+stderr.write(`Fertig. ${geschriebeneZeilen} Tickets verarbeitet (${probeNeu} neu, ${probeGeaendert} geändert).\n`);

@@ -47,6 +47,15 @@ jobs:
             exit 1
           fi
 
+          # workflow_dispatch lässt sich von Hand auf JEDEN Zweig auslösen —
+          # ohne diese Prüfung könnte das einen anderen Stand veröffentlichen,
+          # auf dem DEPLOY-GESPERRT gar nicht liegt und die Sperre oben damit
+          # wirkungslos wäre.
+          if [ "${{ github.ref_name }}" != "claude/festival-ticket-scanner-app-20ycst" ]; then
+            echo "::error::Falscher Zweig für die Veröffentlichung: ${{ github.ref_name }} (erwartet: claude/festival-ticket-scanner-app-20ycst)"
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22

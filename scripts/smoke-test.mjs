@@ -17,7 +17,10 @@
 //   TICKETSCAN_ERWARTE=2305 \
 //   node scripts/smoke-test.mjs
 
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { env, exit, stderr } from "node:process";
+import { fileURLToPath } from "node:url";
 import { keyFromCli, looksMangled, refFromUrl } from "./supabase-key.mjs";
 
 const API = env.TICKETSCAN_API?.replace(/\/$/, "");
@@ -91,8 +94,22 @@ await step("Falsches Passwort wird abgelehnt", async () => {
  * nach letzter Meldung. Genau in der Liste, in der ein unerwartetes elftes
  * Gerät auffallen soll. Der Testlauf machte damit die Anzeige unbrauchbar,
  * die er absichern soll.
+ *
+ * Damit das auch über mehrere Läufe hinweg gilt — nicht nur innerhalb eines
+ * Durchlaufs —, landet die Kennung in `.smoke-test-device` im
+ * Repo-Wurzelverzeichnis und wird beim nächsten Aufruf mitgeschickt. Die
+ * Datei ist bewusst kein Geheimnis (siehe .gitignore), sie enthält nur eine
+ * UUID ohne Aussagekraft.
  */
+const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const DEVICE_FILE = join(REPO_ROOT, ".smoke-test-device");
+
 let deviceId = null;
+if (existsSync(DEVICE_FILE)) {
+  const stored = readFileSync(DEVICE_FILE, "utf8").trim();
+  if (/^[0-9a-f-]{36}$/i.test(stored)) deviceId = stored;
+}
+
 async function anmelden(label = "Smoke-Test") {
   const res = await fetch(`${API}/session`, {
     method: "POST",
@@ -100,7 +117,10 @@ async function anmelden(label = "Smoke-Test") {
     body: JSON.stringify({ password: PASSWORD, label, deviceId }),
   });
   const data = await res.json().catch(() => ({}));
-  if (res.ok && data.deviceId) deviceId = data.deviceId;
+  if (res.ok && data.deviceId) {
+    deviceId = data.deviceId;
+    try { writeFileSync(DEVICE_FILE, `${deviceId}\n`); } catch { /* nicht kritisch */ }
+  }
   return { res, data };
 }
 
@@ -216,6 +236,7 @@ if (session) {
   // außen ändern lässt. Ein Gerät, das sich mit dem gewöhnlichen
   // Eventpasswort angemeldet hat, darf das nicht — und das gehört gegen das
   // echte Backend geprüft, nicht nur gegen einen Prüfstand.
+  let verwaltungAusgerollt = false;
   await step("Eventpasswort darf die Liste nicht ändern", async () => {
     const res = await fetch(`${API}/verwaltung`, {
       method: "POST",
@@ -223,7 +244,10 @@ if (session) {
       body: JSON.stringify({ zeilen: [{ code: "00001", holderName: "Testlauf" }] }),
     });
     if (res.status === 404) return "Endpunkt nicht ausgerollt — Verwaltung ist abgeschaltet";
-    if (res.status === 403) return "403 wie erwartet";
+    if (res.status === 403) {
+      verwaltungAusgerollt = true;
+      return "403 wie erwartet";
+    }
     if (res.ok) {
       throw new Error(
         "DIE LISTE WURDE GEÄNDERT — jedes Gerät am Eingang kann die Ticketliste " +
@@ -232,6 +256,56 @@ if (session) {
     }
     throw new Error(`unerwartet ${res.status}: ${(await res.text()).slice(0, 120)}`);
   });
+
+  // Migration 0006: die Datenbankfunktion hinter der Verwaltung.
+  //
+  // Nur sinnvoll geprüft, wenn `verwaltung` überhaupt ausgerollt ist — dafür
+  // ist die Migration da, und ohne den Endpunkt bräuchte sie niemand. Ein
+  // Probelauf (p_probe=true) schreibt nichts, meldet aber verlässlich, ob es
+  // die Funktion in der Datenbank gibt. Der Aufruf läuft — wie von PostgREST
+  // für diese Funktion vorgesehen — mit dem Service-Role-Schlüssel, nicht mit
+  // dem Gerätetoken.
+  if (verwaltungAusgerollt) {
+    await step("Datenbankfunktion stammdaten_schreiben (Migration 0006) ist da", async () => {
+      let rpcKey = env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!rpcKey || looksMangled(rpcKey)) rpcKey = keyFromCli(refFromUrl(API), "secret");
+      if (!rpcKey) {
+        throw new Error(
+          "kein geheimer Schlüssel verfügbar — SUPABASE_SERVICE_ROLE_KEY setzen " +
+          "oder Supabase-CLI anmelden, dann liefert diese Prüfung ein Ergebnis",
+        );
+      }
+
+      const listRes = await fetch(`${API}/changes?offset=0`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const { tickets } = await listRes.json();
+      const irgendeinCode = tickets?.[0]?.code;
+      if (!irgendeinCode) throw new Error("kein Ticket zum Prüfen gefunden");
+
+      const REST = API.replace(/\/functions\/v1$/, "/rest/v1");
+      const res = await fetch(`${REST}/rpc/stammdaten_schreiben`, {
+        method: "POST",
+        headers: {
+          apikey: rpcKey, authorization: `Bearer ${rpcKey}`, "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          p_zeilen: [{ code: irgendeinCode }],
+          p_quelle: "smoke-test",
+          p_neu_erlaubt: false,
+          p_probe: true,
+        }),
+      });
+      if (res.status === 404) throw new Error("Migration 0006 fehlt");
+      if (!res.ok) {
+        // Alles außer 404 heißt: PostgREST kennt die Funktion. Ein 42501 etwa
+        // sagt nur, dass dieser Schlüssel hier nichts darf — für die Prüfung
+        // reicht das schon als Beleg, dass die Migration eingespielt ist.
+        return `Funktion vorhanden, Aufruf abgewiesen: ${res.status} ${(await res.text()).slice(0, 120)}`;
+      }
+      return "Probelauf erfolgreich, nichts geschrieben";
+    });
+  }
 
   await step("Abgelaufenes Token wird abgewiesen", async () => {
     const res = await fetch(`${API}/changes`, { headers: { authorization: "Bearer kaputt.kaputt" } });
@@ -379,7 +453,7 @@ if (session) {
       action: "undo", reason: "Testlauf",
     }]);
     if (r.result !== "ok") {
-      throw new Error(`Rücknahme scheiterte (${r.result}) — Migrationen 0003/0004 eingespielt?`);
+      throw new Error(`Rücknahme scheiterte (${r.result}) — Migrationen 0003/0004/0005 eingespielt?`);
     }
 
     const res = await fetch(`${API}/changes?offset=2000`, {

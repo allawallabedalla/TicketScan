@@ -173,3 +173,17 @@ alte App dagegen.
 - Migrationen 0001–0006 gegen Postgres 16 eingespielt, 0006 zweimal. `stammdaten_schreiben` in acht Fällen getestet: Probelauf, Änderung, fehlende Freigabe, Dubletten, Stellenzahl, bewusstes Leeren, Länge und unberührter Einlassstand.
 - Die Browser-Durchläufe gegen den nachgestellten Server sind grün: `run` 24/24, `anmeldung` 4/4, `verwaltung` 13/13 (davon 5 neue Prüfungen zu Stammdaten), `verwaltung-filter` 5/5. `verwaltung.mjs` war wie `run.mjs` seit der Wahl am Anfang veraltet und ist nachgezogen.
 - Die Edge Functions wurden nur auf Syntax geprüft (esbuild), nicht gegen echtes Supabase. Das übernimmt der Testlauf `smoke-test.mjs` nach dem Ausrollen.
+
+## Offen: Löschen erreicht die Geräte nicht
+
+Aufgefallen beim Kurztest am Gerät (2306 statt 2305 Tickets — ein
+berechtigter Nachtrag, `02306`). Der Abgleich überträgt nur geänderte Zeilen,
+keine gelöschten. Ein im Dashboard gelöschtes Ticket bleibt auf jedem Gerät,
+das es schon hat, gültig, bis es neu eingerichtet wird; der Server protokolliert
+den Scan dann als „unbekannt".
+
+Regel bis auf Weiteres: **Während Geräte im Einsatz sind, keine Tickets
+löschen.** Ein ungültiges Ticket stattdessen über die Verwaltung mit einem
+Vermerk („UNGÜLTIG — abweisen") versehen; der erscheint im Bestätigungsschritt.
+Eine saubere Lösung wäre ein Sperrvermerk als eigenes Feld, den der Scanner
+wie „unbekannt" behandelt.

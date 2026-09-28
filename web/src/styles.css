@@ -567,8 +567,8 @@ b { font-weight: 650; }
 
 .cam-source {
   position: absolute; left: 16px; right: 16px; bottom: 10px;
-  text-align: center; font-size: .74rem; color: #fff; opacity: .6;
-  font-variant-numeric: tabular-nums;
+  text-align: center; font-size: .74rem; color: #fff; opacity: .8;
+  font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px rgba(0,0,0,.7);
   text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
 }
 
@@ -787,3 +787,26 @@ a.btn { text-decoration: none; }
   font: inherit; font-size: .9rem; color: var(--accent); text-decoration: underline;
   text-underline-offset: 3px; cursor: pointer;
 }
+
+/* Vorschau beim Einfügen einer Liste: die ersten Zeilen so, wie sie
+   verstanden wurden, und was der Probelauf ändern würde. */
+.vorschau {
+  width: 100%; border-collapse: collapse; font-size: .8rem; margin: 4px 0 12px;
+  table-layout: fixed;
+}
+.vorschau th, .vorschau td {
+  text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vorschau th { color: var(--muted); font-weight: 600; }
+.vorschau i { color: var(--muted); }
+.aenderungen { margin: 6px 0 0; padding-left: 1.1em; }
+.check { display: block; margin-top: 10px; color: var(--ink); font-family: inherit; }
+.check input { width: 20px; height: 20px; vertical-align: middle; }
+
+/* Taschenlampe: oben rechts im Kamerabild, groß genug für Handschuhe. */
+.cam .torch {
+  position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px;
+  min-height: 44px; padding: 0 16px; z-index: 2;
+}
+.cam .torch.on { background: #FFE58A; color: #1B1B1B; }

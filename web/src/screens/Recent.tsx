@@ -11,12 +11,14 @@ import * as sync from "../lib/sync";
 export function Recent({ onClose }: { onClose: () => void }) {
   const [entries, setEntries] = useState<store.HistoryEntry[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
 
   const load = useCallback(() => void store.history().then(setEntries), []);
   useEffect(load, [load]);
 
   async function takeBack(entry: store.HistoryEntry) {
     setBusy(entry.scanId);
+    setFehler(null);
     try {
       // Die scanId der eigenen Einlösung mitgeben: Diese Rücknahme meint
       // genau diesen Vorgang. Kommt sie verspätet an, weil das Gerät im
@@ -24,6 +26,12 @@ export function Recent({ onClose }: { onClose: () => void }) {
       // inzwischen an einer anderen Tür entstanden ist.
       await sync.undo(entry.code, "Rücknahme am Gerät", entry.scanId);
       await store.amend(entry.scanId, { undoneAt: new Date().toISOString() });
+      load();
+    } catch (err) {
+      // Vorher lief ein Fehler hier still ins Leere: Der Knopf sprang zurück,
+      // und niemand wusste, ob zurückgenommen wurde.
+      console.error("Rücknahme fehlgeschlagen:", err);
+      setFehler("Das hat nicht geklappt. Bitte noch einmal versuchen.");
       load();
     } finally {
       setBusy(null);
@@ -37,24 +45,34 @@ export function Recent({ onClose }: { onClose: () => void }) {
         <button type="button" className="btn" onClick={onClose}>Schließen</button>
       </header>
 
+      {fehler && <p className="error" role="alert">{fehler}</p>}
+
       {entries.length === 0 && (
         <p className="lead">Auf diesem Gerät wurde noch nichts erfasst.</p>
       )}
 
       <ul className="entries">
-        {entries.map((entry) => (
+        {/* Die jüngsten 300 genügen am Eingang; ältere stehen im Protokoll. */}
+        {entries.slice(0, 300).map((entry) => (
           <li key={entry.scanId} className={entry.undoneAt ? "undone" : entry.verdict}>
             <span className="entry-code">{group(entry.code)}</span>
             <span className="entry-meta">
               {time(entry.at)}
               {" · "}
-              {entry.undoneAt
+              {entry.server === "conflict"
+                ? "eingelassen, aber ein anderes Gerät war schneller"
+                : entry.server === "ruecknahme-abgelehnt"
+                ? "Rücknahme abgelehnt — inzwischen anders eingelöst"
+                : entry.undoneAt
                 ? "zurückgenommen"
                 : entry.verdict === "ok" ? "eingelassen"
                 : entry.verdict === "duplicate" ? "war schon eingelöst"
                 : "unbekannt"}
             </span>
-            {entry.verdict === "ok" && !entry.undoneAt && (
+            {/* Kein Knopf, wo der Server anders entschieden hat: Diese
+                Einlösung hat dort nie gegolten, eine Rücknahme ginge ins
+                Leere oder träfe eine fremde. */}
+            {entry.verdict === "ok" && !entry.undoneAt && !entry.server && (
               <button
                 type="button" className="btn small"
                 disabled={busy === entry.scanId}

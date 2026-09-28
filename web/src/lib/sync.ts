@@ -9,7 +9,33 @@ import * as api from "./api";
 import * as store from "./store";
 import type { Session } from "./store";
 
-const MAX_BATCH = 50;
+/**
+ * Wie viele Vorgänge je Anfrage.
+ *
+ * Der Server bucht jeden Vorgang als eigenen Datenbankaufruf, nacheinander.
+ * Fünfzig davon bei einer zähen Datenbank (350 ms je Aufruf) plus Mobilfunk
+ * sprengen die Frist — und weil die Wiederholung genauso lange braucht, kam
+ * die Warteschlange nie mehr durch. Deshalb klein anfangen, nach einem
+ * Abbruch halbieren und erst mit Erfolgen wieder wachsen.
+ */
+const MAX_BATCH = 25;
+const MIN_BATCH = 5;
+let buendel = MAX_BATCH;
+
+/**
+ * So weit reicht jede Abfrage hinter den gespeicherten Zeiger zurück.
+ *
+ * Der Zeitstempel einer Zeile ist der BEGINN ihrer Transaktion, nicht der
+ * Moment, in dem sie sichtbar wird. Beginnt eine längere Transaktion (ein
+ * Block Stammdaten) vor einer kurzen (eine Einlösung), wird aber erst nach
+ * ihr sichtbar, steht der Zeiger eines Geräts, das dazwischen abgleicht,
+ * schon hinter ihren Zeilen — und sie kämen dort nie an. Die sechs früheren
+ * Durchgänge haben den Zeiger für dicht gehalten; er war es nicht.
+ *
+ * Eine Minute Rückgriff fängt das ab. Doppelt gelieferte Zeilen kosten
+ * nichts: putTickets schreibt idempotent, merge behält wartende Vorgänge.
+ */
+const RUECKGRIFF_MS = 60_000;
 
 /**
  * Was die Warteschlange noch offen hat, je Ticketnummer.
@@ -100,8 +126,14 @@ export async function bootstrap(
 
 /** Änderungen nachziehen. Läuft regelmäßig und nach jeder Netzwiederkehr. */
 export async function pullChanges(session: Session): Promise<number> {
-  let since = await store.get<string>("syncedUpto") ?? null;
-  let sinceCode = await store.get<string>("syncedUptoCode") ?? null;
+  const gespeichert = await store.get<string>("syncedUpto") ?? null;
+  // Mit Rückgriff beginnen und ohne Nummer — siehe RUECKGRIFF_MS. Innerhalb
+  // eines Durchlaufs wird danach normal über (Zeitstempel, Nummer)
+  // weitergeblättert.
+  let since: string | null = gespeichert && Number.isFinite(Date.parse(gespeichert))
+    ? new Date(Date.parse(gespeichert) - RUECKGRIFF_MS).toISOString()
+    : gespeichert;
+  let sinceCode: string | null = null;
   let changed = 0;
 
   // Zwei Riegel gegen eine Schleife, die nicht vorankommt.
@@ -150,9 +182,16 @@ export async function pullChanges(session: Session): Promise<number> {
       // page.cursor ist der Zeitstempel der letzten tatsächlich gelieferten
       // Zeile; kam nichts, fällt der Endpunkt auf `since` zurück und der
       // Zeiger bleibt stehen. Das ist die sichere Richtung.
-      if (page.cursor) await store.set("syncedUpto", page.cursor);
-      if (page.cursorCode) await store.set("syncedUptoCode", page.cursorCode);
-      else await store.remove("syncedUptoCode");
+      //
+      // Kam gar nichts, bleibt der gespeicherte Zeiger. Der Endpunkt meldet
+      // dann den angefragten Stand zurück — und das ist wegen des Rückgriffs
+      // eine Minute ÄLTER. Ihn zu übernehmen hieße, mit jedem leeren Abgleich
+      // eine Minute weiter zurückzuwandern.
+      if (page.tickets.length && page.cursor) {
+        await store.set("syncedUpto", page.cursor);
+        if (page.cursorCode) await store.set("syncedUptoCode", page.cursorCode);
+        else await store.remove("syncedUptoCode");
+      }
       break;
     }
 
@@ -191,11 +230,21 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
 
   const results: api.ScanResult[] = [];
 
-  for (let i = 0; i < all.length; i += MAX_BATCH) {
-    const batch = all.slice(i, i + MAX_BATCH);
-    const answers = await api.submitScans(session, batch);
+  for (let i = 0; i < all.length;) {
+    const batch = all.slice(i, i + buendel);
+    let answers: api.ScanResult[];
+    try {
+      answers = await api.submitScans(session, batch);
+    } catch (err) {
+      if (err instanceof api.Zeitueberschreitung) buendel = Math.max(MIN_BATCH, Math.floor(buendel / 2));
+      throw err;
+    }
+    buendel = Math.min(MAX_BATCH, buendel + 5);
+    i += batch.length;
 
     for (const answer of answers) {
+      const scan = batch.find((s) => s.scanId === answer.scanId);
+
       // Ein Fehler kommt beim nächsten Durchlauf erneut dran, statt verloren
       // zu gehen — aber nicht endlos. Ein dauerhaft scheiternder Vorgang ließ
       // die Statuszeile für immer auf „1 wartet" stehen und machte damit die
@@ -209,7 +258,6 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
         // zehn Geräte geleert, und die Statuszeile hätte danach „alles
         // gesendet" gemeldet. Grün über weggeworfenen Einlösungen ist das
         // Schlechteste, was diese Anzeige tun kann.
-        const scan = batch.find((s) => s.scanId === answer.scanId);
         if (!scan) continue;
         await store.requeue({ ...scan, attempts: (scan.attempts ?? 0) + 1 });
         continue;
@@ -218,14 +266,38 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
       await store.dequeue(answer.scanId);
       results.push(answer);
 
+      // Den Verlauf nachführen, wo der Server anders entschieden hat. Sonst
+      // bot er für eine Einlösung, die nie gegolten hat, „Zurücknehmen" an
+      // — und für eine abgelehnte Rücknahme stand dort „zurückgenommen".
+      if (scan?.action === "redeem" && answer.result === "conflict") {
+        await store.amend(answer.scanId, { server: "conflict" });
+      }
+      if (scan?.action === "undo" && answer.result === "unknown" && scan.undoOf) {
+        await store.amend(scan.undoOf, { undoneAt: undefined, server: "ruecknahme-abgelehnt" });
+      }
+
+      // Steht für diese Nummer noch ein weiterer Vorgang aus, gilt lokal
+      // dessen Absicht, nicht die Antwort auf den ersten. Beispiel
+      // „Trotzdem einlassen": Rücknahme und Einlösung stehen hintereinander;
+      // die Antwort auf die Rücknahme darf das Ticket nicht auf frei setzen,
+      // solange die Einlösung noch nicht durch ist.
+      if ((await store.queued()).some((s) => s.code === answer.code)) continue;
+
       const ticket = await store.getTicket(answer.code);
       if (!ticket) continue;
 
+      // Den Stand des Servers übernehmen, wenn er einen mitschickt — auch
+      // `null`. Vorher fiel ein fehlendes Feld auf den lokalen Wert zurück:
+      // Eine abgelehnte Rücknahme ließ das Ticket damit auf diesem Gerät
+      // dauerhaft frei, obwohl es auf dem Server eingelöst war. Und weil der
+      // Server die Zeile nicht angefasst hatte, lieferte auch der Abgleich
+      // sie nie nach. Eine Kopie des Tickets ging an diesem Gerät grün durch.
+      const stand = "redeemed_at" in answer;
       await store.putTickets([{
         ...ticket,
         pending: false,
-        redeemedAt: answer.redeemed_at ?? ticket.redeemedAt,
-        redeemedByDevice: answer.redeemed_by_device ?? ticket.redeemedByDevice,
+        redeemedAt: stand ? answer.redeemed_at ?? null : ticket.redeemedAt,
+        redeemedByDevice: stand ? answer.redeemed_by_device ?? null : ticket.redeemedByDevice,
       }]);
     }
   }
@@ -241,13 +313,9 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
  * genau dann auf, wenn jemand vor der Tür steht.
  */
 export async function undo(code: string, reason: string, undoOf?: string): Promise<void> {
-  const ticket = await store.getTicket(code);
-  if (ticket) {
-    await store.putTickets([{
-      ...ticket, redeemedAt: null, redeemedByDevice: null, pending: true,
-    }]);
-  }
-
+  // Erst einreihen, dann lokal freigeben. Andersherum stand nach einem
+  // Fehler dazwischen ein freies Ticket auf dem Gerät, ohne dass der Server
+  // je davon erfuhr — die Sichten liefen dauerhaft auseinander.
   await store.enqueue({
     scanId: crypto.randomUUID(),
     code,
@@ -260,6 +328,13 @@ export async function undo(code: string, reason: string, undoOf?: string): Promi
     offline: !(await hadContact()),
     attempts: 0,
   });
+
+  const ticket = await store.getTicket(code);
+  if (ticket) {
+    await store.putTickets([{
+      ...ticket, redeemedAt: null, redeemedByDevice: null, pending: true,
+    }]);
+  }
 }
 
 /** Bestand zuletzt wirklich Kontakt zum Server? Maßstab ist derselbe wie in
@@ -292,7 +367,17 @@ export function syncOnce(session: Session): Promise<api.ScanResult[]> {
 }
 
 async function durchlauf(session: Session): Promise<api.ScanResult[]> {
-  const results = await flushQueue(session);
+  // Scheitert das Senden, trotzdem holen. Vorher brach der ganze Durchlauf
+  // ab: Kam die Warteschlange nicht durch, erfuhr das Gerät auch nichts mehr
+  // von fremden Einlösungen — genau dann, wenn es am meisten darauf ankommt.
+  // Nur eine abgelaufene Anmeldung bricht sofort ab.
+  let results: api.ScanResult[] = [];
+  try {
+    results = await flushQueue(session);
+  } catch (err) {
+    if (err instanceof api.Unauthorized) throw err;
+    console.warn("Senden gescheitert, hole trotzdem:", err);
+  }
   await pullChanges(session);
 
   // Erst hier, nach beiden Schritten: Der Zeitpunkt belegt tatsächlichen

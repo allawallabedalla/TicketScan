@@ -134,11 +134,20 @@ function buildSteps(platform: Platform, installed: boolean, installNow: (() => v
             ) : null}
             <ol className="moves">
               <Move n={1} icon={<Icon.Menu />}>
-                Tippe oben rechts auf die <b>drei Punkte</b>.
+                {/* Samsung Internet hat das Menü unten rechts (drei
+                    Striche), Firefox die drei Punkte je nach Einstellung
+                    oben oder unten. Chrome-Begriffe allein führten dort
+                    in die Irre. */}
+                {/SamsungBrowser/.test(navigator.userAgent)
+                  ? <>Tippe <b>unten rechts</b> auf das Menü (drei Striche).</>
+                  : /Firefox/.test(navigator.userAgent)
+                    ? <>Tippe auf die <b>drei Punkte</b> — je nach Einstellung oben oder unten.</>
+                    : <>Tippe oben rechts auf die <b>drei Punkte</b>.</>}
               </Move>
               <Move n={2} icon={<Icon.Install />}>
-                Wähle <b>App installieren</b>. Je nach Telefon heißt es auch
-                „Zum Startbildschirm zufügen“.
+                Wähle <b>App installieren</b>. Je nach Browser heißt es auch
+                „Zum Startbildschirm hinzufügen“, „Seite hinzufügen zu →
+                Startbildschirm“ oder „Installieren“.
               </Move>
               <Move n={3}>
                 Bestätige mit <b>Installieren</b>.

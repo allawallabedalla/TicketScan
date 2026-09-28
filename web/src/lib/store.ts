@@ -1,15 +1,18 @@
-// Lokaler Speicher. Drei Bereiche: Einstellungen, die Ticketliste und die
-// Ausgangswarteschlange.
+// Lokaler Speicher. Vier Bereiche: Einstellungen, die Ticketliste, die
+// Ausgangswarteschlange und der Verlauf.
 //
-// Bewusst ohne Bibliothek: Die App braucht genau diese drei, und alles, was
+// Bewusst ohne Bibliothek: Die App braucht genau diese vier, und alles, was
 // nicht im Bundle liegt, muss auch nicht offline vorgehalten werden.
 
 const DB = "ticketscan";
-const VERSION = 2;
+// 3: Verlauf als eigener Bereich statt als ein Feld im kv-Bereich.
+const VERSION = 3;
 
-export type StoreName = "kv" | "tickets" | "outbox";
+export type StoreName = "kv" | "tickets" | "outbox" | "history";
 
 let handle: Promise<IDBDatabase> | null = null;
+/** Die Verbindung, auf die `handle` gerade zeigt. */
+let current: IDBDatabase | null = null;
 
 function open(): Promise<IDBDatabase> {
   handle ??= new Promise<IDBDatabase>((resolve, reject) => {
@@ -21,13 +24,39 @@ function open(): Promise<IDBDatabase> {
       // Schlüsselzugriff ist und keine Suche.
       if (!db.objectStoreNames.contains("tickets")) db.createObjectStore("tickets", { keyPath: "code" });
       if (!db.objectStoreNames.contains("outbox")) db.createObjectStore("outbox", { keyPath: "scanId" });
+
+      // Der Verlauf lag als EIN Feld im kv-Bereich: lesen, ändern, schreiben,
+      // in zwei getrennten Transaktionen. Zwei schnelle Vorgänge
+      // hintereinander — Duplikat angezeigt, sofort „Trotzdem einlassen" —
+      // überschrieben sich gegenseitig, und ein Eintrag war weg. Dazu die
+      // Grenze von 200: Am Haupteingang ließen sich frühere Einlösungen
+      // danach nicht mehr zurücknehmen. Jetzt ein Eintrag je Vorgang.
+      if (!db.objectStoreNames.contains("history")) {
+        const history = db.createObjectStore("history", { keyPath: "scanId" });
+        const kv = req.transaction?.objectStore("kv");
+        const alt = kv?.get("history");
+        if (alt) {
+          alt.onsuccess = () => {
+            for (const entry of (alt.result as HistoryEntry[] | undefined) ?? []) history.put(entry);
+            kv?.delete("history");
+          };
+        }
+      }
     };
     req.onsuccess = () => {
       const db = req.result;
       // Eine geschlossene Verbindung nicht weiter ausgeben. Das Betriebssystem
       // darf sie jederzeit kappen; der nächste Zugriff öffnet dann neu.
-      db.onclose = () => { handle = null; };
-      db.onversionchange = () => { db.close(); handle = null; };
+      //
+      // Nur zurücksetzen, wenn `handle` noch auf DIESE Verbindung zeigt —
+      // sonst verwirft eine alte, tote Verbindung beim Schließen die frisch
+      // geöffnete eines parallelen Aufrufs.
+      db.onclose = () => { if (current === db) { handle = null; current = null; } };
+      db.onversionchange = () => {
+        db.close();
+        if (current === db) { handle = null; current = null; }
+      };
+      current = db;
       resolve(db);
     };
     req.onerror = () => reject(req.error);
@@ -58,12 +87,18 @@ function isDeadConnection(err: unknown): boolean {
 }
 
 async function withReconnect<T>(attempt: (db: IDBDatabase) => Promise<T>): Promise<T> {
+  const db = await open();
   try {
-    return await attempt(await open());
+    return await attempt(db);
   } catch (err) {
     if (!isDeadConnection(err)) throw err;
-    try { (await handle)?.close(); } catch { /* ohnehin tot */ }
-    handle = null;
+    // Nur die eigene, tote Verbindung verwerfen. Hat ein paralleler Aufruf
+    // schon neu geöffnet, wird dessen gesunde Verbindung mitbenutzt.
+    if (current === db) {
+      try { db.close(); } catch { /* ohnehin tot */ }
+      handle = null;
+      current = null;
+    }
     return await attempt(await open());
   }
 }
@@ -205,27 +240,43 @@ export interface HistoryEntry {
   /** Zurückgenommen, samt Begründung. */
   undoneAt?: string;
   reason?: string;
+  /**
+   * Was der Server später dazu gesagt hat, sofern es von der lokalen
+   * Entscheidung abweicht.
+   *
+   * - `conflict`: Ein anderes Gerät hat dasselbe Ticket vorher eingelöst.
+   *   Diese Einlösung hat auf dem Server nie gegolten — eine Rücknahme würde
+   *   ins Leere gehen, der Knopf entfällt.
+   * - `ruecknahme-abgelehnt`: Die Rücknahme kam an, aber das Ticket war
+   *   inzwischen anders eingelöst. Es ist NICHT frei.
+   */
+  server?: "conflict" | "ruecknahme-abgelehnt";
 }
 
-const HISTORY_MAX = 200;
-
-/** Die letzten Vorgänge dieses Geräts. Grundlage für Rücknahme und Klärung. */
+/** Die Vorgänge dieses Geräts, neueste zuerst. Grundlage für Rücknahme und
+ *  Klärung. */
 export async function history(): Promise<HistoryEntry[]> {
-  return await get<HistoryEntry[]>("history") ?? [];
+  const all = await run<HistoryEntry[]>("history", "readonly",
+    (s) => s.getAll() as IDBRequest<HistoryEntry[]>);
+  return all.sort((a, b) => b.at.localeCompare(a.at));
 }
 
-export async function remember(entry: HistoryEntry): Promise<void> {
-  const all = await history();
-  all.unshift(entry);
-  await set("history", all.slice(0, HISTORY_MAX));
-}
+export const remember = (entry: HistoryEntry) =>
+  run("history", "readwrite", (s) => s.put(entry) as IDBRequest<IDBValidKey>);
 
-export async function amend(scanId: string, patch: Partial<HistoryEntry>): Promise<void> {
-  const all = await history();
-  const at = all.findIndex((e) => e.scanId === scanId);
-  if (at === -1) return;
-  all[at] = { ...all[at], ...patch };
-  await set("history", all);
+/** Ändert einen Eintrag — Lesen und Schreiben in EINER Transaktion. */
+export function amend(scanId: string, patch: Partial<HistoryEntry>): Promise<void> {
+  return withReconnect((db) => new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("history", "readwrite");
+    const s = tx.objectStore("history");
+    const req = s.get(scanId);
+    req.onsuccess = () => {
+      if (req.result) s.put({ ...req.result, ...patch });
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("Transaktion abgebrochen"));
+  }));
 }
 
 // ---------------------------------------------------------------- Sitzung --

@@ -99,7 +99,10 @@ export function Tickets({ onPick, onClose, onEdit }: {
     if (filter === "eingeloest") {
       rows = [...rows].sort((a, b) => (b.redeemedAt ?? "").localeCompare(a.redeemedAt ?? ""));
     } else {
-      rows = [...rows].sort((a, b) => a.code.localeCompare(b.code));
+      // Einfacher Vergleich statt localeCompare: Die Nummern sind gleich
+      // lang und rein numerisch, und 2305 Intl-Vergleiche je Tastendruck
+      // ließen die Suche auf älteren Android-Geräten stocken.
+      rows = [...rows].sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
     }
     return rows;
   }, [gesucht, filter]);

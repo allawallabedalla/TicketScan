@@ -28,6 +28,9 @@ async function anmelden(pw) {
   await p.waitForTimeout(1200);
   for(let i=0;i<12;i++){const w=p.getByRole("button",{name:/weiter|los geht|verstanden|schließen|überspringen|fertig/i});
     if(await w.count()===0)break; await w.first().click().catch(()=>{}); await p.waitForTimeout(200);}
+  // Seit der Wahl am Anfang steht davor „Einlass scannen" / „Ticketliste pflegen".
+  const wahl = p.getByRole("button", { name: pw === "herzberg2027" ? /Einlass scannen/ : /Ticketliste pflegen/ });
+  if (await wahl.count()) { await wahl.first().click(); await p.waitForTimeout(300); }
   await p.locator('input[type="password"]').first().fill(pw);
   await p.locator('input[type="text"]').first().fill("Nordeingang 2");
   await p.getByRole("button",{name:/anmelden|weiter|start/i}).first().click();
@@ -53,13 +56,19 @@ await p.screenshot({path:"./adm-01-ohne.png"});
 p = await neuerTab();
 await anmelden("nimda-test");
 await p.waitForTimeout(2000);
-await p.getByRole("button",{name:/Übersicht/i}).click();
-await p.waitForTimeout(1800);
-t = await p.locator("body").innerText();
-if (/Ticketliste pflegen/.test(t)) ok("Adminpasswort schaltet die Verwaltung frei");
-else bad("Verwaltung fehlt trotz Adminpasswort: "+t.slice(0,250));
-await p.getByRole("button",{name:/Liste bearbeiten/i}).click();
-await p.waitForTimeout(900);
+// Wer „Ticketliste pflegen" gewählt hat, landet seit der Wahl am Anfang
+// direkt in der Verwaltung — dann ist der Weg über die Übersicht nicht nötig.
+if (await p.locator(".tabs").count()) {
+  ok("Adminpasswort schaltet die Verwaltung frei (direkt geöffnet)");
+} else {
+  await p.getByRole("button",{name:/Übersicht/i}).click();
+  await p.waitForTimeout(1800);
+  t = await p.locator("body").innerText();
+  if (/Ticketliste pflegen/.test(t)) ok("Adminpasswort schaltet die Verwaltung frei");
+  else bad("Verwaltung fehlt trotz Adminpasswort: "+t.slice(0,250));
+  await p.getByRole("button",{name:/Liste bearbeiten/i}).click();
+  await p.waitForTimeout(900);
+}
 await p.screenshot({path:"./adm-02-verwaltung.png"});
 
 // 3) Einzelne Änderung
@@ -79,22 +88,43 @@ await p.screenshot({path:"./adm-03-einzeln.png"});
 // 4) Liste einfügen
 await p.locator(".tab", { hasText: /Liste einfügen/ }).click();
 await p.waitForTimeout(400);
-await p.locator("textarea").fill("code,name\n00100, Anna Weber\n00101; Ben Weber\n00102\tClara Meier");
+// Semikolon als Trennzeichen, und ein Name MIT Komma darin: Der wurde
+// früher an allen drei Trennzeichen zugleich zerlegt.
+await p.locator("textarea").fill("code;name\n00100; Anna Weber\n00101; Weber, Ben\n00102;;VIP");
 await p.waitForTimeout(600);
 t = await p.locator("body").innerText();
 if (/3 Zeilen erkannt/.test(t)) ok("Vorschau liest 3 Zeilen"); else bad("Vorschau: "+t.slice(0,300));
+if (/Weber, Ben/.test(t)) ok("Komma im Namen bleibt im Namen"); else bad("Komma zerlegt den Namen");
 await p.screenshot({path:"./adm-04-liste.png"});
-await p.evaluate(() => [...document.querySelectorAll("button")].find(b => /Zeilen übernehmen/.test(b.textContent))?.click());
+await p.evaluate(() => [...document.querySelectorAll("button")].find(b => /Zeilen prüfen/.test(b.textContent))?.click());
+await p.waitForTimeout(1500);
+t = await p.locator("body").innerText();
+if (/geändert/.test(t) && /unverändert/.test(t)) ok("Probelauf zeigt Änderungen"); else bad("Probelauf: "+t.slice(0,300));
+await p.evaluate(() => [...document.querySelectorAll("button")].find(b => /Änderungen übernehmen/.test(b.textContent))?.click());
 await p.waitForTimeout(3000);
 t = await p.locator("body").innerText();
-if (/3 Zeilen geschrieben/.test(t)) ok("Liste übernommen"); else bad("Übernehmen: "+t.slice(0,300));
+if (/Übernommen/.test(t)) ok("Liste übernommen"); else bad("Übernehmen: "+t.slice(0,300));
+
+// 4b) Leere Felder löschen nichts: Nur-Nummer-Zeile ändert Anna Weber nicht
+await p.locator("textarea").fill("00100\n00101");
+await p.waitForTimeout(400);
+await p.evaluate(() => [...document.querySelectorAll("button")].find(b => /Zeilen prüfen/.test(b.textContent))?.click());
+await p.waitForTimeout(1500);
+t = await p.locator("body").innerText();
+if (/0 geändert/.test(t.replace(/\s+/g, " "))) ok("Nur Nummern ändern nichts"); else bad("Leere Felder: "+t.slice(0,300));
+
+// 4c) Doppelte Nummer wird erkannt
+await p.locator("textarea").fill("00100; A\n00100; B");
+await p.waitForTimeout(400);
+t = await p.locator("body").innerText();
+if (/Doppelte Nummern/.test(t)) ok("Doppelte Nummer erkannt"); else bad("Dubletten: "+t.slice(0,300));
 
 // 5) Fehlende führende Nullen werden abgefangen
 await p.locator("textarea").fill("100, Anna\n00101, Ben");
 await p.waitForTimeout(600);
 t = await p.locator("body").innerText();
 if (/führenden Nullen/.test(t)) ok("Verlorene führende Nullen erkannt"); else bad("Nullenprüfung: "+t.slice(0,300));
-const gesperrt = await p.evaluate(() => [...document.querySelectorAll("button")].find(b => /Zeilen übernehmen/.test(b.textContent))?.disabled);
+const gesperrt = await p.evaluate(() => [...document.querySelectorAll("button")].find(b => /Zeilen prüfen/.test(b.textContent))?.disabled);
 if (gesperrt) ok("Übernehmen ist dann gesperrt"); else bad("Übernehmen nicht gesperrt");
 await p.screenshot({path:"./adm-05-nullen.png"});
 

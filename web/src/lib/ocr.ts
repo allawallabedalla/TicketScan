@@ -111,6 +111,10 @@ export interface Frame {
 /** Breite, auf die der Ausschnitt gebracht wird, bevor er gelesen wird. */
 const TARGET_WIDTH = 1000;
 
+/** Höchstbreite im ganzflächigen Durchgang. Bewusst über TARGET_WIDTH: Der
+ *  Durchgang soll die Nummer auch aus der Entfernung noch lesen können. */
+const MAX_BREITE_GANZ = 1600;
+
 const analysis = document.createElement("canvas");
 
 /**
@@ -290,7 +294,14 @@ export function prepareFrame(
   // das sollte behoben werden. Tesseract arbeitet zudem am besten bei einer
   // Zeichenhöhe um 30 bis 40 Bildpunkte; kleinere Vorlagen zu vergrößern hilft
   // tatsächlich, auch wenn dabei keine Information hinzukommt.
-  const scale = Math.min(Math.max(TARGET_WIDTH / crop.sw, 1), 3);
+  //
+  // Der ganzflächige Durchgang bekommt eine Obergrenze. Ohne sie ging das
+  // ganze Band bei einer 2560er-Kamera in voller Breite (rund 2200 Bildpunkte)
+  // durch Schwellwert und Erkennung, jedes zweite Bild, stundenlang — auf
+  // älteren Geräten Wärme, Akku und am Ende gedrosselte Erkennung.
+  const scale = narrow || found
+    ? Math.min(Math.max(TARGET_WIDTH / crop.sw, 1), 3)
+    : Math.min(Math.max(TARGET_WIDTH / crop.sw, 1), 3, MAX_BREITE_GANZ / crop.sw);
   canvas.width = Math.max(1, Math.round(crop.sw * scale));
   canvas.height = Math.max(1, Math.round(crop.sh * scale));
 
@@ -436,8 +447,45 @@ export async function readFrame(
   known: (code: string) => boolean,
 ): Promise<string[]> {
   const w = worker;
-  if (!w) return [];
+  if (!w) {
+    // Kein Worker — etwa nach einem Abbruch unten. Neu starten und dieses
+    // Bild auslassen; das nächste liest wieder.
+    void startOcr().catch(() => {});
+    return [];
+  }
 
-  const { data } = await w.recognize(canvas);
-  return extractCodes(data.text ?? "", width, known);
+  // Nach vielen Lesungen den Worker frisch aufsetzen. Ob der Speicher der
+  // WebAssembly-Laufzeit über Stunden wächst, ist am Schreibtisch nicht zu
+  // klären; ein Neustart alle paar tausend Bilder kostet eine Sekunde und
+  // nimmt die Frage vom Tisch.
+  if (++gelesen > NEUSTART_NACH) {
+    gelesen = 0;
+    void stopOcr().then(() => startOcr()).catch(() => {});
+    return [];
+  }
+
+  // Mit Frist. Hängt `recognize` — der Worker antwortet nicht mehr —, blieb
+  // die Leseschleife für immer beschäftigt: Kamerabild live, Suchrahmen da,
+  // nie wieder eine Erkennung, keine Meldung. Nach der Frist wird der Worker
+  // verworfen und beim nächsten Bild neu gestartet.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const frist = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("Texterkennung antwortet nicht")), LESE_FRIST_MS);
+  });
+  try {
+    const { data } = await Promise.race([w.recognize(canvas), frist]);
+    return extractCodes(data.text ?? "", width, known);
+  } catch (err) {
+    if (worker === w) void stopOcr();
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
+/** Eine Lesung dauert 200 bis 400 ms, auf alten Geräten bis etwa zwei
+ *  Sekunden. Was darüber liegt, hängt. */
+const LESE_FRIST_MS = 6_000;
+/** Etwa eine halbe Stunde Dauerbetrieb bei zwei Bildern je Sekunde. */
+const NEUSTART_NACH = 4_000;
+let gelesen = 0;

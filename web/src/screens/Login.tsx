@@ -71,12 +71,12 @@ export function Login({ onDone }: { onDone: (session: store.Session) => void }) 
 
       // Mit Zeitlimit: Hängt die Anfrage im Funkloch, soll der Rückfall auf
       // die Anmeldung ohne Netz greifen, statt ewig zu warten.
-      const res = await fetchMitFrist(`${API}/session`, {
+      // Antwortinhalt innerhalb derselben Frist lesen.
+      const { res, data } = await fetchMitFrist(`${API}/session`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ password, label: label.trim(), deviceId: known?.deviceId ?? null }),
-      });
-      const data = await res.json();
+      }, async (r) => ({ res: r, data: await r.json() }), 20_000);
 
       if (!res.ok) {
         // Bei einem Serverfehler denselben Weg wie ohne Netz gehen: Ein

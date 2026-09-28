@@ -62,6 +62,11 @@ export function Scanner({ session }: { session: store.Session }) {
   const [keypad, setKeypad] = useState(false);
   // Zählt hoch, wenn der Kamerastrom neu geöffnet werden muss.
   const [camEpoch, setCamEpoch] = useState(0);
+  // Taschenlampe, wo die Kamera eine hat und der Browser sie steuern lässt —
+  // Chrome auf Android ja, Safari auf dem iPhone nicht.
+  const track = useRef<MediaStreamTrack | null>(null);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
   const [typed, setTyped] = useState("");
   const [camError, setCamError] = useState<string | null>(null);
   const [width, setWidth] = useState(5);
@@ -230,6 +235,11 @@ export function Scanner({ session }: { session: store.Session }) {
         } catch { /* Gerät kann es nicht — dann eben nicht. */ }
         if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
         setCamError(null);
+        const videoTrack = stream.getVideoTracks()[0] ?? null;
+        track.current = videoTrack;
+        const caps = (videoTrack?.getCapabilities?.() ?? {}) as { torch?: boolean };
+        setTorchAvailable(Boolean(caps.torch));
+        setTorchOn(false);
         // Beendet das Betriebssystem den Strom — Anruf, andere App mit
         // Kamera, Sperre —, gleich neu öffnen, sobald die App vorn ist.
         stream.getVideoTracks()[0]?.addEventListener("ended", () => {
@@ -357,8 +367,13 @@ export function Scanner({ session }: { session: store.Session }) {
       // beendet iOS den Kamerastrom beim Wechsel in den Hintergrund; danach
       // bleibt das Bild schwarz, bis jemand die App neu startet. Ein beendeter
       // Strom wird deshalb neu angefordert.
-      const track = stream?.getVideoTracks()[0];
-      if (stream && (!track || track.readyState === "ended")) {
+      //
+      // Auch ein Strom, der gar nicht erst aufging, bekommt hier eine neue
+      // Chance: Hielt beim letzten Versuch eine andere App die Kamera (ein
+      // Anruf), blieb das Bild sonst schwarz, bis jemand zur Tastatur und
+      // zurück wechselte.
+      const aktiv = stream?.getVideoTracks()[0];
+      if (!stream || !aktiv || aktiv.readyState === "ended") {
         setCamEpoch((n) => n + 1);
         return;
       }
@@ -400,15 +415,21 @@ export function Scanner({ session }: { session: store.Session }) {
     if (!wl) return;
 
     let sentinel: Sentinel | null = null;
+    let requesting = false;
     let active = true;
     const acquire = async () => {
-      if (document.hidden || sentinel) return;
+      // `requesting` VOR dem await: Start und Sichtbarkeitswechsel kurz
+      // hintereinander holten sonst zwei Sperren, und nur eine wurde je
+      // freigegeben.
+      if (document.hidden || sentinel || requesting) return;
+      requesting = true;
       try {
         const s = await wl.request("screen");
         if (!active) { void s.release(); return; }
         sentinel = s;
         (s as unknown as EventTarget).addEventListener?.("release", () => { sentinel = null; });
       } catch { /* verweigert, etwa im Stromsparmodus */ }
+      finally { requesting = false; }
     };
     const onVisible = () => { if (!document.hidden) void acquire(); };
 
@@ -472,7 +493,9 @@ export function Scanner({ session }: { session: store.Session }) {
     }
   }
 
-  async function buche(decision: Decision) {
+  /** Bucht und gibt die scanId der neuen Einlösung zurück, oder null, wenn
+   *  das Ticket inzwischen eingelöst war. */
+  async function buche(decision: Decision): Promise<string | null> {
     const code = decision.code;
     const now = new Date().toISOString();
 
@@ -487,7 +510,7 @@ export function Scanner({ session }: { session: store.Session }) {
     if (ticket?.redeemedAt) {
       setView({ at: "result", decision: decide(code, ticket) });
       feedback.duplicate();
-      return;
+      return null;
     }
 
     if (ticket) {
@@ -512,6 +535,7 @@ export function Scanner({ session }: { session: store.Session }) {
 
     setView({ at: "result", decision: { ...decision, verdict: "ok" } });
     feedback.ok();
+    return scanId;
   }
 
   /**
@@ -540,8 +564,8 @@ export function Scanner({ session }: { session: store.Session }) {
       // die kleinere Nummer.
       await sync.undo(decision.code, "Ticket unversehrt, Einlösung freigegeben");
       const ticket = await store.getTicket(decision.code);
-      await buche({ ...decision, verdict: "ok", ticket });
-      await markiereZurueckgenommen(decision.code);
+      const neu = await buche({ ...decision, verdict: "ok", ticket });
+      await markiereZurueckgenommen(decision.code, neu);
     } catch (err) {
       // Ohne diesen Zweig verschwände der Fehler still: Der Aufruf ist ein
       // `void override(...)`, und eine Fehlergrenze fängt nichts, was aus
@@ -555,13 +579,30 @@ export function Scanner({ session }: { session: store.Session }) {
     }
   }
 
-  /** Trägt die Rücknahme im Verlauf dieses Geräts nach. */
-  async function markiereZurueckgenommen(code: string) {
+  /**
+   * Trägt die Freigabe beim FRÜHEREN Eintrag im Verlauf nach.
+   *
+   * Die Suche traf vorher die gerade neu angelegte Einlösung — sie steht
+   * zuoberst. Die gültige neue stand danach als „zurückgenommen" da, ohne
+   * Knopf, und die längst freigegebene alte bot weiter „Zurücknehmen" an.
+   */
+  async function markiereZurueckgenommen(code: string, ausser: string | null) {
     const eintrag = (await store.history()).find(
-      (e) => e.code === code && e.verdict === "ok" && !e.undoneAt,
+      (e) => e.code === code && e.verdict === "ok" && !e.undoneAt && e.scanId !== ausser,
     );
     if (eintrag) {
       await store.amend(eintrag.scanId, { undoneAt: new Date().toISOString() });
+    }
+  }
+
+  async function toggleTorch() {
+    const t = track.current;
+    if (!t) return;
+    try {
+      await t.applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] });
+      setTorchOn(!torchOn);
+    } catch {
+      setTorchAvailable(false);
     }
   }
 
@@ -603,6 +644,15 @@ export function Scanner({ session }: { session: store.Session }) {
           </p>
         )}
         {camError && <p className="cam-error">{camError}</p>}
+        {/* Nachts am Tor liefert die Erkennung ohne Licht nichts. */}
+        {torchAvailable && (
+          <button
+            type="button" className={torchOn ? "btn small torch on" : "btn small torch"}
+            aria-pressed={torchOn} onClick={() => void toggleTorch()}
+          >
+            {torchOn ? "Licht aus" : "Licht an"}
+          </button>
+        )}
       </div>
 
       {keypad && (
@@ -611,7 +661,15 @@ export function Scanner({ session }: { session: store.Session }) {
           onChange={setTyped}
           onSubmit={() => {
             const code = normalize(prefix + typed, width);
-            if (code) void evaluate(code);
+            // Aus einem Ereignisbehandler fängt keine Fehlergrenze etwas —
+            // ohne diesen Zweig passierte bei einem Speicherfehler schlicht
+            // nichts, und die Nummer galt als geprüft.
+            if (code) {
+              evaluate(code).catch((err) => {
+                console.error("Prüfen fehlgeschlagen:", err);
+                setActionError("Die Nummer ließ sich nicht prüfen. Bitte noch einmal.");
+              });
+            }
           }}
         />
       )}

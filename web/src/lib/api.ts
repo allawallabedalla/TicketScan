@@ -23,38 +23,65 @@ export class Unauthorized extends Error {}
  * Eine abgebrochene Anfrage ist harmlos: Scans sind über die scanId
  * idempotent, der nächste Takt sendet sie erneut.
  */
-export const FRIST_MS = 20_000;
+export const FRIST_MS = 30_000;
 
-/** fetch mit Zeitlimit. AbortController statt AbortSignal.timeout, weil
- *  Letzteres auf älteren iPhones fehlt. */
-export async function fetchMitFrist(
+/** Für eine volle Seite des Grundbestands (1000 Zeilen) im schwachen Netz. */
+export const FRIST_GRUNDBESTAND_MS = 60_000;
+
+export class Zeitueberschreitung extends Error {}
+
+/**
+ * fetch mit Zeitlimit — über Anfrage UND Antwortinhalt.
+ *
+ * Die erste Fassung hob die Frist auf, sobald die Kopfzeilen da waren. Das
+ * Lesen des Inhalts blieb ohne Grenze, und genau dort reißt es im Mobilfunk
+ * ab: Funkzellenwechsel mitten in einer Seite mit tausend Zeilen. Deshalb
+ * läuft `lesen` innerhalb der Frist, und der Abbruch trifft auch den Strom.
+ *
+ * AbortController statt AbortSignal.timeout, weil Letzteres auf älteren
+ * iPhones fehlt.
+ */
+export async function fetchMitFrist<T>(
   url: string,
-  init: RequestInit = {},
+  init: RequestInit,
+  lesen: (res: Response) => Promise<T>,
   ms = FRIST_MS,
-): Promise<Response> {
+): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    return await lesen(res);
+  } catch (err) {
+    if (ctrl.signal.aborted) throw new Zeitueberschreitung(`${url}: keine Antwort nach ${ms / 1000} s`);
+    throw err;
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function call<T>(path: string, session: Session, init: RequestInit = {}): Promise<T> {
-  const res = await fetchMitFrist(`${BASE}${path}`, {
+async function call<T>(
+  path: string, session: Session, init: RequestInit = {}, ms = FRIST_MS,
+): Promise<T> {
+  return await fetchMitFrist(`${BASE}${path}`, {
     ...init,
     headers: {
       ...init.headers,
       authorization: `Bearer ${session.token}`,
       "content-type": "application/json",
     },
-  });
-
-  // Abgelaufenes Token heißt: einmal neu anmelden, nicht: Daten wegwerfen.
-  if (res.status === 401 || res.status === 403) throw new Unauthorized(await res.text());
-  if (!res.ok) throw new Error(`${path}: ${res.status}`);
-  return await res.json() as T;
+  }, async (res) => {
+    // Abgelaufenes Token heißt: einmal neu anmelden, nicht: Daten wegwerfen.
+    if (res.status === 401 || res.status === 403) throw new Unauthorized(await res.text());
+    if (!res.ok) {
+      // Die Meldung des Servers durchreichen. Vorher kam nur „/verwaltung:
+      // 400" an — und „Zeile 12 hat 4 statt 5 Stellen" ging verloren.
+      let detail = "";
+      try { detail = ((await res.json()) as { error?: string }).error ?? ""; } catch { /* kein JSON */ }
+      throw new Error(detail || `${path}: ${res.status}`);
+    }
+    return await res.json() as T;
+  }, ms);
 }
 
 interface ChangesResponse {
@@ -99,7 +126,12 @@ export async function fetchChanges(session: Session, page: PageRequest = {}) {
   if (page.offset) params.set("offset", String(page.offset));
 
   const query = params.toString();
-  const data = await call<ChangesResponse>(`/changes${query ? `?${query}` : ""}`, session);
+  // Der Grundbestand kommt in vollen Seiten zu tausend Zeilen und bekommt
+  // deshalb mehr Zeit als ein Nachziehen, das meist leer ist.
+  const data = await call<ChangesResponse>(
+    `/changes${query ? `?${query}` : ""}`, session, {},
+    page.since ? FRIST_MS : FRIST_GRUNDBESTAND_MS,
+  );
 
   const tickets: Ticket[] = data.tickets.map((t) => ({
     code: t.code,
@@ -145,6 +177,11 @@ export async function fetchStats<T>(session: Session): Promise<T> {
   return await call<T>("/stats", session);
 }
 
+/**
+ * Eine Zeile Stammdaten. Ein Feld, das FEHLT, bleibt auf dem Server, wie es
+ * ist; ein Feld mit `null` wird geleert. Beim Einfügen einer Liste fehlen
+ * leere Zellen deshalb — vorher löschte jede leere Zelle einen Namen.
+ */
 export interface Stammdaten {
   code: string;
   holderName?: string | null;
@@ -152,18 +189,33 @@ export interface Stammdaten {
   note?: string | null;
 }
 
+/** Was ein Schreibvorgang bewirkt hat oder im Probelauf bewirken würde. */
+export interface StammdatenBericht {
+  neu: number;
+  geaendert: number;
+  unveraendert: number;
+  neueCodes: string[];
+  aenderungen: Array<{ code: string; feld: string; alt: string | null; neu: string | null }>;
+  geschrieben: boolean;
+}
+
 /**
  * Stammdaten schreiben — Nummer, Name, Kategorie, Vermerk.
  *
  * Der Einlassstand ist nicht dabei und kann es auch nicht sein: Der Endpunkt
- * nimmt `redeemed_at` gar nicht entgegen.
+ * nimmt `redeemed_at` gar nicht entgegen. `probe` schreibt nichts und zeigt
+ * nur, was sich ändern würde. Neue Nummern legt der Server nur mit
+ * `neuAnlegen` an — ein Tippfehler wie 12305 wäre sonst ein gültiges Ticket.
  */
-export async function saveTickets(session: Session, zeilen: Stammdaten[]): Promise<number> {
-  const { geschrieben } = await call<{ geschrieben: number }>("/verwaltung", session, {
+export async function saveTickets(
+  session: Session,
+  zeilen: Stammdaten[],
+  optionen: { probe?: boolean; neuAnlegen?: boolean } = {},
+): Promise<StammdatenBericht> {
+  return await call<StammdatenBericht>("/verwaltung", session, {
     method: "POST",
-    body: JSON.stringify({ zeilen }),
+    body: JSON.stringify({ zeilen, probe: !!optionen.probe, neuAnlegen: !!optionen.neuAnlegen }),
   });
-  return geschrieben;
 }
 
 /** Stand der ausgegebenen Bändchen melden. */

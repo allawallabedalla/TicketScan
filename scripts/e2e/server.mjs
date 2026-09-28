@@ -100,18 +100,39 @@ createServer(async (req, res) => {
     if (req.headers.authorization !== "Bearer admin-token") {
       return send(res, 403, { error: "Dieses Gerät darf die Liste nicht ändern" });
     }
-    const { zeilen } = await body(req);
+    // Nachbildung von stammdaten_schreiben (Migration 0006): ein fehlendes
+    // Feld bleibt, null leert; Probelauf; neue Nummern nur mit Freigabe.
+    const { zeilen, probe, neuAnlegen } = await body(req);
+    const codes = zeilen.map((z) => z.code);
+    const doppelt = codes.filter((c, i) => codes.indexOf(c) !== i);
+    if (doppelt.length) return send(res, 400, { error: `Doppelte Nummern in der Liste: ${doppelt.join(", ")}` });
+    const felder = { holderName: "holder_name", category: "category", note: "note" };
+    const bericht = { neu: 0, geaendert: 0, unveraendert: 0, neueCodes: [], aenderungen: [], geschrieben: !probe };
     for (const z of zeilen) {
+      if (z.code.length !== 5) return send(res, 400, { error: `„${z.code}" hat ${z.code.length} statt 5 Stellen.` });
       const t = tickets.get(z.code);
-      if (!t) { tickets.set(z.code, { code: z.code, holder_name: z.holderName ?? null,
-        category: z.category ?? "Festival-Ticket", note: z.note ?? null,
-        redeemed_at: null, redeemed_by_device: null, updated_at: stempel() }); continue; }
-      t.holder_name = z.holderName ?? null;
-      t.category = z.category ?? t.category;
-      t.note = z.note ?? null;
-      t.updated_at = stempel();
+      if (!t) {
+        bericht.neu++; bericht.neueCodes.push(z.code);
+        if (probe) continue;
+        if (!neuAnlegen) return send(res, 400, { error: `Nummer ${z.code} steht nicht in der Liste.` });
+        tickets.set(z.code, { code: z.code, holder_name: z.holderName ?? null,
+          category: z.category ?? "Festival-Ticket", note: z.note ?? null,
+          redeemed_at: null, redeemed_by_device: null, updated_at: stempel() });
+        continue;
+      }
+      let diff = false;
+      for (const [von, nach] of Object.entries(felder)) {
+        if (!(von in z)) continue;
+        const neu = nach === "category" ? (z[von] || "Festival-Ticket") : (z[von] || null);
+        if (neu === t[nach]) continue;
+        diff = true;
+        bericht.aenderungen.push({ code: z.code, feld: nach, alt: t[nach], neu });
+        if (!probe) t[nach] = neu;
+      }
+      if (diff) { bericht.geaendert++; if (!probe) t.updated_at = stempel(); }
+      else bericht.unveraendert++;
     }
-    return send(res, 200, { ok: true, geschrieben: zeilen.length });
+    return send(res, 200, bericht);
   }
 
   if (p === "/api/zaehler") return send(res, 200, { changes: changesAufrufe });
@@ -156,14 +177,20 @@ createServer(async (req, res) => {
       let r;
       if (!t) r = { scanId: s.scanId, code: s.code, result: "unknown" };
       else if (s.action === "undo") {
-        t.redeemed_at = null; t.redeemed_by_device = null;
-        t.updated_at = stempel();
-        r = { scanId: s.scanId, code: s.code, result: "ok", redeemed_at: null, redeemed_by_device: null };
+        // Wie 0005: Mit undoOf nur die gemeinte Einlösung zurücknehmen.
+        if (!t.redeemed_at || (s.undoOf && t.redeemed_scan !== s.undoOf)) {
+          r = { scanId: s.scanId, code: s.code, result: "unknown",
+                redeemed_at: t.redeemed_at, redeemed_by_device: t.redeemed_by_device };
+        } else {
+          t.redeemed_at = null; t.redeemed_by_device = null; t.redeemed_scan = null;
+          t.updated_at = stempel();
+          r = { scanId: s.scanId, code: s.code, result: "ok", redeemed_at: null, redeemed_by_device: null };
+        }
       } else if (t.redeemed_at) {
         r = { scanId: s.scanId, code: s.code, result: "duplicate",
               redeemed_at: t.redeemed_at, redeemed_by_device: t.redeemed_by_device };
       } else {
-        t.redeemed_at = stempel(); t.redeemed_by_device = "geraet-1";
+        t.redeemed_at = stempel(); t.redeemed_by_device = "geraet-1"; t.redeemed_scan = s.scanId;
         t.updated_at = t.redeemed_at;
         r = { scanId: s.scanId, code: s.code, result: "ok",
               redeemed_at: t.redeemed_at, redeemed_by_device: t.redeemed_by_device };

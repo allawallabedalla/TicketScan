@@ -136,7 +136,21 @@ function Einzeln({ session, scroller }: {
     setBusy(true);
     setFehler(null);
     try {
-      await api.saveTickets(session, [offen]);
+      // Nur senden, was sich gegenüber dem Stand beim Öffnen geändert hat.
+      // Vorher ging der ganze Datensatz aus der lokalen Kopie raus — hatte
+      // ein zweites Verwaltungsgerät inzwischen den Namen eingetragen, war er
+      // mit dem Vermerk von hier wieder weg.
+      const vorher = alle.find((t) => t.code === offen.code);
+      const zeile: api.Stammdaten = { code: offen.code };
+      if ((offen.holderName ?? null) !== (vorher?.holderName ?? null)) zeile.holderName = offen.holderName;
+      if (offen.category !== vorher?.category) zeile.category = offen.category || null;
+      if ((offen.note ?? null) !== (vorher?.note ?? null)) zeile.note = offen.note;
+      if (Object.keys(zeile).length === 1) {
+        setMeldung(`${offen.code}: nichts geändert.`);
+        setOffen(null);
+        return;
+      }
+      await api.saveTickets(session, [zeile]);
       // Sofort auch lokal, damit die Änderung nicht erst beim nächsten
       // Abgleich sichtbar wird.
       const vorhanden = await store.getTicket(offen.code);
@@ -271,25 +285,41 @@ function AlsListe({ session }: { session: store.Session }) {
   const [busy, setBusy] = useState(false);
   const [ergebnis, setErgebnis] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  // Der Probelauf zu genau diesem Text. Ändert sich der Text, verfällt er.
+  const [probe, setProbe] = useState<{ text: string; bericht: api.StammdatenBericht } | null>(null);
+  const [neuFreigabe, setNeuFreigabe] = useState(false);
 
   // Erst zeigen, was ankommen würde. Wer 2305 Zeilen einfügt, soll vorher
   // sehen, ob die führenden Nullen überlebt haben — der häufigste Fehler beim
   // Weg über eine Tabellenkalkulation.
   const gelesen = useMemo(() => lies(text), [text]);
+  const aktuell = probe && probe.text === text ? probe.bericht : null;
 
-  async function schreiben() {
+  const blocks = () => {
+    const out: api.Stammdaten[][] = [];
+    for (let i = 0; i < gelesen.zeilen.length; i += BLOCK) out.push(gelesen.zeilen.slice(i, i + BLOCK));
+    return out;
+  };
+
+  /** Probelauf über alle Blöcke: Was wäre neu, was würde sich ändern? */
+  async function pruefen() {
     setBusy(true);
     setFehler(null);
     setErgebnis(null);
+    setNeuFreigabe(false);
     try {
-      let n = 0;
-      for (let i = 0; i < gelesen.zeilen.length; i += BLOCK) {
-        n += await api.saveTickets(session, gelesen.zeilen.slice(i, i + BLOCK));
+      const summe: api.StammdatenBericht = {
+        neu: 0, geaendert: 0, unveraendert: 0, neueCodes: [], aenderungen: [], geschrieben: false,
+      };
+      for (const block of blocks()) {
+        const b = await api.saveTickets(session, block, { probe: true });
+        summe.neu += b.neu;
+        summe.geaendert += b.geaendert;
+        summe.unveraendert += b.unveraendert;
+        summe.neueCodes.push(...b.neueCodes);
+        summe.aenderungen.push(...b.aenderungen);
       }
-      // Den lokalen Bestand nachziehen, statt auf den Takt zu warten.
-      await sync.pullChanges(session).catch(() => {});
-      setErgebnis(`${n} Zeilen geschrieben.`);
-      setText("");
+      setProbe({ text, bericht: summe });
     } catch (err) {
       setFehler(err instanceof Error ? err.message : String(err));
     } finally {
@@ -297,23 +327,60 @@ function AlsListe({ session }: { session: store.Session }) {
     }
   }
 
+  async function schreiben() {
+    if (!aktuell) return;
+    setBusy(true);
+    setFehler(null);
+    setErgebnis(null);
+    let fertig = 0;
+    try {
+      for (const block of blocks()) {
+        await api.saveTickets(session, block, { neuAnlegen: neuFreigabe });
+        fertig += block.length;
+      }
+      // Den lokalen Bestand nachziehen, statt auf den Takt zu warten — über
+      // den regulären Abgleich, nicht an dessen Sperre vorbei. Zwei parallele
+      // Abgleiche konnten Tickets dauerhaft falsch auf „frei" stellen.
+      await sync.syncOnce(session).catch(() => {});
+      setErgebnis(`Übernommen: ${aktuell.neu} neu, ${aktuell.geaendert} geändert.`);
+      setText("");
+      setProbe(null);
+    } catch (err) {
+      // Blöcke laufen einzeln. Bricht einer ab — Funkloch, Zeitlimit —, sind
+      // die davor geschrieben. Das muss dastehen, sonst weiß niemand, ob die
+      // Liste halb oder gar nicht drin ist.
+      const grund = err instanceof Error ? err.message : String(err);
+      setFehler(fertig
+        ? `Nur die ersten ${fertig} von ${gelesen.zeilen.length} Zeilen sind übernommen. ${grund} ` +
+          "Noch einmal prüfen und übernehmen — schon geschriebene Zeilen gelten dann als unverändert."
+        : grund);
+      setProbe(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const gesperrt = busy || gelesen.zeilen.length === 0 || gelesen.fehler.length > 0
+    || gelesen.stellen.length > 1 || gelesen.doppelt.length > 0;
+
   return (
     <>
       <p className="lead">
-        Eine Zeile je Ticket. Nummer zuerst, dann der Name — getrennt durch
-        Komma, Semikolon oder Tabulator. Aus einer Tabellenkalkulation lässt
-        sich die Spalte direkt hierher kopieren.
+        Eine Zeile je Ticket: Nummer, Name, Kategorie, Vermerk. Getrennt durch
+        Tabulator, Semikolon oder Komma — je Liste eines davon. Aus einer
+        Tabellenkalkulation lässt sich der Bereich direkt hierher kopieren.
       </p>
 
-      <pre className="facts">{`00425, Anna Weber
-00426; Ben Weber
-00427\tClara Meier
-00428, , Crew
+      <pre className="facts">{`00425; Anna Weber
+00426; Weber, Ben; Crew
+00427; ; VIP
 00429`}</pre>
 
       <p className="aside tight">
-        Dritte Spalte ist die Kategorie, vierte ein Vermerk — beide dürfen
-        fehlen. Eine Zeile nur mit Nummer legt ein Ticket ohne Namen an.
+        <b>Leere Felder ändern nichts.</b> Zeile 3 setzt nur die Kategorie und
+        lässt den Namen stehen; Zeile 4 ändert gar nichts. Einen Namen leeren
+        geht nur einzeln. Enthält ein Name ein Komma, Semikolon statt Komma
+        trennen oder den Namen in Anführungszeichen setzen.
       </p>
 
       <label className="field">
@@ -333,12 +400,18 @@ function AlsListe({ session }: { session: store.Session }) {
           {gelesen.fehler.length > 3 && " …"}
         </p>
       )}
+      {gelesen.doppelt.length > 0 && (
+        <p className="error" role="alert">
+          Doppelte Nummern: {gelesen.doppelt.slice(0, 8).join(", ")}
+          {gelesen.doppelt.length > 8 && " …"}. Welche Zeile gilt? Bitte bereinigen.
+        </p>
+      )}
 
       {gelesen.zeilen.length > 0 && (
         <>
           <p className="verdict ok">
             {gelesen.zeilen.length} Zeilen erkannt, {gelesen.mitNamen} davon mit Namen.
-            {" "}Stellen: {gelesen.stellen.join(", ")}.
+            {" "}Getrennt durch {gelesen.trenner}. Stellen: {gelesen.stellen.join(", ")}.
           </p>
           {gelesen.stellen.length > 1 && (
             <p className="error" role="alert">
@@ -346,62 +419,168 @@ function AlsListe({ session }: { session: store.Session }) {
               führenden Nullen verlorengegangen. So nicht übernehmen.
             </p>
           )}
+          {/* Die ersten Zeilen so, wie sie verstanden wurden. Ein falsch
+              gewähltes Trennzeichen fällt hier auf und nicht erst am Einlass. */}
+          <table className="vorschau">
+            <thead><tr><th>Nummer</th><th>Name</th><th>Kategorie</th><th>Vermerk</th></tr></thead>
+            <tbody>
+              {gelesen.zeilen.slice(0, 5).map((z) => (
+                <tr key={z.code}>
+                  <td>{z.code}</td>
+                  <td>{z.holderName ?? <i>bleibt</i>}</td>
+                  <td>{z.category ?? <i>bleibt</i>}</td>
+                  <td>{z.note ?? <i>bleibt</i>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </>
+      )}
+
+      {aktuell && (
+        <div className="facts">
+          <p>
+            <b>{aktuell.neu}</b> neu · <b>{aktuell.geaendert}</b> geändert ·{" "}
+            <b>{aktuell.unveraendert}</b> unverändert
+          </p>
+          {aktuell.aenderungen.length > 0 && (
+            <ul className="aenderungen">
+              {aktuell.aenderungen.slice(0, 50).map((a, i) => (
+                <li key={i}>
+                  {a.code} · {feldname(a.feld)}: {a.alt ?? "—"} → <b>{a.neu ?? "—"}</b>
+                </li>
+              ))}
+              {aktuell.geaendert > 0 && aktuell.aenderungen.length >= 50 && <li>…</li>}
+            </ul>
+          )}
+          {aktuell.neu > 0 && (
+            <label className="check">
+              <input
+                type="checkbox" checked={neuFreigabe}
+                onChange={(e) => setNeuFreigabe(e.target.checked)}
+              />
+              {" "}{aktuell.neu} Nummern stehen noch nicht in der Liste
+              ({aktuell.neueCodes.slice(0, 6).join(", ")}{aktuell.neu > 6 ? " …" : ""}).
+              Ja, als neue Tickets anlegen — jede davon gilt danach am Einlass.
+            </label>
+          )}
+        </div>
       )}
 
       {ergebnis && <p className="verdict ok">{ergebnis}</p>}
       {fehler && <p className="error" role="alert">{fehler}</p>}
 
-      <button
-        type="button" className="btn primary wide"
-        disabled={busy || gelesen.zeilen.length === 0 || gelesen.fehler.length > 0
-          || gelesen.stellen.length > 1}
-        onClick={() => void schreiben()}
-      >
-        {busy ? "Wird geschrieben…" : `${gelesen.zeilen.length} Zeilen übernehmen`}
-      </button>
+      {!aktuell ? (
+        <button
+          type="button" className="btn primary wide" disabled={gesperrt}
+          onClick={() => void pruefen()}
+        >
+          {busy ? "Wird geprüft…" : `${gelesen.zeilen.length} Zeilen prüfen`}
+        </button>
+      ) : (
+        <button
+          type="button" className="btn primary wide"
+          disabled={gesperrt || (aktuell.neu > 0 && !neuFreigabe)
+            || aktuell.neu + aktuell.geaendert === 0}
+          onClick={() => void schreiben()}
+        >
+          {busy ? "Wird geschrieben…"
+            : aktuell.neu + aktuell.geaendert === 0 ? "Nichts zu übernehmen"
+            : `${aktuell.neu + aktuell.geaendert} Änderungen übernehmen`}
+        </button>
+      )}
 
       <p className="aside">
         Nicht während des Einlasses: Eine Änderung an vielen Zeilen lässt jedes
         Telefon den Bestand neu ziehen. Vormittags ja, Freitagabend nicht.
+        Jede Änderung steht mit altem Wert im Änderungsprotokoll.
       </p>
     </>
   );
 }
 
+function feldname(feld: string): string {
+  return feld === "holder_name" ? "Name" : feld === "category" ? "Kategorie"
+    : feld === "note" ? "Vermerk" : feld;
+}
+
+/**
+ * Zerlegt eine Zeile an EINEM Trennzeichen, mit Anführungszeichen wie in CSV.
+ *
+ * Vorher wurde an Komma, Semikolon und Tab zugleich getrennt. „Müller, Hans"
+ * aus einer Tabelle wurde damit zu Name „Müller" und Kategorie „Hans" — und
+ * genau das stand dann im Bestätigungsschritt am Einlass.
+ */
+function zerlege(zeile: string, trenner: string): string[] {
+  const teile: string[] = [];
+  let feld = "";
+  let inQuotes = false;
+  for (let i = 0; i < zeile.length; i++) {
+    const c = zeile[i];
+    if (inQuotes) {
+      if (c === '"' && zeile[i + 1] === '"') { feld += '"'; i++; }
+      else if (c === '"') inQuotes = false;
+      else feld += c;
+    } else if (c === '"' && feld.trim() === "") {
+      inQuotes = true;
+      feld = "";
+    } else if (c === trenner) {
+      teile.push(feld);
+      feld = "";
+    } else {
+      feld += c;
+    }
+  }
+  teile.push(feld);
+  return teile.map((t) => t.trim());
+}
+
 /** Liest den eingefügten Text, ohne etwas zu erraten. */
 function lies(text: string): {
-  zeilen: Zeile[]; fehler: string[]; mitNamen: number; stellen: number[];
+  zeilen: api.Stammdaten[]; fehler: string[]; doppelt: string[];
+  mitNamen: number; stellen: number[]; trenner: string;
 } {
-  const zeilen: Zeile[] = [];
+  const zeilen: api.Stammdaten[] = [];
   const fehler: string[] = [];
   const stellen = new Set<number>();
+  const gesehen = new Set<string>();
+  const doppelt = new Set<string>();
   let mitNamen = 0;
 
-  for (const roh of text.split(/\r?\n/)) {
-    const zeile = roh.trim();
-    if (!zeile) continue;
+  const roh = text.split(/\r?\n/).map((z) => z.trim()).filter(Boolean);
+  // Ein Trennzeichen je Liste. Tab zuerst: Aus einer Tabellenkalkulation
+  // kopiert ist alles tab-getrennt, und Kommas in Namen bleiben dann Namen.
+  const trenner = roh.some((z) => z.includes("\t")) ? "\t"
+    : roh.some((z) => z.includes(";")) ? ";"
+    : ",";
+
+  for (const zeile of roh) {
     // Kopfzeile einer Tabelle überspringen, statt sie als Ticket zu deuten.
     if (/^(code|nummer|ticket)\b/i.test(zeile)) continue;
 
-    const teile = zeile.split(/[;,\t]/).map((t) => t.trim());
+    const teile = zerlege(zeile, trenner);
     const code = teile[0];
-    if (!/^\d+$/.test(code)) {
+    if (!/^\d+$/.test(code) || teile.length > 4) {
       fehler.push(`„${zeile.slice(0, 24)}“`);
       continue;
     }
+    if (gesehen.has(code)) doppelt.add(code);
+    gesehen.add(code);
     stellen.add(code.length);
-    const name = teile[1] || null;
-    if (name) mitNamen++;
-    zeilen.push({
-      code,
-      holderName: name,
-      category: teile[2] || "Festival-Ticket",
-      note: teile[3] || null,
-    });
+
+    // Leere Zellen bleiben weg — der Server lässt fehlende Felder stehen.
+    const z: api.Stammdaten = { code };
+    if (teile[1]) { z.holderName = teile[1]; mitNamen++; }
+    if (teile[2]) z.category = teile[2];
+    if (teile[3]) z.note = teile[3];
+    zeilen.push(z);
   }
 
-  return { zeilen, fehler, mitNamen, stellen: [...stellen].sort((a, b) => a - b) };
+  return {
+    zeilen, fehler, doppelt: [...doppelt], mitNamen,
+    stellen: [...stellen].sort((a, b) => a - b),
+    trenner: trenner === "\t" ? "Tabulator" : trenner === ";" ? "Semikolon" : "Komma",
+  };
 }
 
 function group(code: string): string {

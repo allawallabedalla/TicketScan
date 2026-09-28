@@ -12,9 +12,11 @@ export async function collect(): Promise<string> {
   const [tickets, queued, lastSync, session, camera] = await Promise.all([
     store.countTickets().catch(() => -1),
     store.queueSize().catch(() => -1),
-    store.get<string>("lastSyncAt"),
-    store.get<store.Session>("session"),
-    store.get<string>("cameraSize"),
+    // Jeder Wert einzeln abgesichert: Scheiterte einer, blieben vorher alle
+    // Angaben leer — genau dann, wenn eine Rückmeldung am nötigsten ist.
+    store.get<string>("lastSyncAt").catch(() => undefined),
+    store.get<store.Session>("session").catch(() => undefined),
+    store.get<string>("cameraSize").catch(() => undefined),
   ]);
 
   const zeit = (iso?: string) =>

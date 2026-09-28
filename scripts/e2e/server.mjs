@@ -106,7 +106,7 @@ createServer(async (req, res) => {
     const codes = zeilen.map((z) => z.code);
     const doppelt = codes.filter((c, i) => codes.indexOf(c) !== i);
     if (doppelt.length) return send(res, 400, { error: `Doppelte Nummern in der Liste: ${doppelt.join(", ")}` });
-    const felder = { holderName: "holder_name", category: "category", note: "note" };
+    const felder = { holderName: "holder_name", category: "category", note: "note", gesperrt: "gesperrt" };
     const bericht = { neu: 0, geaendert: 0, unveraendert: 0, neueCodes: [], aenderungen: [], geschrieben: !probe };
     for (const z of zeilen) {
       if (z.code.length !== 5) return send(res, 400, { error: `„${z.code}" hat ${z.code.length} statt 5 Stellen.` });
@@ -124,7 +124,7 @@ createServer(async (req, res) => {
       for (const [von, nach] of Object.entries(felder)) {
         if (!(von in z)) continue;
         const neu = nach === "category" ? (z[von] || "Festival-Ticket") : (z[von] || null);
-        if (neu === t[nach]) continue;
+        if (neu === (t[nach] ?? null)) continue;
         diff = true;
         bericht.aenderungen.push({ code: z.code, feld: nach, alt: t[nach], neu });
         if (!probe) t[nach] = neu;
@@ -186,6 +186,9 @@ createServer(async (req, res) => {
           t.updated_at = stempel();
           r = { scanId: s.scanId, code: s.code, result: "ok", redeemed_at: null, redeemed_by_device: null };
         }
+      } else if (t.gesperrt && !t.redeemed_at) {
+        // Wie 0007: gesperrt wird nie eingelöst.
+        r = { scanId: s.scanId, code: s.code, result: "gesperrt", redeemed_at: null, redeemed_by_device: null };
       } else if (t.redeemed_at) {
         r = { scanId: s.scanId, code: s.code, result: "duplicate",
               redeemed_at: t.redeemed_at, redeemed_by_device: t.redeemed_by_device };

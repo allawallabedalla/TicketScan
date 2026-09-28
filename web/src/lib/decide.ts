@@ -7,7 +7,7 @@
 
 import type { Ticket } from "./store";
 
-export type Verdict = "ok" | "duplicate" | "unknown";
+export type Verdict = "ok" | "duplicate" | "unknown" | "gesperrt";
 
 export interface Decision {
   verdict: Verdict;
@@ -25,6 +25,9 @@ export function normalize(input: string, width: number): string | null {
 
 export function decide(code: string, ticket: Ticket | undefined): Decision {
   if (!ticket) return { verdict: "unknown", code };
+  // Vor „bereits eingelöst": Bei einem gesperrten Ticket hilft auch kein
+  // „Trotzdem einlassen" — der Grund steht auf dem Bildschirm.
+  if (ticket.gesperrt) return { verdict: "gesperrt", code, ticket };
   if (ticket.redeemedAt) return { verdict: "duplicate", code, ticket };
   return { verdict: "ok", code, ticket };
 }

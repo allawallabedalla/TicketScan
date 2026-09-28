@@ -28,7 +28,10 @@ const BLOCK = 500;
  *  älteren Gerät spürbar zäh. */
 const STEP = 80;
 
-type Zeile = { code: string; holderName: string | null; category: string; note: string | null };
+type Zeile = {
+  code: string; holderName: string | null; category: string; note: string | null;
+  gesperrt: string | null;
+};
 
 export function Verwaltung({ session, onClose }: {
   session: store.Session;
@@ -145,6 +148,7 @@ function Einzeln({ session, scroller }: {
       if ((offen.holderName ?? null) !== (vorher?.holderName ?? null)) zeile.holderName = offen.holderName;
       if (offen.category !== vorher?.category) zeile.category = offen.category || null;
       if ((offen.note ?? null) !== (vorher?.note ?? null)) zeile.note = offen.note;
+      if ((offen.gesperrt ?? null) !== (vorher?.gesperrt ?? null)) zeile.gesperrt = offen.gesperrt;
       if (Object.keys(zeile).length === 1) {
         setMeldung(`${offen.code}: nichts geändert.`);
         setOffen(null);
@@ -159,6 +163,7 @@ function Einzeln({ session, scroller }: {
         holderName: offen.holderName,
         category: offen.category,
         note: offen.note,
+        gesperrt: offen.gesperrt,
         redeemedAt: vorhanden?.redeemedAt ?? null,
         redeemedByDevice: vorhanden?.redeemedByDevice ?? null,
         pending: vorhanden?.pending,
@@ -202,6 +207,22 @@ function Einzeln({ session, scroller }: {
             onChange={(e) => setOffen({ ...offen, note: e.target.value || null })}
             placeholder="erscheint am Eingang gelb hinterlegt"
           />
+        </label>
+
+        {/* Statt Löschen. Ein gelöschtes Ticket erreicht die Geräte nie —
+            der Abgleich überträgt nur Änderungen —, ein gesperrtes schon:
+            Binnen etwa einer Minute weist jedes Gerät es ab. */}
+        <label className="field">
+          <span>Sperrvermerk</span>
+          <input
+            type="text" value={offen.gesperrt ?? ""} maxLength={200}
+            onChange={(e) => setOffen({ ...offen, gesperrt: e.target.value || null })}
+            placeholder="leer = gültig. Grund eintragen, um zu sperren"
+          />
+          <small>
+            Ein Grund hier sperrt das Ticket auf allen Geräten, etwa „doppelt
+            verkauft“. Feld leeren hebt die Sperre auf.
+          </small>
         </label>
 
         {fehler && <p className="error" role="alert">{fehler}</p>}
@@ -252,13 +273,15 @@ function Einzeln({ session, scroller }: {
               <span className={t.holderName ? "entry-name" : "entry-name none"}>
                 {t.holderName ?? "ohne Namen"}
               </span>
-              <span className="entry-meta">{t.category}{t.note ? ` · ${t.note}` : ""}</span>
+              <span className="entry-meta">
+                {t.gesperrt ? `GESPERRT: ${t.gesperrt} · ` : ""}{t.category}{t.note ? ` · ${t.note}` : ""}
+              </span>
             </span>
             <button
               type="button" className="btn small"
               onClick={() => setOffen({
                 code: t.code, holderName: t.holderName,
-                category: t.category, note: t.note,
+                category: t.category, note: t.note, gesperrt: t.gesperrt ?? null,
               })}
             >
               Ändern

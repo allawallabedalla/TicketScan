@@ -26,6 +26,7 @@ export function Recent({ onClose }: { onClose: () => void }) {
       // inzwischen an einer anderen Tür entstanden ist.
       await sync.undo(entry.code, "Rücknahme am Gerät", entry.scanId);
       await store.amend(entry.scanId, { undoneAt: new Date().toISOString() });
+      sync.jetztSenden();
       load();
     } catch (err) {
       // Vorher lief ein Fehler hier still ins Leere: Der Knopf sprang zurück,
@@ -59,7 +60,9 @@ export function Recent({ onClose }: { onClose: () => void }) {
             <span className="entry-meta">
               {time(entry.at)}
               {" · "}
-              {entry.server === "conflict"
+              {entry.server === "gesperrt"
+                ? "eingelassen, aber das Ticket war gesperrt — Einlassleitung informieren"
+                : entry.server === "conflict"
                 ? "eingelassen, aber ein anderes Gerät war schneller"
                 : entry.server === "ruecknahme-abgelehnt"
                 ? "Rücknahme abgelehnt — inzwischen anders eingelöst"
@@ -67,6 +70,7 @@ export function Recent({ onClose }: { onClose: () => void }) {
                 ? "zurückgenommen"
                 : entry.verdict === "ok" ? "eingelassen"
                 : entry.verdict === "duplicate" ? "war schon eingelöst"
+                : entry.verdict === "gesperrt" ? "gesperrt, abgewiesen"
                 : "unbekannt"}
             </span>
             {/* Kein Knopf, wo der Server anders entschieden hat: Diese

@@ -818,3 +818,9 @@ a.btn { text-decoration: none; }
    Scrollbereichs, und wer zum Knopf ganz unten gescrollt hatte, sah davon
    nichts. „Rückmeldung geben" tat scheinbar nichts. */
 .sheet.overlay .sheet.overlay { position: fixed; }
+
+/* Kamera wechseln: oben links, gegenüber der Taschenlampe. */
+.cam .kamera-wechsel {
+  position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 12px;
+  min-height: 44px; padding: 0 16px; z-index: 2;
+}

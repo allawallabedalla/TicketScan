@@ -272,6 +272,9 @@ export async function flushQueue(session: Session): Promise<api.ScanResult[]> {
       if (scan?.action === "redeem" && answer.result === "conflict") {
         await store.amend(answer.scanId, { server: "conflict" });
       }
+      if (scan?.action === "redeem" && answer.result === "gesperrt") {
+        await store.amend(answer.scanId, { server: "gesperrt" });
+      }
       if (scan?.action === "undo" && answer.result === "unknown" && scan.undoOf) {
         await store.amend(scan.undoOf, { undoneAt: undefined, server: "ruecknahme-abgelehnt" });
       }
@@ -387,3 +390,20 @@ async function durchlauf(session: Session): Promise<api.ScanResult[]> {
   await store.set("lastSyncAt", new Date().toISOString());
   return results;
 }
+
+/**
+ * Sofort abgleichen lassen, statt auf den nächsten Takt zu warten.
+ *
+ * Eine Einlösung lag bis zu acht Sekunden in der Warteschlange, bevor der Takt
+ * sie mitnahm — und so lange galt das Ticket an jedem anderen Gerät noch als
+ * frei. Das Fenster für einen Doppeleinlass war damit nicht die Laufzeit
+ * einer Anfrage, sondern ein ganzer Takt. Die App hört auf dieses Ereignis
+ * und stößt einen Durchlauf an; läuft schon einer, schließt sich der Aufruf
+ * ihm an (siehe syncOnce).
+ */
+export const JETZT_SENDEN = "ticketscan:jetzt-senden";
+
+export function jetztSenden(): void {
+  window.dispatchEvent(new Event(JETZT_SENDEN));
+}
+

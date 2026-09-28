@@ -78,10 +78,13 @@ export function App() {
     const timer = window.setInterval(() => void runSync(session), SYNC_INTERVAL);
     const onBack = () => void runSync(session);
     window.addEventListener("online", onBack);
+    // Nach jeder Einlösung und Rücknahme sofort, nicht erst im nächsten Takt.
+    window.addEventListener(sync.JETZT_SENDEN, onBack);
 
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("online", onBack);
+      window.removeEventListener(sync.JETZT_SENDEN, onBack);
     };
   }, [stage, session, runSync]);
 

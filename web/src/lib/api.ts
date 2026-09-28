@@ -90,6 +90,8 @@ interface ChangesResponse {
     holder_name: string | null;
     category: string;
     note: string | null;
+    /** Erst ab Migration 0007 vorhanden. */
+    gesperrt?: string | null;
     redeemed_at: string | null;
     redeemed_by_device: string | null;
     updated_at: string;
@@ -113,7 +115,7 @@ export interface PageRequest {
 export interface ScanResult {
   scanId: string;
   code: string;
-  result: "ok" | "duplicate" | "unknown" | "conflict" | "error";
+  result: "ok" | "duplicate" | "unknown" | "conflict" | "gesperrt" | "error";
   redeemed_at?: string | null;
   redeemed_by_device?: string | null;
 }
@@ -140,6 +142,7 @@ export async function fetchChanges(session: Session, page: PageRequest = {}) {
     holderName: t.holder_name || null,
     category: t.category,
     note: t.note,
+    gesperrt: t.gesperrt ?? null,
     redeemedAt: t.redeemed_at,
     redeemedByDevice: t.redeemed_by_device,
   }));
@@ -187,6 +190,8 @@ export interface Stammdaten {
   holderName?: string | null;
   category?: string | null;
   note?: string | null;
+  /** Sperrvermerk: Text sperrt das Ticket mit diesem Grund, null hebt auf. */
+  gesperrt?: string | null;
 }
 
 /** Was ein Schreibvorgang bewirkt hat oder im Probelauf bewirken würde. */

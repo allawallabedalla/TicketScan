@@ -149,6 +149,13 @@ export interface Ticket {
   holderName: string | null;
   category: string;
   note: string | null;
+  /**
+   * Sperrvermerk mit Grund, oder leer. Ein gesperrtes Ticket wird
+   * abgewiesen, egal ob eingelöst oder nicht. Löschen wäre der naheliegende
+   * Weg gewesen — aber ein gelöschtes Ticket erreicht die Geräte nie, der
+   * Abgleich überträgt nur Änderungen.
+   */
+  gesperrt?: string | null;
   redeemedAt: string | null;
   redeemedByDevice: string | null;
   /** Auf diesem Gerät eingelöst und noch nicht bestätigt. */
@@ -236,7 +243,7 @@ export interface HistoryEntry {
   scanId: string;
   code: string;
   at: string;
-  verdict: "ok" | "duplicate" | "unknown";
+  verdict: "ok" | "duplicate" | "unknown" | "gesperrt";
   /** Zurückgenommen, samt Begründung. */
   undoneAt?: string;
   reason?: string;
@@ -249,8 +256,10 @@ export interface HistoryEntry {
    *   ins Leere gehen, der Knopf entfällt.
    * - `ruecknahme-abgelehnt`: Die Rücknahme kam an, aber das Ticket war
    *   inzwischen anders eingelöst. Es ist NICHT frei.
+   * - `gesperrt`: Das Ticket war auf dem Server gesperrt, als die Einlösung
+   *   ankam — das Gerät hatte die Sperre noch nicht (Funkloch).
    */
-  server?: "conflict" | "ruecknahme-abgelehnt";
+  server?: "conflict" | "ruecknahme-abgelehnt" | "gesperrt";
 }
 
 /** Die Vorgänge dieses Geräts, neueste zuerst. Grundlage für Rücknahme und

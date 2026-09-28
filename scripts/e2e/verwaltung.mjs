@@ -119,6 +119,21 @@ await p.waitForTimeout(400);
 t = await p.locator("body").innerText();
 if (/Doppelte Nummern/.test(t)) ok("Doppelte Nummer erkannt"); else bad("Dubletten: "+t.slice(0,300));
 
+// 4d) Sperrvermerk: 00050 sperren, dann muss der Scanner es abweisen
+await p.locator(".tab", { hasText: /Einzeln/ }).click();
+await p.waitForTimeout(400);
+await p.getByPlaceholder(/Nummer oder Name suchen/i).fill("00050");
+await p.waitForTimeout(700);
+await p.getByRole("button",{name:/^Ändern$/i}).first().click();
+await p.waitForTimeout(500);
+await p.getByPlaceholder(/Grund eintragen/i).fill("doppelt verkauft");
+await p.getByRole("button",{name:/^Speichern$/i}).click();
+await p.waitForTimeout(1500);
+t = await p.locator("body").innerText();
+if (/00050 gespeichert/.test(t)) ok("Sperrvermerk gespeichert"); else bad("Sperrvermerk: "+t.slice(0,200));
+await p.locator(".tab", { hasText: /Liste einfügen/ }).click();
+await p.waitForTimeout(400);
+
 // 5) Fehlende führende Nullen werden abgefangen
 await p.locator("textarea").fill("100, Anna\n00101, Ben");
 await p.waitForTimeout(600);
@@ -142,6 +157,17 @@ t = await p.locator("body").innerText();
 if (/Jojo Testmann/.test(t)) ok("Neuer Name steht im Bestätigungsschritt");
 else bad("Name kommt nicht an: "+t.replace(/\n/g," ").slice(0,220));
 await p.screenshot({path:"./adm-06-scan.png"});
+
+
+// 7) Gesperrtes Ticket am Scanner
+await p.evaluate(() => [...document.querySelectorAll("button")].find(b => /^Weiter$|Abbrechen|Einlassen/.test(b.textContent))?.click());
+await p.waitForTimeout(600);
+for (const z of "0050") await p.locator(`.key:not(.soft):not(.go)`,{hasText:new RegExp(`^${z}$`)}).first().click();
+await p.locator(".key.go").click();
+await p.waitForTimeout(900);
+t = await p.locator("body").innerText();
+if (/Gesperrt/.test(t) && /doppelt verkauft/.test(t) && !/Trotzdem einlassen/.test(t)) ok("Gesperrtes Ticket wird abgewiesen, ohne Einlass-Knopf");
+else bad("Sperre am Scanner: "+t.slice(0,300));
 
 console.log(log.join("\n"));
 console.log("SEITENFEHLER:", fehler.length?fehler:"keine");

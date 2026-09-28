@@ -67,6 +67,16 @@ export function Scanner({ session }: { session: store.Session }) {
   const track = useRef<MediaStreamTrack | null>(null);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+  // Welche Kamera. Manche Android-Telefone mit mehreren Rückkameras liefern
+  // auf „environment" die Weitwinkelkamera ohne Autofokus — das Bild bleibt
+  // unscharf, und die Erkennung liest nie etwas. Dann hilft nur, gezielt eine
+  // andere zu wählen. Die Wahl bleibt auf dem Gerät gespeichert.
+  const [kameraId, setKameraId] = useState<string | null | undefined>(undefined);
+  const [kameras, setKameras] = useState<string[]>([]);
+
+  useEffect(() => {
+    void store.get<string>("kameraId").then((id) => setKameraId(id ?? null));
+  }, []);
   const [typed, setTyped] = useState("");
   const [camError, setCamError] = useState<string | null>(null);
   const [width, setWidth] = useState(5);
@@ -202,13 +212,16 @@ export function Scanner({ session }: { session: store.Session }) {
     } else {
       setView({ at: "result", decision });
       decision.verdict === "duplicate" ? feedback.duplicate() : feedback.unknown();
+      // Gesperrt klingt wie unbekannt: In beiden Fällen kommt niemand rein.
     }
   }, [session.deviceId]);
 
   // ------------------------------------------------------------------ Kamera --
 
   useEffect(() => {
-    if (keypad) return;
+    // Erst öffnen, wenn feststeht, ob eine Kamera gewählt wurde — sonst ginge
+    // die erste Anforderung an die falsche und würde gleich wieder beendet.
+    if (keypad || kameraId === undefined) return;
     let stream: MediaStream | null = null;
     let timer: number | undefined;
     let stopped = false;
@@ -218,13 +231,28 @@ export function Scanner({ session }: { session: store.Session }) {
         // Aus der Entfernung lesen zu können ist vor allem eine Frage der
         // Auflösung: Je mehr Bildpunkte auf der Nummer liegen, desto weiter
         // weg darf das Ticket sein. Safari liefert, was das Gerät hergibt.
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 2560 },
-            height: { ideal: 1440 },
-          },
-        });
+        const aufloesung = { width: { ideal: 2560 }, height: { ideal: 1440 } };
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: kameraId
+              ? { deviceId: { exact: kameraId }, ...aufloesung }
+              : { facingMode: { ideal: "environment" }, ...aufloesung },
+          });
+        } catch (err) {
+          // Die gespeicherte Kamera gibt es nicht mehr (anderes Gerät, neue
+          // Kennungen nach einem Update): Wahl vergessen, Standard nehmen.
+          if (!kameraId || (err instanceof DOMException && err.name === "NotAllowedError")) throw err;
+          void store.remove("kameraId");
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" }, ...aufloesung },
+          });
+        }
+
+        // Erst nach der Freigabe liefert der Browser die Liste vollständig.
+        try {
+          const alle = await navigator.mediaDevices.enumerateDevices();
+          setKameras(alle.filter((d) => d.kind === "videoinput" && d.deviceId).map((d) => d.deviceId));
+        } catch { /* ohne Liste kein Wechselknopf */ }
 
         // Dauerhafter Autofokus, wo verfügbar. Ohne ihn sucht die Kamera bei
         // jedem neuen Ticket neu.
@@ -393,7 +421,7 @@ export function Scanner({ session }: { session: store.Session }) {
       consensus.current.reset();
       wide.current.reset();
     };
-  }, [keypad, width, evaluate, camEpoch]);
+  }, [keypad, width, evaluate, camEpoch, kameraId]);
 
   /**
    * Bildschirm wach halten, solange der Scanner offen ist.
@@ -507,9 +535,11 @@ export function Scanner({ session }: { session: store.Session }) {
     // Doppeleinlösung längst im Speicher und warf sie mit der alten Kopie
     // wieder weg. Statt zu buchen wird deshalb erneut entschieden.
     const ticket = await store.getTicket(code);
-    if (ticket?.redeemedAt) {
-      setView({ at: "result", decision: decide(code, ticket) });
-      feedback.duplicate();
+    // Auch eine Sperre, die zwischen Lesen und Bestätigen angekommen ist.
+    if (ticket?.redeemedAt || ticket?.gesperrt) {
+      const neu = decide(code, ticket);
+      setView({ at: "result", decision: neu });
+      neu.verdict === "gesperrt" ? feedback.unknown() : feedback.duplicate();
       return null;
     }
 
@@ -532,6 +562,7 @@ export function Scanner({ session }: { session: store.Session }) {
     });
 
     setPending(await store.queueSize());
+    sync.jetztSenden();
 
     setView({ at: "result", decision: { ...decision, verdict: "ok" } });
     feedback.ok();
@@ -595,6 +626,15 @@ export function Scanner({ session }: { session: store.Session }) {
     }
   }
 
+  /** Zur nächsten Kamera wechseln und die Wahl merken. */
+  function andereKamera() {
+    if (kameras.length < 2) return;
+    const aktuell = track.current?.getSettings?.().deviceId ?? kameraId ?? kameras[0];
+    const naechste = kameras[(kameras.indexOf(aktuell) + 1) % kameras.length];
+    void store.set("kameraId", naechste);
+    setKameraId(naechste);
+  }
+
   async function toggleTorch() {
     const t = track.current;
     if (!t) return;
@@ -644,6 +684,14 @@ export function Scanner({ session }: { session: store.Session }) {
           </p>
         )}
         {camError && <p className="cam-error">{camError}</p>}
+        {kameras.length > 1 && (
+          <button
+            type="button" className="btn small kamera-wechsel"
+            onClick={andereKamera}
+          >
+            Andere Kamera
+          </button>
+        )}
         {/* Nachts am Tor liefert die Erkennung ohne Licht nichts. */}
         {torchAvailable && (
           <button
@@ -849,6 +897,27 @@ function Result({ decision, busy, onDone, onOverride }: {
           <p className="sheet-name">{decision.ticket.holderName}</p>
         )}
         <p className="sheet-meta">Abschnitt abreißen, Bändchen anlegen</p>
+      </div>
+    );
+  }
+
+  if (decision.verdict === "gesperrt") {
+    return (
+      <div className="sheet bad full overlay">
+        <span className="sheet-big"><Icon.Warning /></span>
+        <p className="sheet-label">Gesperrt</p>
+        <p className="sheet-code">{group(decision.code)}</p>
+        {decision.ticket?.holderName && (
+          <p className="sheet-name">{decision.ticket.holderName}</p>
+        )}
+        <p className="sheet-meta">{decision.ticket?.gesperrt}</p>
+        <p className="sheet-ask">
+          Dieses Ticket wurde von der Verwaltung gesperrt. Nicht einlassen —
+          an die Einlassleitung verweisen.
+        </p>
+        <div className="sheet-actions">
+          <button type="button" className="btn primary wide" onClick={onDone}>Weiter</button>
+        </div>
       </div>
     );
   }

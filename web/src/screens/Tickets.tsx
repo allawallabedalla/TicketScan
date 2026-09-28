@@ -51,7 +51,7 @@ export function Tickets({ onPick, onClose, onEdit }: {
       // gesendet" stand weiter da, obwohl längst gesendet war.
       let h = rows.length;
       for (const t of rows) {
-        const zeile = `${t.code}|${t.holderName ?? ""}|${t.redeemedAt ?? ""}|${t.pending ? 1 : 0}`;
+        const zeile = `${t.code}|${t.holderName ?? ""}|${t.redeemedAt ?? ""}|${t.pending ? 1 : 0}|${t.gesperrt ?? ""}`;
         for (let i = 0; i < zeile.length; i++) h = (Math.imul(h, 31) + zeile.charCodeAt(i)) | 0;
       }
       if (h === stand) return;
@@ -196,6 +196,7 @@ export function Tickets({ onPick, onClose, onEdit }: {
                 {ticket.holderName ?? "ohne Namen"}
               </span>
               <span className="entry-meta">
+                {ticket.gesperrt ? `GESPERRT: ${ticket.gesperrt} · ` : ""}
                 {ticket.redeemedAt
                   ? `eingelöst um ${time(ticket.redeemedAt)}${ticket.pending ? " · noch nicht gesendet" : ""}`
                   : "noch nicht eingelöst"}

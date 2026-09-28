@@ -174,7 +174,7 @@ alte App dagegen.
 - Die Browser-Durchläufe gegen den nachgestellten Server sind grün: `run` 24/24, `anmeldung` 4/4, `verwaltung` 13/13 (davon 5 neue Prüfungen zu Stammdaten), `verwaltung-filter` 5/5. `verwaltung.mjs` war wie `run.mjs` seit der Wahl am Anfang veraltet und ist nachgezogen.
 - Die Edge Functions wurden nur auf Syntax geprüft (esbuild), nicht gegen echtes Supabase. Das übernimmt der Testlauf `smoke-test.mjs` nach dem Ausrollen.
 
-## Offen: Löschen erreicht die Geräte nicht
+## Behoben: Löschen erreicht die Geräte nicht
 
 Aufgefallen beim Kurztest am Gerät (2306 statt 2305 Tickets — ein
 berechtigter Nachtrag, `02306`). Der Abgleich überträgt nur geänderte Zeilen,
@@ -187,3 +187,22 @@ löschen.** Ein ungültiges Ticket stattdessen über die Verwaltung mit einem
 Vermerk („UNGÜLTIG — abweisen") versehen; der erscheint im Bestätigungsschritt.
 Eine saubere Lösung wäre ein Sperrvermerk als eigenes Feld, den der Scanner
 wie „unbekannt" behandelt.
+
+**Nachtrag — behoben mit Migration 0007 (Sperrvermerk).** Ein Ticket wird
+nicht mehr gelöscht, sondern in der Verwaltung unter *Einzeln* mit einem
+Sperrvermerk versehen. Der ist eine Änderung und kommt deshalb auf allen
+Geräten an; dort erscheint das Ticket rot als „Gesperrt" mit dem Grund, ohne
+„Trotzdem einlassen". Der Server bucht ein gesperrtes Ticket auch dann nicht
+ein, wenn ein Gerät im Funkloch die Sperre noch nicht hatte, und protokolliert
+den Versuch als „gesperrt".
+
+Im selben Zug:
+
+- **Einlösungen gehen sofort raus**, nicht erst im nächsten Acht-Sekunden-
+  Takt. Das verkleinert das Fenster für Doppeleinlass zwischen zwei Geräten
+  mit Netz von bis zu acht Sekunden auf die Laufzeit einer Anfrage. Gemessen
+  im Testlauf: Warteschlange nach 1–2 s leer statt nach 9–10 s.
+- **„Andere Kamera"** im Scanner, sobald das Gerät mehrere Kameras hat. Für
+  Android-Telefone, deren Standard-Rückkamera nicht scharf stellt. Die Wahl
+  bleibt auf dem Gerät gespeichert.
+

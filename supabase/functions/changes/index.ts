@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
   const serverTime = new Date(Date.now() - 60_000).toISOString();
 
   const columns =
-    "code, holder_name, category, note, redeemed_at, redeemed_by_device, updated_at";
+    "code, holder_name, category, note, gesperrt, redeemed_at, redeemed_by_device, updated_at";
   let query = db.from("tickets").select(columns);
 
   if (since) {

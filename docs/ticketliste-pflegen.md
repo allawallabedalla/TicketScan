@@ -155,3 +155,16 @@ löschen. Löschen geht ausschließlich über das Supabase-Dashboard.
 Dieselbe App, unten **Liste**: alle Tickets, umschaltbar zwischen *Alle*,
 *Offen* und *Eingelöst*, durchsuchbar nach Nummer und Name. Am Laptop
 genauso wie am Telefon.
+
+## Ein Ticket sperren statt löschen
+
+In der App unter *Ticketliste pflegen → Einzeln* das Ticket öffnen und im Feld
+**Sperrvermerk** den Grund eintragen, etwa „doppelt verkauft". Nach dem
+Speichern weist jedes Gerät das Ticket binnen weniger Sekunden bis etwa einer
+Minute rot als „Gesperrt" ab und zeigt den Grund. Feld leeren hebt die Sperre
+wieder auf.
+
+Nicht löschen: Ein gelöschtes Ticket erreicht die Geräte nie — der Abgleich
+überträgt nur Änderungen —, und es bliebe dort gültig, bis jedes Gerät neu
+eingerichtet ist.
+

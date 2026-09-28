@@ -30,7 +30,11 @@ const db = createClient(
  *  Liste in einem Rutsch einzuspielen, klein genug für ein Mobilfunknetz. */
 const MAX_ZEILEN = 500;
 
-const FELDER = { holderName: "holder_name", category: "category", note: "note" } as const;
+const FELDER = {
+  holderName: "holder_name", category: "category", note: "note",
+  // Sperrvermerk (Migration 0007): Text = gesperrt mit diesem Grund, null = frei.
+  gesperrt: "gesperrt",
+} as const;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
